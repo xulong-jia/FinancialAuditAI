@@ -55,6 +55,10 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - 是否属于 MVP：是
 - Status: DONE
 
+### Notes
+
+- 2026-07-04: Docker Desktop 启动后，`docker compose config` 通过，PostgreSQL 容器实际启动验证通过，`pg_isready` 返回 accepting connections，`select 1` 查询成功，容器状态为 healthy。
+
 ### 阶段目标
 
 建立最小可运行工程骨架，支持后端、前端、数据库和本地 Docker Compose 启动。

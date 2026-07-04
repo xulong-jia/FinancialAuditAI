@@ -119,7 +119,7 @@
         "GET /health 返回正常",
         ".env.example 不包含真实密钥"
       ],
-      "notes": "Phase 0 completed: root config files, FastAPI health/config skeleton, SQLAlchemy/Alembic skeleton, React TypeScript Ant Design skeleton, Docker Compose, and health tests.",
+      "notes": "Phase 0 completed: root config files, FastAPI health/config skeleton, SQLAlchemy/Alembic skeleton, React TypeScript Ant Design skeleton, Docker Compose, and health tests. Docker Desktop started; docker compose config passed; PostgreSQL container startup verified; pg_isready returned accepting connections; select 1 query succeeded; container status healthy.",
       "blocked_reason": "",
       "updated_at": "2026-07-04"
     },

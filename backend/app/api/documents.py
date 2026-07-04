@@ -5,8 +5,14 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.document import DocumentPageRead, DocumentRead, ProcurementDocType
-from app.services import document_service, ocr_service, task_service
+from app.schemas.document import (
+    ClassificationRead,
+    DocumentPageRead,
+    DocumentRead,
+    DocumentUpdate,
+    ProcurementDocType,
+)
+from app.services import classification_service, document_service, ocr_service, task_service
 
 router = APIRouter(tags=["documents"])
 
@@ -39,9 +45,19 @@ def get_document(document_id: UUID, db: Session = Depends(get_db)):
     return document_service.get_document(db, document_id)
 
 
+@router.patch("/documents/{document_id}", response_model=DocumentRead)
+def update_document(document_id: UUID, payload: DocumentUpdate, db: Session = Depends(get_db)):
+    return classification_service.update_document_classification(db, document_id, payload)
+
+
 @router.post("/documents/{document_id}/ocr", response_model=DocumentRead)
 def run_ocr(document_id: UUID, db: Session = Depends(get_db)):
     return ocr_service.run_ocr(db, document_id)
+
+
+@router.post("/documents/{document_id}/classify", response_model=ClassificationRead)
+def classify_document(document_id: UUID, db: Session = Depends(get_db)):
+    return classification_service.classify_document(db, document_id)
 
 
 @router.get("/documents/{document_id}/pages", response_model=list[DocumentPageRead])

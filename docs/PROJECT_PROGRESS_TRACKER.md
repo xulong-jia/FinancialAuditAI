@@ -30,7 +30,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 0 | 项目初始化与工程骨架 | MVP | DONE | 可启动的 FastAPI、React、PostgreSQL、Docker Compose 骨架 |
 | Phase 1 | 任务中心与文件上传 | MVP | DONE | 采购任务创建、六类文件上传、文件落盘 |
 | Phase 2 | OCR / 文档解析 / 页级文本保存 | MVP | DONE | 页级文本、OCR blocks、document_pages |
-| Phase 3 | 文档分类 | MVP | TODO | 六类采购文件 doc_type、置信度、分类理由 |
+| Phase 3 | 文档分类 | MVP | DONE | 六类采购文件 doc_type、置信度、分类理由 |
 | Phase 4 | 字段抽取与 Schema 校验 | MVP | TODO | 六类采购字段、line_items、Pydantic 校验 |
 | Phase 5 | 采购业务归集 | MVP | TODO | business_key、document_relations |
 | Phase 6 | Rule Engine MVP | MVP | TODO | Python rule registry、六条采购规则、audit_results |
@@ -290,7 +290,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：文档分类
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 3 完成规则关键词 + 文件名启发式 `ClassificationService`、六类采购文档分类、低置信度 `unknown` / `need_review` 标记、人工修正文档类型、原始分类快照保留、分类 API、Task Center 分类展示与修正入口，以及后端分类测试。未实现 Phase 4 字段抽取或任何 Post-MVP 分类扩展。
 
 ### 阶段目标
 
@@ -298,62 +302,64 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `ClassificationService`。
-- [ ] 支持六类采购 doc_type。
-- [ ] 使用 OCR 文本和文件名进行分类。
-- [ ] 输出置信度、分类理由、候选类型。
-- [ ] 低置信度时标记需要复核。
+- [x] 实现 `ClassificationService`。
+- [x] 支持六类采购 doc_type。
+- [x] 使用 OCR 文本和文件名进行分类。
+- [x] 输出置信度、分类理由、候选类型。
+- [x] 低置信度时标记需要复核。
 
 ### 前端任务
 
-- [ ] 在文档列表展示 doc_type 和置信度。
-- [ ] 展示分类理由。
-- [ ] 提供人工修正文档类型入口。
-- [ ] 标记低置信度文档。
+- [x] 在文档列表展示 doc_type 和置信度。
+- [x] 展示分类理由。
+- [x] 提供人工修正文档类型入口。
+- [x] 标记低置信度文档。
 
 ### 数据库 / Migration 任务
 
-- [ ] 使用 `documents.doc_type`。
-- [ ] 使用 `documents.doc_type_confidence`。
-- [ ] 使用 `documents.classification_reason`。
-- [ ] 使用 `documents.review_status` 标记低置信度复核。
+- [x] 使用 `documents.doc_type`。
+- [x] 使用 `documents.doc_type_confidence`。
+- [x] 使用 `documents.classification_reason`。
+- [x] 使用 `documents.review_status` 标记低置信度复核。
+- [x] 使用 `documents.alternative_types` 保存候选类型。
+- [x] 使用 `documents.original_classification` 保存人工修正前的原始分类快照。
 
 ### API 任务
 
-- [ ] `POST /api/v1/documents/{document_id}/classify`。
-- [ ] `PATCH /api/v1/documents/{document_id}` 支持人工修正 doc_type。
+- [x] `POST /api/v1/documents/{document_id}/classify`。
+- [x] `PATCH /api/v1/documents/{document_id}` 支持人工修正 doc_type。
 
 ### 测试任务
 
-- [ ] 六类采购样例分类测试。
-- [ ] 低置信度阈值测试。
-- [ ] 人工修正 doc_type 测试。
-- [ ] 未 OCR 文档不允许分类或返回明确错误。
+- [x] 六类采购样例分类测试。
+- [x] 低置信度阈值测试。
+- [x] 人工修正 doc_type 测试。
+- [x] 未 OCR 文档不允许分类或返回明确错误。
 
 ### 验收标准
 
-- [ ] 六类采购文件可被分类。
-- [ ] 分类结果包含 doc_type、confidence、reason。
-- [ ] 低置信度进入复核队列或被标记为需要复核。
-- [ ] 人工修正分类不覆盖原始分类理由。
+- [x] 六类采购文件可被分类。
+- [x] 分类结果包含 doc_type、confidence、reason。
+- [x] 低置信度进入复核队列或被标记为需要复核。
+- [x] 人工修正分类不覆盖原始分类理由。
 
 ### 交付物
 
-- [ ] ClassificationService。
-- [ ] 分类 API。
-- [ ] 文档分类展示和修正 UI。
+- [x] ClassificationService。
+- [x] 分类 API。
+- [x] 文档分类展示和修正 UI。
 
 ### 风险点
 
-- [ ] 发票、付款回单、记账凭证字段相似导致混淆。
-- [ ] 文件名误导分类。
-- [ ] 低置信度阈值设置不合理。
+- [x] 发票、付款回单、记账凭证字段相似导致混淆。
+- [x] 文件名误导分类。
+- [x] 低置信度阈值设置不合理。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不支持销售、函证、访谈、合同审核分类标签的完整流程。
-- [ ] 不做复杂训练系统。
-- [ ] 不做分类 Evaluation Center UI。
+- [x] 不支持销售、函证、访谈、合同审核分类标签的完整流程。
+- [x] 不做复杂训练系统。
+- [x] 不做分类 Evaluation Center UI。
 
 ## Phase 4: 字段抽取与 Schema 校验
 

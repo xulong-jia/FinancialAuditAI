@@ -13,6 +13,29 @@ ProcurementDocType = Literal[
     "accounting_voucher",
     "payment_receipt",
 ]
+UnknownDocType = Literal["unknown"]
+ClassificationDocType = ProcurementDocType | UnknownDocType
+
+
+class AlternativeDocType(BaseModel):
+    doc_type: ClassificationDocType
+    confidence: float
+    reason: str
+
+
+class ClassificationRead(BaseModel):
+    document_id: UUID
+    doc_type: ClassificationDocType
+    confidence: float
+    classification_reason: str
+    alternative_types: list[AlternativeDocType]
+    need_human_review: bool
+
+
+class DocumentUpdate(BaseModel):
+    doc_type: ClassificationDocType
+    actor_name: str | None = None
+    manual_reason: str | None = None
 
 
 class DocumentRead(BaseModel):
@@ -27,7 +50,11 @@ class DocumentRead(BaseModel):
     file_size: int
     file_hash: str
     storage_path: str
-    doc_type: str | None
+    doc_type: ClassificationDocType | None
+    doc_type_confidence: float | None
+    classification_reason: str | None
+    alternative_types: list[AlternativeDocType] | None
+    original_classification: dict | None
     page_count: int | None
     upload_status: str
     ocr_status: str

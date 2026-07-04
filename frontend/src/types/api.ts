@@ -8,6 +8,23 @@ export type ProcurementDocType =
   | "accounting_voucher"
   | "payment_receipt";
 
+export type ClassificationDocType = ProcurementDocType | "unknown";
+
+export type AlternativeDocType = {
+  doc_type: ClassificationDocType;
+  confidence: number;
+  reason: string;
+};
+
+export type ClassificationResult = {
+  document_id: string;
+  doc_type: ClassificationDocType;
+  confidence: number;
+  classification_reason: string;
+  alternative_types: AlternativeDocType[];
+  need_human_review: boolean;
+};
+
 export type AuditTask = {
   id: string;
   task_no: string;
@@ -34,7 +51,11 @@ export type DocumentRecord = {
   file_size: number;
   file_hash: string;
   storage_path: string;
-  doc_type: ProcurementDocType | null;
+  doc_type: ClassificationDocType | null;
+  doc_type_confidence: number | null;
+  classification_reason: string | null;
+  alternative_types: AlternativeDocType[] | null;
+  original_classification: Record<string, unknown> | null;
   page_count: number | null;
   upload_status: string;
   ocr_status: string;
@@ -43,6 +64,12 @@ export type DocumentRecord = {
   review_status: string;
   created_at: string;
   updated_at: string;
+};
+
+export type DocumentUpdatePayload = {
+  doc_type: ClassificationDocType;
+  actor_name?: string;
+  manual_reason?: string;
 };
 
 export type CreateTaskPayload = {

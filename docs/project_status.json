@@ -279,7 +279,7 @@
       "phase_id": 3,
       "name": "文档分类",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         2
       ],
@@ -293,46 +293,46 @@
           "id": "P3-BE-001",
           "title": "实现六类采购文档分类",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented rule keyword + filename ClassificationService for six procurement document types and unknown handling.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P3-FE-001",
           "title": "展示 doc_type、置信度和分类理由",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Task Center shows doc_type, confidence, reason, low-confidence review marker, alternatives, and manual correction form.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P3-DB-001",
           "title": "使用 documents 分类字段保存结果",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added documents classification fields for confidence, reason, alternative_types, and original_classification while reusing doc_type/review_status.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P3-API-001",
           "title": "实现 classify API 和人工修正入口",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented POST /api/v1/documents/{document_id}/classify and PATCH /api/v1/documents/{document_id} for manual doc_type correction.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P3-TEST-001",
           "title": "添加六类采购样例分类测试",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added classification API tests for six types, low confidence, manual correction, original reason preservation, and un-OCRed rejection.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -341,9 +341,9 @@
         "低置信度进入复核标记",
         "人工修正不覆盖原始分类理由"
       ],
-      "notes": "",
+      "notes": "Phase 3 completed: implemented heuristic ClassificationService using OCR page text and filename, six procurement doc_type labels plus unknown, low-confidence need_review marking, manual doc_type correction with original_classification preservation, classification API, Task Center display/correction UI, and classification API tests. Phase 4 extraction and Post-MVP classification expansion were not implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 4,

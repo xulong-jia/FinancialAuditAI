@@ -1,9 +1,25 @@
-import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Table, Typography, Upload, message } from "antd";
+import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Table, Tag, Typography, Upload, message } from "antd";
 import type { UploadFile } from "antd/es/upload/interface";
 import { useEffect, useState } from "react";
 
-import { createTask, listDocumentPages, listDocuments, listTasks, runOcr, uploadDocument } from "../api/client";
-import type { AuditTask, CreateTaskPayload, DocumentPage, DocumentRecord, ProcurementDocType } from "../types/api";
+import {
+  classifyDocument,
+  createTask,
+  listDocumentPages,
+  listDocuments,
+  listTasks,
+  runOcr,
+  updateDocument,
+  uploadDocument,
+} from "../api/client";
+import type {
+  AuditTask,
+  ClassificationDocType,
+  CreateTaskPayload,
+  DocumentPage,
+  DocumentRecord,
+  ProcurementDocType,
+} from "../types/api";
 
 const docTypes: { label: string; value: ProcurementDocType }[] = [
   { label: "采购申请单", value: "purchase_request" },
@@ -14,9 +30,19 @@ const docTypes: { label: string; value: ProcurementDocType }[] = [
   { label: "付款回单", value: "payment_receipt" },
 ];
 
+const classificationDocTypes: { label: string; value: ClassificationDocType }[] = [
+  ...docTypes,
+  { label: "未知 / 需要复核", value: "unknown" },
+];
+
+function formatConfidence(value: number | null) {
+  return value === null ? "-" : `${Math.round(value * 100)}%`;
+}
+
 export function TaskCenterPage() {
   const [form] = Form.useForm<CreateTaskPayload>();
   const [uploadForm] = Form.useForm<{ doc_type_hint: ProcurementDocType }>();
+  const [manualForm] = Form.useForm<{ doc_type: ClassificationDocType }>();
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [pages, setPages] = useState<DocumentPage[]>([]);
@@ -63,6 +89,11 @@ export function TaskCenterPage() {
       setSelectedPageNumber(null);
     }
   }, [selectedDocumentId]);
+
+  useEffect(() => {
+    const selectedDocument = documents.find((document) => document.id === selectedDocumentId);
+    manualForm.setFieldsValue({ doc_type: selectedDocument?.doc_type ?? undefined });
+  }, [documents, manualForm, selectedDocumentId]);
 
   async function refreshPages(documentId: string) {
     const nextPages = await listDocumentPages(documentId);
@@ -123,6 +154,47 @@ export function TaskCenterPage() {
       }
     } catch {
       message.error("Failed to run OCR");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleClassify(documentId: string) {
+    setLoading(true);
+    try {
+      const result = await classifyDocument(documentId);
+      if (selectedTaskId) {
+        await refreshDocuments(selectedTaskId);
+      }
+      setSelectedDocumentId(documentId);
+      if (result.need_human_review) {
+        message.warning("Classification needs human review");
+      } else {
+        message.success("Document classified");
+      }
+    } catch {
+      message.error("Failed to classify document");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleManualCorrection(values: { doc_type: ClassificationDocType }) {
+    if (!selectedDocumentId || !selectedTaskId) {
+      message.warning("Select a document first");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await updateDocument(selectedDocumentId, {
+        doc_type: values.doc_type,
+        actor_name: "manual_reviewer",
+      });
+      await refreshDocuments(selectedTaskId);
+      message.success("Document type updated");
+    } catch {
+      message.error("Failed to update document type");
     } finally {
       setLoading(false);
     }
@@ -214,22 +286,111 @@ export function TaskCenterPage() {
           }}
           columns={[
             { title: "Filename", dataIndex: "original_filename" },
-            { title: "Doc Type", dataIndex: "doc_type" },
+            {
+              title: "Doc Type",
+              dataIndex: "doc_type",
+              render: (value: DocumentRecord["doc_type"], record) => (
+                <Space>
+                  <Tag color={value === "unknown" ? "orange" : value ? "blue" : "default"}>
+                    {value ?? "-"}
+                  </Tag>
+                  {record.review_status === "need_review" ? <Tag color="gold">Needs Review</Tag> : null}
+                </Space>
+              ),
+            },
+            {
+              title: "Confidence",
+              dataIndex: "doc_type_confidence",
+              render: (value: number | null) => formatConfidence(value),
+            },
             { title: "Extension", dataIndex: "file_ext" },
             { title: "Size", dataIndex: "file_size" },
             { title: "Upload Status", dataIndex: "upload_status" },
             { title: "OCR Status", dataIndex: "ocr_status" },
+            { title: "Review Status", dataIndex: "review_status" },
+            {
+              title: "Classification Reason",
+              dataIndex: "classification_reason",
+              render: (value: string | null) =>
+                value ? (
+                  <Typography.Text ellipsis={{ tooltip: value }} style={{ maxWidth: 260 }}>
+                    {value}
+                  </Typography.Text>
+                ) : (
+                  "-"
+                ),
+            },
             { title: "Pages", dataIndex: "page_count" },
             {
               title: "Action",
               render: (_, record) => (
-                <Button size="small" loading={loading} onClick={() => void handleRunOcr(record.id)}>
-                  Run OCR
-                </Button>
+                <Space>
+                  <Button size="small" loading={loading} onClick={() => void handleRunOcr(record.id)}>
+                    Run OCR
+                  </Button>
+                  <Button
+                    size="small"
+                    loading={loading}
+                    disabled={record.ocr_status !== "completed"}
+                    onClick={() => void handleClassify(record.id)}
+                  >
+                    Classify
+                  </Button>
+                </Space>
               ),
             },
           ]}
         />
+      </Card>
+
+      <Card title="Classification">
+        {selectedDocument ? (
+          <Space direction="vertical" style={{ width: "100%" }}>
+            {selectedDocument.review_status === "need_review" ? (
+              <Alert
+                type="warning"
+                showIcon
+                message="Human review required"
+                description="The document type is unknown or classification confidence is below the MVP threshold."
+              />
+            ) : null}
+            <Space wrap>
+              <Typography.Text>
+                Current type: <strong>{selectedDocument.doc_type ?? "-"}</strong>
+              </Typography.Text>
+              <Typography.Text>
+                Confidence: <strong>{formatConfidence(selectedDocument.doc_type_confidence)}</strong>
+              </Typography.Text>
+            </Space>
+            <Typography.Paragraph>
+              {selectedDocument.classification_reason ?? "Run classification after OCR to view the reason."}
+            </Typography.Paragraph>
+            {selectedDocument.alternative_types?.length ? (
+              <Space wrap>
+                {selectedDocument.alternative_types.map((alternative) => (
+                  <Tag key={alternative.doc_type}>
+                    {alternative.doc_type}: {formatConfidence(alternative.confidence)}
+                  </Tag>
+                ))}
+              </Space>
+            ) : null}
+            <Form layout="inline" form={manualForm} onFinish={handleManualCorrection}>
+              <Form.Item
+                name="doc_type"
+                rules={[{ required: true, message: "Document type is required" }]}
+              >
+                <Select style={{ width: 240 }} options={classificationDocTypes} />
+              </Form.Item>
+              <Form.Item>
+                <Button htmlType="submit" loading={loading}>
+                  Save Manual Type
+                </Button>
+              </Form.Item>
+            </Form>
+          </Space>
+        ) : (
+          <Typography.Text type="secondary">Select a document to view classification.</Typography.Text>
+        )}
       </Card>
 
       <Card title="OCR Pages">

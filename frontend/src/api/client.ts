@@ -2,9 +2,11 @@ const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 import type {
   AuditTask,
+  ClassificationResult,
   CreateTaskPayload,
   DocumentPage,
   DocumentRecord,
+  DocumentUpdatePayload,
   ProcurementDocType,
 } from "../types/api";
 
@@ -42,6 +44,14 @@ export function listDocuments(taskId: string): Promise<DocumentRecord[]> {
 
 export function runOcr(documentId: string): Promise<DocumentRecord> {
   return sendJson<DocumentRecord>(`/api/v1/documents/${documentId}/ocr`, "POST", {});
+}
+
+export function classifyDocument(documentId: string): Promise<ClassificationResult> {
+  return sendJson<ClassificationResult>(`/api/v1/documents/${documentId}/classify`, "POST", {});
+}
+
+export function updateDocument(documentId: string, payload: DocumentUpdatePayload): Promise<DocumentRecord> {
+  return sendJson<DocumentRecord>(`/api/v1/documents/${documentId}`, "PATCH", payload);
 }
 
 export function listDocumentPages(documentId: string): Promise<DocumentPage[]> {

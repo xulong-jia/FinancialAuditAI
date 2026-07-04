@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -26,8 +26,10 @@ class Document(Base):
     file_hash: Mapped[str] = mapped_column(String(64), index=True)
     storage_path: Mapped[str] = mapped_column(Text)
     doc_type: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     upload_status: Mapped[str] = mapped_column(String(32), default="uploaded")
     ocr_status: Mapped[str] = mapped_column(String(32), default="pending")
+    ocr_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     extraction_status: Mapped[str] = mapped_column(String(32), default="pending")
     review_status: Mapped[str] = mapped_column(String(32), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -36,3 +38,9 @@ class Document(Base):
     )
 
     task = relationship("AuditTask", back_populates="documents")
+    pages = relationship(
+        "DocumentPage",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

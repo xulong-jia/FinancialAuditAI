@@ -1,6 +1,12 @@
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
-import type { AuditTask, CreateTaskPayload, DocumentRecord, ProcurementDocType } from "../types/api";
+import type {
+  AuditTask,
+  CreateTaskPayload,
+  DocumentPage,
+  DocumentRecord,
+  ProcurementDocType,
+} from "../types/api";
 
 export async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`);
@@ -32,6 +38,14 @@ export function createTask(payload: CreateTaskPayload): Promise<AuditTask> {
 
 export function listDocuments(taskId: string): Promise<DocumentRecord[]> {
   return getJson<DocumentRecord[]>(`/api/v1/tasks/${taskId}/documents`);
+}
+
+export function runOcr(documentId: string): Promise<DocumentRecord> {
+  return sendJson<DocumentRecord>(`/api/v1/documents/${documentId}/ocr`, "POST", {});
+}
+
+export function listDocumentPages(documentId: string): Promise<DocumentPage[]> {
+  return getJson<DocumentPage[]>(`/api/v1/documents/${documentId}/pages`);
 }
 
 export async function uploadDocument(

@@ -29,7 +29,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | --- | --- | --- | --- | --- |
 | Phase 0 | 项目初始化与工程骨架 | MVP | DONE | 可启动的 FastAPI、React、PostgreSQL、Docker Compose 骨架 |
 | Phase 1 | 任务中心与文件上传 | MVP | DONE | 采购任务创建、六类文件上传、文件落盘 |
-| Phase 2 | OCR / 文档解析 / 页级文本保存 | MVP | TODO | 页级文本、OCR blocks、document_pages |
+| Phase 2 | OCR / 文档解析 / 页级文本保存 | MVP | DONE | 页级文本、OCR blocks、document_pages |
 | Phase 3 | 文档分类 | MVP | TODO | 六类采购文件 doc_type、置信度、分类理由 |
 | Phase 4 | 字段抽取与 Schema 校验 | MVP | TODO | 六类采购字段、line_items、Pydantic 校验 |
 | Phase 5 | 采购业务归集 | MVP | TODO | business_key、document_relations |
@@ -216,7 +216,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：OCR / 文档解析 / 页级文本保存
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 2 完成 `document_pages` migration、文本型 PDF 页级解析、Basic OCR Provider 边界、OCR 状态/错误记录、pages API、Task Center 页级文本查看和 OCR API 测试。未实现 Phase 3 文档分类或后续模块。
 
 ### 阶段目标
 
@@ -224,63 +228,63 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `OCRService`。
-- [ ] 支持 PDF 文本解析。
-- [ ] 支持图片或扫描件通过 OCR Provider 处理。
-- [ ] 保存页码、raw_text、ocr_blocks、table_blocks。
-- [ ] OCR 失败时记录失败状态和错误原因。
+- [x] 实现 `OCRService`。
+- [x] 支持 PDF 文本解析。
+- [x] 支持图片或扫描件通过 OCR Provider 处理。
+- [x] 保存页码、raw_text、ocr_blocks、table_blocks。
+- [x] OCR 失败时记录失败状态和错误原因。
 
 ### 前端任务
 
-- [ ] 在文档详情展示 OCR 状态。
-- [ ] 展示页级 raw_text。
-- [ ] 支持页码切换。
-- [ ] 展示 OCR 失败提示。
+- [x] 在文档详情展示 OCR 状态。
+- [x] 展示页级 raw_text。
+- [x] 支持页码切换。
+- [x] 展示 OCR 失败提示。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `document_pages` 表。
-- [ ] 为 `documents` 增加或使用 `ocr_status`, `page_count`。
-- [ ] 保留 `ocr_blocks` JSONB。
-- [ ] 保留 `table_blocks` JSONB。
+- [x] 创建 `document_pages` 表。
+- [x] 为 `documents` 增加或使用 `ocr_status`, `page_count`。
+- [x] 保留 `ocr_blocks` JSONB。
+- [x] 保留 `table_blocks` JSONB。
 
 ### API 任务
 
-- [ ] `POST /api/v1/documents/{document_id}/ocr`。
-- [ ] `GET /api/v1/documents/{document_id}/pages`。
+- [x] `POST /api/v1/documents/{document_id}/ocr`。
+- [x] `GET /api/v1/documents/{document_id}/pages`。
 
 ### 测试任务
 
-- [ ] 测试 PDF 样例可解析出页级文本。
-- [ ] 测试 OCR 失败不会导致任务不可查看。
-- [ ] 测试 `document_pages` 页码顺序正确。
-- [ ] 测试空文本页面会标记 warning。
+- [x] 测试 PDF 样例可解析出页级文本。
+- [x] 测试 OCR 失败不会导致任务不可查看。
+- [x] 测试 `document_pages` 页码顺序正确。
+- [x] 测试空文本页面会标记 warning。
 
 ### 验收标准
 
-- [ ] 每份文档至少生成一条或多条 `document_pages`。
-- [ ] 每页包含 `page_number`, `raw_text`, `ocr_blocks`。
-- [ ] OCR 状态可从前端看到。
-- [ ] 后续分类服务可以读取页级文本。
+- [x] 每份文档至少生成一条或多条 `document_pages`。
+- [x] 每页包含 `page_number`, `raw_text`, `ocr_blocks`。
+- [x] OCR 状态可从前端看到。
+- [x] 后续分类服务可以读取页级文本。
 
 ### 交付物
 
-- [ ] OCR/解析服务。
-- [ ] `document_pages` migration。
-- [ ] OCR API。
-- [ ] 页级文本查看组件。
+- [x] OCR/解析服务。
+- [x] `document_pages` migration。
+- [x] OCR API。
+- [x] 页级文本查看组件。
 
 ### 风险点
 
-- [ ] 扫描件质量差导致 OCR 不稳定。
-- [ ] 表格结构识别错列。
-- [ ] OCR 处理耗时导致请求超时。
+- [x] 扫描件质量差导致 OCR 不稳定。
+- [x] 表格结构识别错列。
+- [x] OCR 处理耗时导致请求超时。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做复杂 bbox 高亮。
-- [ ] 不做表格纠错 UI。
-- [ ] 不引入 Celery / Redis，除非 Phase 10 后重新评估。
+- [x] 不做复杂 bbox 高亮。
+- [x] 不做表格纠错 UI。
+- [x] 不引入 Celery / Redis，除非 Phase 10 后重新评估。
 
 ## Phase 3: 文档分类
 
@@ -1621,7 +1625,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - [x] Phase 0 项目初始化与工程骨架完成。
 - [x] Phase 1 任务中心与文件上传完成。
-- [ ] Phase 2 OCR / 文档解析 / 页级文本保存完成。
+- [x] Phase 2 OCR / 文档解析 / 页级文本保存完成。
 - [ ] Phase 3 文档分类完成。
 - [ ] Phase 4 字段抽取与 Schema 校验完成。
 - [ ] Phase 5 采购业务归集完成。

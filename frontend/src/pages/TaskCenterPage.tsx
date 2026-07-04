@@ -1,9 +1,9 @@
-import { Button, Card, Form, Input, InputNumber, Select, Space, Table, Typography, Upload, message } from "antd";
+import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Table, Typography, Upload, message } from "antd";
 import type { UploadFile } from "antd/es/upload/interface";
 import { useEffect, useState } from "react";
 
-import { createTask, listDocuments, listTasks, uploadDocument } from "../api/client";
-import type { AuditTask, CreateTaskPayload, DocumentRecord, ProcurementDocType } from "../types/api";
+import { createTask, listDocumentPages, listDocuments, listTasks, runOcr, uploadDocument } from "../api/client";
+import type { AuditTask, CreateTaskPayload, DocumentPage, DocumentRecord, ProcurementDocType } from "../types/api";
 
 const docTypes: { label: string; value: ProcurementDocType }[] = [
   { label: "采购申请单", value: "purchase_request" },
@@ -19,7 +19,10 @@ export function TaskCenterPage() {
   const [uploadForm] = Form.useForm<{ doc_type_hint: ProcurementDocType }>();
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [pages, setPages] = useState<DocumentPage[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [selectedPageNumber, setSelectedPageNumber] = useState<number | null>(null);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -32,7 +35,11 @@ export function TaskCenterPage() {
   }
 
   async function refreshDocuments(taskId: string) {
-    setDocuments(await listDocuments(taskId));
+    const nextDocuments = await listDocuments(taskId);
+    setDocuments(nextDocuments);
+    if (!selectedDocumentId && nextDocuments.length > 0) {
+      setSelectedDocumentId(nextDocuments[0].id);
+    }
   }
 
   useEffect(() => {
@@ -44,8 +51,24 @@ export function TaskCenterPage() {
       void refreshDocuments(selectedTaskId).catch(() => message.error("Failed to load documents"));
     } else {
       setDocuments([]);
+      setSelectedDocumentId(null);
     }
   }, [selectedTaskId]);
+
+  useEffect(() => {
+    if (selectedDocumentId) {
+      void refreshPages(selectedDocumentId).catch(() => message.error("Failed to load pages"));
+    } else {
+      setPages([]);
+      setSelectedPageNumber(null);
+    }
+  }, [selectedDocumentId]);
+
+  async function refreshPages(documentId: string) {
+    const nextPages = await listDocumentPages(documentId);
+    setPages(nextPages);
+    setSelectedPageNumber(nextPages[0]?.page_number ?? null);
+  }
 
   async function handleCreateTask(values: CreateTaskPayload) {
     setLoading(true);
@@ -83,6 +106,30 @@ export function TaskCenterPage() {
       setLoading(false);
     }
   }
+
+  async function handleRunOcr(documentId: string) {
+    setLoading(true);
+    try {
+      const document = await runOcr(documentId);
+      if (selectedTaskId) {
+        await refreshDocuments(selectedTaskId);
+      }
+      await refreshPages(document.id);
+      setSelectedDocumentId(document.id);
+      if (document.ocr_status === "failed") {
+        message.error("OCR failed");
+      } else {
+        message.success("OCR completed");
+      }
+    } catch {
+      message.error("Failed to run OCR");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const selectedDocument = documents.find((document) => document.id === selectedDocumentId) ?? null;
+  const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
@@ -160,6 +207,11 @@ export function TaskCenterPage() {
           rowKey="id"
           dataSource={documents}
           pagination={false}
+          rowSelection={{
+            type: "radio",
+            selectedRowKeys: selectedDocumentId ? [selectedDocumentId] : [],
+            onChange: (keys) => setSelectedDocumentId(String(keys[0])),
+          }}
           columns={[
             { title: "Filename", dataIndex: "original_filename" },
             { title: "Doc Type", dataIndex: "doc_type" },
@@ -167,8 +219,66 @@ export function TaskCenterPage() {
             { title: "Size", dataIndex: "file_size" },
             { title: "Upload Status", dataIndex: "upload_status" },
             { title: "OCR Status", dataIndex: "ocr_status" },
+            { title: "Pages", dataIndex: "page_count" },
+            {
+              title: "Action",
+              render: (_, record) => (
+                <Button size="small" loading={loading} onClick={() => void handleRunOcr(record.id)}>
+                  Run OCR
+                </Button>
+              ),
+            },
           ]}
         />
+      </Card>
+
+      <Card title="OCR Pages">
+        {selectedDocument?.ocr_status === "failed" ? (
+          <Alert
+            type="error"
+            showIcon
+            message="OCR failed"
+            description={selectedDocument.ocr_error ?? "Unknown OCR error"}
+            style={{ marginBottom: 16 }}
+          />
+        ) : null}
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Select
+            placeholder="Select page"
+            style={{ width: 180 }}
+            value={selectedPageNumber ?? undefined}
+            options={pages.map((page) => ({
+              label: `Page ${page.page_number}`,
+              value: page.page_number,
+            }))}
+            onChange={setSelectedPageNumber}
+            disabled={pages.length === 0}
+          />
+          {selectedPage ? (
+            <>
+              {selectedPage.warnings.length > 0 ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message={selectedPage.warnings.join(", ")}
+                />
+              ) : null}
+              <pre
+                style={{
+                  minHeight: 220,
+                  whiteSpace: "pre-wrap",
+                  background: "#f5f5f5",
+                  padding: 16,
+                  margin: 0,
+                }}
+              >
+                {selectedPage.raw_text || "(empty page text)"}
+              </pre>
+            </>
+          ) : (
+            <Typography.Text type="secondary">Run OCR to view page text.</Typography.Text>
+          )}
+        </Space>
       </Card>
     </Space>
   );

@@ -208,7 +208,7 @@
       "phase_id": 2,
       "name": "OCR / 文档解析 / 页级文本保存",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         1
       ],
@@ -223,46 +223,46 @@
           "id": "P2-BE-001",
           "title": "实现 OCRService 和页级文本保存",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 2 document parsing and pages implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P2-FE-001",
           "title": "展示 OCR 状态和页级 raw_text",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 2 document parsing and pages implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P2-DB-001",
           "title": "创建 document_pages 表",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 2 document parsing and pages implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P2-API-001",
           "title": "实现 OCR 和 pages API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 2 document parsing and pages implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P2-TEST-001",
           "title": "测试 PDF 样例页级解析",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 2 document parsing and pages implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -271,9 +271,9 @@
         "OCR 失败可记录错误状态",
         "分类服务可读取页级文本"
       ],
-      "notes": "",
+      "notes": "Phase 2 completed: document_pages migration, text PDF page parsing with PyMuPDF, Basic OCR Provider boundary for images, OCR status/error recording, OCR/pages APIs, Task Center page text viewer, and OCR API tests. Phase 3 classification and later modules were not implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 3,

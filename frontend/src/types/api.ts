@@ -35,8 +35,10 @@ export type DocumentRecord = {
   file_hash: string;
   storage_path: string;
   doc_type: ProcurementDocType | null;
+  page_count: number | null;
   upload_status: string;
   ocr_status: string;
+  ocr_error: string | null;
   extraction_status: string;
   review_status: string;
   created_at: string;
@@ -50,4 +52,26 @@ export type CreateTaskPayload = {
   company_name?: string;
   fiscal_year?: number;
   actor_name?: string;
+};
+
+export type PageBlock = {
+  text: string;
+  bbox: number[] | null;
+  confidence: number | null;
+};
+
+export type DocumentPage = {
+  id: string;
+  document_id: string;
+  page_number: number;
+  raw_text: string;
+  ocr_blocks: PageBlock[];
+  table_blocks: Record<string, unknown>[];
+  width: number | null;
+  height: number | null;
+  ocr_engine: string;
+  ocr_confidence: number | null;
+  warnings: string[];
+  created_at: string;
+  updated_at: string;
 };

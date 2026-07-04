@@ -19,6 +19,8 @@ import type {
   ReviewComment,
   ReviewCommentPayload,
   ReviewQueueItem,
+  ReportGeneratePayload,
+  ReportRecord,
 } from "../types/api";
 
 export async function getJson<T>(path: string): Promise<T> {
@@ -129,6 +131,18 @@ export function dismissAuditResult(resultId: string, payload: DismissReviewPaylo
 
 export function rerunAuditResult(resultId: string, payload: ReviewActionPayload): Promise<AuditResult[]> {
   return sendJson<AuditResult[]>(`/api/v1/audit-results/${resultId}/rerun`, "POST", payload);
+}
+
+export function generateControlTableReport(taskId: string, payload: ReportGeneratePayload): Promise<ReportRecord> {
+  return sendJson<ReportRecord>(`/api/v1/tasks/${taskId}/reports/control-table`, "POST", payload);
+}
+
+export function listReports(taskId: string): Promise<ReportRecord[]> {
+  return getJson<ReportRecord[]>(`/api/v1/tasks/${taskId}/reports`);
+}
+
+export function reportDownloadUrl(reportId: string): string {
+  return `${baseUrl}/api/v1/reports/${reportId}/download`;
 }
 
 export async function uploadDocument(

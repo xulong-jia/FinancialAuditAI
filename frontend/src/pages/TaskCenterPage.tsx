@@ -307,6 +307,13 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
     onNavigate("audit-workbench");
   }
 
+  function openReportCenter() {
+    if (selectedTaskId) {
+      window.sessionStorage.setItem("audit_workbench_task_id", selectedTaskId);
+    }
+    onNavigate("report-center");
+  }
+
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId) ?? null;
   const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
   const documentNameById = Object.fromEntries(
@@ -337,6 +344,9 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
           </Form.Item>
           <Form.Item>
             <Button onClick={openAuditWorkbench}>Open Audit Workbench</Button>
+          </Form.Item>
+          <Form.Item>
+            <Button onClick={openReportCenter}>Open Report Center</Button>
           </Form.Item>
         </Form>
       </Card>

@@ -36,7 +36,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 6 | Rule Engine MVP | MVP | DONE | Python rule registry、六条采购规则、audit_results |
 | Phase 7 | Audit Workbench 前端工作台 | MVP | DONE | 三栏审核工作台 |
 | Phase 8 | Review Center 基础复核闭环 | MVP | DONE | 字段修正、异常确认、驳回、重跑规则 |
-| Phase 9 | Report Center 控制表与异常清单导出 | MVP | TODO | xlsx 控制表、异常清单、证据索引 |
+| Phase 9 | Report Center 控制表与异常清单导出 | MVP | DONE | xlsx 控制表、异常清单、证据索引 |
 | Phase 10 | MVP 测试、演示数据、README 和 Docker 交付 | MVP | TODO | 可演示 MVP、测试、README、Docker |
 | Phase 11 | RAG 四库扩展 | Post-MVP | TODO | regulation / inquiry_case / prospectus / workpaper 检索 |
 | Phase 12 | Rule Center 规则版本化与参数配置 | Post-MVP | TODO | 规则版本、启用状态、参数配置 |
@@ -774,7 +774,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：Report Center 控制表与异常清单导出
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 9 完成 `ReportService`、标准库 xlsx 生成器、Summary / Procurement Control Table / Exceptions / Evidence Index / Field Corrections / Rule Definitions 六个 sheet、`control_table_rows` / `reports` migration、报告保存到 `local_storage/reports` 并写入 `reports.storage_path`、控制表行写入 `control_table_rows`、报告摘要和预览写入 `summary`、生成/列表/下载 API、Report Center 报告生成状态、控制表预览、报告历史和 xlsx 下载入口、Task Center 进入 Report Center 入口、后端 report API/xlsx sheet 测试。未实现 Phase 10 README/Docker 最终交付整理、PDF 报告、复杂模板、Dashboard、RAG、Agent、Evaluation、RBAC 或 Post-MVP 功能。
 
 ### 阶段目标
 
@@ -782,70 +786,70 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `ReportService`。
-- [ ] 生成 Summary sheet。
-- [ ] 生成 Procurement Control Table sheet。
-- [ ] 生成 Exceptions sheet。
-- [ ] 生成 Evidence Index sheet。
-- [ ] 生成 Field Corrections sheet。
-- [ ] 生成 Rule Definitions sheet。
-- [ ] 保存报告文件并写入 `reports`。
+- [x] 实现 `ReportService`。
+- [x] 生成 Summary sheet。
+- [x] 生成 Procurement Control Table sheet。
+- [x] 生成 Exceptions sheet。
+- [x] 生成 Evidence Index sheet。
+- [x] 生成 Field Corrections sheet。
+- [x] 生成 Rule Definitions sheet。
+- [x] 保存报告文件并写入 `reports`。
 
 ### 前端任务
 
-- [ ] 实现 Report Center 页面。
-- [ ] 展示控制表预览。
-- [ ] 展示报告生成状态。
-- [ ] 提供 xlsx 下载入口。
-- [ ] 展示报告历史。
+- [x] 实现 Report Center 页面。
+- [x] 展示控制表预览。
+- [x] 展示报告生成状态。
+- [x] 提供 xlsx 下载入口。
+- [x] 展示报告历史。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `control_table_rows` 表。
-- [ ] 创建 `reports` 表。
-- [ ] 报告路径保存到 `storage_path`。
-- [ ] 报告摘要保存到 `summary` JSONB。
+- [x] 创建 `control_table_rows` 表。
+- [x] 创建 `reports` 表。
+- [x] 报告路径保存到 `storage_path`。
+- [x] 报告摘要保存到 `summary` JSONB。
 
 ### API 任务
 
-- [ ] `POST /api/v1/tasks/{task_id}/reports/control-table`。
-- [ ] `GET /api/v1/tasks/{task_id}/reports`。
-- [ ] `GET /api/v1/reports/{report_id}/download`。
+- [x] `POST /api/v1/tasks/{task_id}/reports/control-table`。
+- [x] `GET /api/v1/tasks/{task_id}/reports`。
+- [x] `GET /api/v1/reports/{report_id}/download`。
 
 ### 测试任务
 
-- [ ] xlsx 文件可生成测试。
-- [ ] sheet 名称完整测试。
-- [ ] 异常清单包含 rule_code 和 evidence 测试。
-- [ ] 字段修正记录导出测试。
-- [ ] 报告记录写入 `reports` 测试。
+- [x] xlsx 文件可生成测试。
+- [x] sheet 名称完整测试。
+- [x] 异常清单包含 rule_code 和 evidence 测试。
+- [x] 字段修正记录导出测试。
+- [x] 报告记录写入 `reports` 测试。
 
 ### 验收标准
 
-- [ ] 可导出 xlsx。
-- [ ] xlsx 包含全部 MVP sheet。
-- [ ] 控制表每行可追溯 business_key。
-- [ ] 异常清单不隐藏失败规则。
-- [ ] 证据索引包含文件、页码、来源文本。
+- [x] 可导出 xlsx。
+- [x] xlsx 包含全部 MVP sheet。
+- [x] 控制表每行可追溯 business_key。
+- [x] 异常清单不隐藏失败规则。
+- [x] 证据索引包含文件、页码、来源文本。
 
 ### 交付物
 
-- [ ] ReportService。
-- [ ] Report Center 页面。
-- [ ] xlsx 导出文件。
-- [ ] `control_table_rows` 和 `reports` migration。
+- [x] ReportService。
+- [x] Report Center 页面。
+- [x] xlsx 导出文件。
+- [x] `control_table_rows` 和 `reports` migration。
 
 ### 风险点
 
-- [ ] 导出数据与页面展示不一致。
-- [ ] 复核意见漏导。
-- [ ] 报告路径泄露本地敏感目录。
+- [x] 导出数据与页面展示不一致。
+- [x] 复核意见漏导。
+- [x] 报告路径泄露本地敏感目录。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做 PDF 报告。
-- [ ] 不做复杂报表模板系统。
-- [ ] 不做管理层 Dashboard。
+- [x] 不做 PDF 报告。
+- [x] 不做复杂报表模板系统。
+- [x] 不做管理层 Dashboard。
 
 ## Phase 10: MVP 测试、演示数据、README 和 Docker 交付
 
@@ -1658,7 +1662,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [ ] Phase 6 Rule Engine MVP 完成。
 - [x] Phase 7 Audit Workbench 前端工作台完成。
 - [x] Phase 8 Review Center 基础复核闭环完成。
-- [ ] Phase 9 Report Center 控制表与异常清单导出完成。
+- [x] Phase 9 Report Center 控制表与异常清单导出完成。
 - [ ] Phase 10 MVP 测试、演示数据、README 和 Docker 交付完成。
 - [ ] 可创建采购穿行任务。
 - [ ] 可上传六类采购文件。

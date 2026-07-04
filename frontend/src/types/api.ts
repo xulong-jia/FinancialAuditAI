@@ -238,3 +238,22 @@ export type ReviewCommentPayload = {
   before_value?: Record<string, unknown> | null;
   after_value?: Record<string, unknown> | null;
 };
+
+export type ReportRecord = {
+  id: string;
+  task_id: string;
+  report_type: string;
+  title: string;
+  status: string;
+  file_format: string;
+  storage_path: string;
+  summary: Record<string, unknown>;
+  generated_by: string | null;
+  generated_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReportGeneratePayload = {
+  generated_by?: string;
+};

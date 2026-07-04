@@ -728,7 +728,7 @@
       "phase_id": 9,
       "name": "Report Center 控制表与异常清单导出",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         8
       ],
@@ -744,46 +744,46 @@
           "id": "P9-BE-001",
           "title": "实现 ReportService 和 xlsx 导出",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented ReportService and a standard-library xlsx writer that exports all six MVP sheets and saves files under local_storage/reports.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P9-FE-001",
           "title": "实现报告预览、生成状态和下载入口",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented Report Center generation status, control table preview, report history, xlsx download link, and Task Center entry.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P9-DB-001",
           "title": "创建 control_table_rows 和 reports 表",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added 0008 migration and models for control_table_rows and reports; report storage_path and summary JSON are persisted.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P9-API-001",
           "title": "实现报告生成、列表和下载 API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented POST /tasks/{task_id}/reports/control-table, GET /tasks/{task_id}/reports, and GET /reports/{report_id}/download.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P9-TEST-001",
           "title": "测试 xlsx sheets、异常清单、证据索引和报告记录",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added report API tests for xlsx creation, sheet names, exceptions with rule_code/evidence, field corrections, report records, control_table_rows, and download.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -792,9 +792,9 @@
         "异常清单不隐藏失败规则",
         "证据索引包含文件、页码、来源文本"
       ],
-      "notes": "",
+      "notes": "Phase 9 completed ReportService, stdlib xlsx writer, Summary, Procurement Control Table, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets, reports and control_table_rows migration, report files saved under local_storage/reports, report metadata persisted in reports, control rows persisted in control_table_rows, report summary with control table preview, generate/list/download APIs, Report Center UI with status, preview, history, and xlsx download, Task Center entry, and report API/xlsx tests. No Phase 10 README/Docker final delivery, PDF report, template system, Dashboard, RAG, Agent, Evaluation, RBAC, or Post-MVP feature was implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 10,

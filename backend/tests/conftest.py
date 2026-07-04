@@ -7,14 +7,18 @@ import pytest
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.services.document_service import uploads_root
+from app.services.report_service import reports_root
 
 
 @pytest.fixture(autouse=True)
 def clean_database() -> Generator[None, None, None]:
     Base.metadata.create_all(bind=engine)
     upload_dir = uploads_root()
+    report_dir = reports_root()
     if upload_dir.exists():
         shutil.rmtree(upload_dir)
+    if report_dir.exists():
+        shutil.rmtree(report_dir)
 
     with SessionLocal() as db:
         for table in reversed(Base.metadata.sorted_tables):
@@ -30,3 +34,5 @@ def clean_database() -> Generator[None, None, None]:
 
     if upload_dir.exists():
         shutil.rmtree(upload_dir)
+    if report_dir.exists():
+        shutil.rmtree(report_dir)

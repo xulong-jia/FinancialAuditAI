@@ -225,6 +225,8 @@ def _get_result(db: Session, result_id: UUID) -> AuditResult:
 def _field_snapshot(field: ExtractedField) -> dict:
     return {
         "id": str(field.id),
+        "field_name": field.field_name,
+        "field_label": field.field_label,
         "value_text": field.value_text,
         "value_normalized": field.value_normalized,
         "confidence": field.confidence,

@@ -111,7 +111,18 @@ def _explicit_groups(
         order_no = _field_value(doc_fields.get("order_no"))
         related_order_no = _field_value(doc_fields.get("related_order_no"))
         delivery_no = _field_value(doc_fields.get("delivery_no"))
+        confirmation_no = _field_value(doc_fields.get("confirmation_no"))
 
+        if confirmation_no:
+            _add_to_group(
+                by_key,
+                f"CONFIRMATION-{_token(confirmation_no)}",
+                document,
+                0.95,
+                "same_confirmation",
+                "explicit_confirmation_no",
+                doc_fields["confirmation_no"],
+            )
         if contract_no:
             contract_values.add(contract_no)
             _add_to_group(
@@ -280,11 +291,27 @@ def _fallback_groups(
         doc_fields = fields.get(document.id, {})
         supplier = _first_field(
             doc_fields,
-            ("supplier_name", "seller_name", "payee_name", "customer_name", "buyer_name", "payer_name"),
+            (
+                "supplier_name",
+                "seller_name",
+                "payee_name",
+                "customer_name",
+                "buyer_name",
+                "payer_name",
+                "counterparty_name",
+            ),
         )
         amount = _first_field(
             doc_fields,
-            ("amount_including_tax", "amount", "total_estimated_amount", "amount_excluding_tax"),
+            (
+                "amount_including_tax",
+                "amount",
+                "total_estimated_amount",
+                "amount_excluding_tax",
+                "book_amount",
+                "confirmed_amount",
+                "difference_amount",
+            ),
         )
         document_date = _first_field(
             doc_fields,
@@ -298,6 +325,8 @@ def _fallback_groups(
                 "order_date",
                 "delivery_date",
                 "signed_date",
+                "sent_date",
+                "replied_date",
             ),
         )
         supplier_value = _field_value(supplier)
@@ -379,6 +408,10 @@ def _anchor_document(documents: list[Document]) -> Document:
         "logistics_receipt": 3,
         "sales_invoice": 4,
         "receipt_voucher": 5,
+        "confirmation": 0,
+        "confirmation_request": 1,
+        "confirmation_reply": 2,
+        "confirmation_adjustment": 3,
     }
     return sorted(documents, key=lambda document: priority.get(document.doc_type or "", 99))[0]
 

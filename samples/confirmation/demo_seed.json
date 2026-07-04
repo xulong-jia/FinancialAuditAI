@@ -1,0 +1,47 @@
+{
+  "task": {
+    "name": "Phase 16 Demo Confirmation Walkthrough",
+    "scenario": "confirmation",
+    "project_name": "Synthetic Confirmation Demo",
+    "company_name": "Demo Audit Client Co",
+    "fiscal_year": 2026,
+    "actor_name": "demo_seed"
+  },
+  "business_key": "CONFIRMATION-CF-DEMO-001",
+  "documents": [
+    {
+      "original_filename": "demo_confirmation_request.pdf",
+      "doc_type": "confirmation_request",
+      "fields": {
+        "confirmation_no": "CF-DEMO-001",
+        "counterparty_name": "Demo Counterparty Co",
+        "counterparty_address": "Synthetic Address 1",
+        "sent_date": "2026-01-05",
+        "book_amount": "1000.00"
+      }
+    },
+    {
+      "original_filename": "demo_confirmation_reply.pdf",
+      "doc_type": "confirmation_reply",
+      "fields": {
+        "confirmation_no": "CF-DEMO-001",
+        "counterparty_name": "Demo Counterparty Co",
+        "replied_date": "2026-01-12",
+        "confirmed_amount": "980.00",
+        "seal_detected": "yes",
+        "signatory": "Demo Signatory",
+        "reply_channel": "mail"
+      }
+    },
+    {
+      "original_filename": "demo_confirmation_adjustment.pdf",
+      "doc_type": "confirmation_adjustment",
+      "fields": {
+        "confirmation_no": "CF-DEMO-001",
+        "difference_amount": "-20.00",
+        "exception_reason": "Synthetic timing difference",
+        "adjustment_items": "Timing difference on synthetic receipt"
+      }
+    }
+  ]
+}

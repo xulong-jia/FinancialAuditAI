@@ -36,6 +36,20 @@ const salesPreviewColumns = [
   "overall_status",
   "reviewer_comment",
 ];
+const confirmationPreviewColumns = [
+  "business_key",
+  "confirmation_no",
+  "counterparty_name",
+  "sent_date",
+  "replied_date",
+  "book_amount",
+  "confirmed_amount",
+  "difference_amount",
+  "exception_reason",
+  "amount_check",
+  "overall_status",
+  "reviewer_comment",
+];
 
 function statusColor(status: string) {
   if (status === "completed" || status === "pass") {
@@ -116,7 +130,12 @@ export function ReportCenterPage(_props: PageProps) {
   const latestReport = reports[0] ?? null;
   const previewRows = controlTablePreview(latestReport);
   const selectedTask = tasks.find((task) => task.id === selectedTaskId);
-  const previewColumns = selectedTask?.scenario === "sales" ? salesPreviewColumns : procurementPreviewColumns;
+  const previewColumns =
+    selectedTask?.scenario === "sales"
+      ? salesPreviewColumns
+      : selectedTask?.scenario === "confirmation"
+        ? confirmationPreviewColumns
+        : procurementPreviewColumns;
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>

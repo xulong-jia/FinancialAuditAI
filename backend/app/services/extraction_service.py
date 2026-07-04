@@ -227,8 +227,51 @@ SALES_SCHEMA_SPECS: dict[str, tuple[FieldSpec, ...]] = {
 }
 
 
+CONFIRMATION_SCHEMA_SPECS: dict[str, tuple[FieldSpec, ...]] = {
+    "confirmation": (
+        FieldSpec("confirmation_no", "Confirmation No", "text", ("confirmation no", "confirmation_no", "函证编号")),
+        FieldSpec("counterparty_name", "Counterparty Name", "name", ("counterparty name", "counterparty", "被函证方")),
+        FieldSpec("counterparty_address", "Counterparty Address", "text", ("counterparty address", "address", "地址"), False),
+        FieldSpec("sent_date", "Sent Date", "date", ("sent date", "发函日期")),
+        FieldSpec("replied_date", "Replied Date", "date", ("replied date", "reply date", "回函日期")),
+        FieldSpec("confirmed_amount", "Confirmed Amount", "money", ("confirmed amount", "回函金额")),
+        FieldSpec("book_amount", "Book Amount", "money", ("book amount", "账面金额")),
+        FieldSpec("difference_amount", "Difference Amount", "money", ("difference amount", "差异金额")),
+        FieldSpec("seal_detected", "Seal Detected", "status", ("seal detected", "seal", "公章"), False),
+        FieldSpec("signatory", "Signatory", "name", ("signatory", "signature", "签字人", "签字"), False),
+        FieldSpec("reply_channel", "Reply Channel", "text", ("reply channel", "回函渠道"), False),
+        FieldSpec("exception_reason", "Exception Reason", "text", ("exception reason", "差异原因"), False),
+    ),
+    "confirmation_request": (
+        FieldSpec("confirmation_no", "Confirmation No", "text", ("confirmation no", "confirmation_no", "函证编号")),
+        FieldSpec("counterparty_name", "Counterparty Name", "name", ("counterparty name", "counterparty", "被函证方")),
+        FieldSpec("counterparty_address", "Counterparty Address", "text", ("counterparty address", "address", "地址"), False),
+        FieldSpec("sent_date", "Sent Date", "date", ("sent date", "发函日期")),
+        FieldSpec("book_amount", "Book Amount", "money", ("book amount", "账面金额")),
+    ),
+    "confirmation_reply": (
+        FieldSpec("confirmation_no", "Confirmation No", "text", ("confirmation no", "confirmation_no", "函证编号")),
+        FieldSpec("counterparty_name", "Counterparty Name", "name", ("counterparty name", "counterparty", "被函证方")),
+        FieldSpec("replied_date", "Replied Date", "date", ("replied date", "reply date", "回函日期")),
+        FieldSpec("confirmed_amount", "Confirmed Amount", "money", ("confirmed amount", "回函金额")),
+        FieldSpec("seal_detected", "Seal Detected", "status", ("seal detected", "seal", "公章"), False),
+        FieldSpec("signatory", "Signatory", "name", ("signatory", "signature", "签字人", "签字"), False),
+        FieldSpec("reply_channel", "Reply Channel", "text", ("reply channel", "回函渠道"), False),
+    ),
+    "confirmation_adjustment": (
+        FieldSpec("confirmation_no", "Confirmation No", "text", ("confirmation no", "confirmation_no", "函证编号")),
+        FieldSpec("difference_amount", "Difference Amount", "money", ("difference amount", "差异金额")),
+        FieldSpec("exception_reason", "Exception Reason", "text", ("exception reason", "差异原因")),
+        FieldSpec("adjustment_items", "Adjustment Items", "text", ("adjustment items", "调节明细"), False),
+    ),
+}
+
+
 def schema_specs_for(scenario: str, doc_type: str) -> tuple[FieldSpec, ...]:
-    specs = SALES_SCHEMA_SPECS if scenario == "sales" else SCHEMA_SPECS
+    specs = {
+        "sales": SALES_SCHEMA_SPECS,
+        "confirmation": CONFIRMATION_SCHEMA_SPECS,
+    }.get(scenario, SCHEMA_SPECS)
     return specs.get(doc_type, ())
 
 

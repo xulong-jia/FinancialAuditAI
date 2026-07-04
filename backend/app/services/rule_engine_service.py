@@ -64,6 +64,11 @@ DEFAULT_RULES = {
     "SALES_AMOUNT_001": ("销售金额一致性检查", {"tolerance_amount": 1.0, "tolerance_ratio": 0.0}),
     "SALES_NAME_001": ("销售客户名称一致性检查", {"mismatch_status": "warning", "supplier_aliases": {}}),
     "SALES_QTY_001": ("销售数量一致性检查", {"tolerance_amount": 0.0001, "item_mappings": {}}),
+    "CONF_MISSING_001": ("函证必填字段缺失检查", {}),
+    "CONF_DATE_001": ("函证回函日期检查", {"date_tolerance_days": 0}),
+    "CONF_AMOUNT_001": ("函证金额与差异调节检查", {"tolerance_amount": 1.0}),
+    "CONF_NAME_001": ("函证被函证方名称一致性检查", {"mismatch_status": "warning", "supplier_aliases": {}}),
+    "CONF_SEAL_SIGN_001": ("函证公章签字风险提示", {}),
 }
 ALLOWED_PARAMETER_KEYS = {
     "tolerance",
@@ -897,6 +902,248 @@ def rule_sales_qty(context: RuleContext) -> RuleResult:
     )
 
 
+def rule_confirmation_missing_required(context: RuleContext) -> RuleResult:
+    base = rule_missing_required(context)
+    return RuleResult(
+        rule_code="CONF_MISSING_001",
+        business_key=context.business_key,
+        status=base.status,
+        severity=base.severity,
+        message=base.message.replace("procurement", "confirmation"),
+        expected_value=base.expected_value,
+        actual_value=base.actual_value,
+        evidence=base.evidence,
+    )
+
+
+def rule_confirmation_date(context: RuleContext) -> RuleResult:
+    sent_field, sent_doc = _first_field_from(context, (("confirmation_request", "sent_date"), ("confirmation", "sent_date")))
+    replied_field, replied_doc = _first_field_from(context, (("confirmation_reply", "replied_date"), ("confirmation", "replied_date")))
+    sent_date = _date_value(sent_field)
+    replied_date = _date_value(replied_field)
+    missing = []
+    if sent_field is None or sent_doc is None or sent_date is None:
+        missing.append(_missing_ref(sent_doc, "sent_date", sent_field, "confirmation_request"))
+    if replied_field is None or replied_doc is None or replied_date is None:
+        missing.append(_missing_ref(replied_doc, "replied_date", replied_field, "confirmation_reply"))
+    if missing:
+        return _result(
+            context,
+            "CONF_DATE_001",
+            "need_review",
+            "medium",
+            "Missing confirmation dates prevent reply date check.",
+            {"rule": "replied_date >= sent_date"},
+            {"missing_fields": [ref.field_name for ref in missing]},
+            missing,
+        )
+
+    tolerance_days = int(context.parameters.get("date_tolerance_days", 0) or 0)
+    evidence = [_evidence_ref(sent_doc, sent_field), _evidence_ref(replied_doc, replied_field)]
+    if replied_date + timedelta(days=tolerance_days) < sent_date:
+        return _result(
+            context,
+            "CONF_DATE_001",
+            "fail",
+            "high",
+            "Confirmation replied_date is earlier than sent_date.",
+            {"sent_before_or_equal_replied": True},
+            {"sent_date": sent_date.isoformat(), "replied_date": replied_date.isoformat()},
+            evidence,
+        )
+    return _result(
+        context,
+        "CONF_DATE_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Confirmation reply date is not earlier than sent date.",
+        {"sent_before_or_equal_replied": True},
+        {"sent_date": sent_date.isoformat(), "replied_date": replied_date.isoformat()},
+        evidence,
+    )
+
+
+def rule_confirmation_amount(context: RuleContext) -> RuleResult:
+    book_amounts = _amounts_from(context, (("confirmation_request", "book_amount"), ("confirmation", "book_amount")))
+    confirmed_amounts = _amounts_from(context, (("confirmation_reply", "confirmed_amount"), ("confirmation", "confirmed_amount")))
+    difference_amounts = _amounts_from(context, (("confirmation_adjustment", "difference_amount"), ("confirmation", "difference_amount")))
+    reason_field, reason_doc = _first_field_from(context, (("confirmation_adjustment", "exception_reason"), ("confirmation", "exception_reason")))
+    reason = _text_value(reason_field)
+    missing = _missing_amount_refs(
+        [
+            ("confirmation_request", "book_amount", book_amounts),
+            ("confirmation_reply", "confirmed_amount", confirmed_amounts),
+        ]
+    )
+    if missing:
+        return _result(
+            context,
+            "CONF_AMOUNT_001",
+            "need_review",
+            "medium",
+            "Missing confirmation amounts prevent amount check.",
+            {"amounts": "book_amount and confirmed_amount"},
+            {"missing_fields": [ref.field_name for ref in missing]},
+            missing,
+        )
+
+    book_total = sum(amount for amount, _, _ in book_amounts)
+    confirmed_total = sum(amount for amount, _, _ in confirmed_amounts)
+    tolerance = _tolerance_amount(context.parameters, TOLERANCE)
+    difference = round(confirmed_total - book_total, 2)
+    evidence = _amount_evidence(book_amounts + confirmed_amounts + difference_amounts)
+    if reason_field is not None and reason_doc is not None:
+        evidence.append(_evidence_ref(reason_doc, reason_field))
+
+    if abs(difference) <= tolerance:
+        return _result(
+            context,
+            "CONF_AMOUNT_001",
+            _pass_or_warning(evidence),
+            _severity_for_pass(evidence),
+            "Confirmation confirmed amount matches book amount within tolerance.",
+            {"tolerance": tolerance},
+            {"book_amount": book_total, "confirmed_amount": confirmed_total, "difference": difference},
+            evidence,
+        )
+
+    if not difference_amounts and not reason:
+        return _result(
+            context,
+            "CONF_AMOUNT_001",
+            "need_review",
+            "high",
+            "Confirmation amount differs without adjustment amount or exception reason.",
+            {"required_when_mismatch": ["difference_amount", "exception_reason"], "tolerance": tolerance},
+            {"book_amount": book_total, "confirmed_amount": confirmed_total, "difference": difference},
+            evidence,
+        )
+
+    adjustment_total = sum(amount for amount, _, _ in difference_amounts) if difference_amounts else None
+    adjustment_matches = adjustment_total is not None and abs(abs(adjustment_total) - abs(difference)) <= tolerance
+    status = "warning" if reason or not adjustment_matches else _pass_or_warning(evidence)
+    return _result(
+        context,
+        "CONF_AMOUNT_001",
+        status,
+        "medium" if status == "warning" else _severity_for_pass(evidence),
+        "Confirmation amount differs and has adjustment evidence for review.",
+        {"required_when_mismatch": ["difference_amount", "exception_reason"], "tolerance": tolerance},
+        {
+            "book_amount": book_total,
+            "confirmed_amount": confirmed_total,
+            "difference": difference,
+            "adjustment_total": adjustment_total,
+            "exception_reason_present": bool(reason),
+        },
+        evidence,
+    )
+
+
+def rule_confirmation_name(context: RuleContext) -> RuleResult:
+    checks = (
+        ("confirmation_request", "counterparty_name"),
+        ("confirmation_reply", "counterparty_name"),
+        ("confirmation", "counterparty_name"),
+    )
+    values: list[tuple[str, str, ExtractedField, Document]] = []
+    missing: list[EvidenceRef] = []
+    for doc_type, field_name in checks:
+        if not _docs_by_type(context, doc_type):
+            continue
+        field, document = _first_field(context, doc_type, field_name)
+        value = _text_value(field)
+        if field is None or document is None or not value:
+            missing.append(_missing_ref(document, field_name, field, doc_type))
+        else:
+            values.append((field_name, value, field, document))
+    if missing or not values:
+        return _result(
+            context,
+            "CONF_NAME_001",
+            "need_review",
+            "medium",
+            "Missing counterparty name prevents confirmation name check.",
+            {"counterparty_name": "consistent"},
+            {"missing_fields": [ref.field_name for ref in missing]},
+            missing,
+        )
+
+    normalized = {_normalize_name(value, context.parameters.get("supplier_aliases")) for _, value, _, _ in values}
+    evidence = [_evidence_ref(document, field) for _, _, field, document in values] + missing
+    if len(normalized) > 1:
+        status = str(context.parameters.get("mismatch_status", "warning"))
+        return _result(
+            context,
+            "CONF_NAME_001",
+            "fail" if status == "fail" else "warning",
+            "high" if status == "fail" else "medium",
+            "Confirmation counterparty names are inconsistent.",
+            {"normalized_name_count": 1},
+            {"names": [value for _, value, _, _ in values]},
+            evidence,
+        )
+    return _result(
+        context,
+        "CONF_NAME_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Confirmation counterparty names are consistent.",
+        {"normalized_name_count": 1},
+        {"names": [value for _, value, _, _ in values]},
+        evidence,
+    )
+
+
+def rule_confirmation_seal_sign(context: RuleContext) -> RuleResult:
+    seal_field, seal_doc = _first_field_from(context, (("confirmation_reply", "seal_detected"), ("confirmation", "seal_detected")))
+    sign_field, sign_doc = _first_field_from(context, (("confirmation_reply", "signatory"), ("confirmation", "signatory")))
+    seal_value = _text_value(seal_field)
+    sign_value = _text_value(sign_field)
+    evidence = []
+    if seal_field is not None and seal_doc is not None:
+        evidence.append(_evidence_ref(seal_doc, seal_field))
+    else:
+        evidence.append(_missing_ref(seal_doc, "seal_detected", seal_field, "confirmation_reply"))
+    if sign_field is not None and sign_doc is not None:
+        evidence.append(_evidence_ref(sign_doc, sign_field))
+    else:
+        evidence.append(_missing_ref(sign_doc, "signatory", sign_field, "confirmation_reply"))
+
+    if not seal_value and not sign_value:
+        return _result(
+            context,
+            "CONF_SEAL_SIGN_001",
+            "need_review",
+            "medium",
+            "Confirmation reply lacks both seal and signatory evidence; authenticity is not judged.",
+            {"seal_or_signatory": "present"},
+            {"seal_detected": seal_value, "signatory": sign_value},
+            evidence,
+        )
+    if not seal_value or not sign_value:
+        return _result(
+            context,
+            "CONF_SEAL_SIGN_001",
+            "warning",
+            "medium",
+            "Confirmation reply has incomplete seal or signatory evidence; authenticity is not judged.",
+            {"seal_and_signatory": "present when available"},
+            {"seal_detected": seal_value, "signatory": sign_value},
+            evidence,
+        )
+    return _result(
+        context,
+        "CONF_SEAL_SIGN_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Confirmation reply includes seal and signatory evidence; authenticity is not judged.",
+        {"seal_and_signatory": "present"},
+        {"seal_detected": seal_value, "signatory": sign_value},
+        evidence,
+    )
+
+
 RULE_REGISTRY: dict[str, Callable[[RuleContext], RuleResult]] = {
     "PROC_MISSING_001": rule_missing_required,
     "PROC_TIME_001": rule_time_order,
@@ -909,6 +1156,11 @@ RULE_REGISTRY: dict[str, Callable[[RuleContext], RuleResult]] = {
     "SALES_AMOUNT_001": rule_sales_amount,
     "SALES_NAME_001": rule_sales_name,
     "SALES_QTY_001": rule_sales_qty,
+    "CONF_MISSING_001": rule_confirmation_missing_required,
+    "CONF_DATE_001": rule_confirmation_date,
+    "CONF_AMOUNT_001": rule_confirmation_amount,
+    "CONF_NAME_001": rule_confirmation_name,
+    "CONF_SEAL_SIGN_001": rule_confirmation_seal_sign,
 }
 
 
@@ -978,6 +1230,27 @@ def _fields(
         field = context.fields.get(document.id, {}).get(field_name)
         if field is not None and not _is_missing(field):
             values.append((field, document))
+    return values
+
+
+def _first_field_from(
+    context: RuleContext, lookups: tuple[tuple[str, str], ...]
+) -> tuple[ExtractedField | None, Document | None]:
+    fallback_document = None
+    for doc_type, field_name in lookups:
+        field, document = _first_field(context, doc_type, field_name)
+        fallback_document = fallback_document or document
+        if field is not None and document is not None:
+            return field, document
+    return None, fallback_document
+
+
+def _amounts_from(
+    context: RuleContext, lookups: tuple[tuple[str, str], ...]
+) -> list[tuple[float, ExtractedField, Document]]:
+    values: list[tuple[float, ExtractedField, Document]] = []
+    for doc_type, field_name in lookups:
+        values.extend(_amounts(context, doc_type, field_name))
     return values
 
 
@@ -1206,6 +1479,8 @@ def _rule_parameters(rule: AuditRule) -> dict:
 def _rule_matches_scenario(rule_code: str, scenario: str) -> bool:
     if scenario == "sales":
         return rule_code.startswith("SALES_")
+    if scenario == "confirmation":
+        return rule_code.startswith("CONF_")
     return rule_code.startswith("PROC_")
 
 

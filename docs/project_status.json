@@ -1244,7 +1244,7 @@
       "phase_id": 16,
       "name": "函证模块扩展",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         10
       ],
@@ -1259,46 +1259,46 @@
           "id": "P16-BE-001",
           "title": "定义函证 Schema、抽取和差异比对规则",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added confirmation schema specs, extraction validation, classification keywords, confirmation_no linkage, and five deterministic CONF_* rules with evidence and missing-field review behavior.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P16-FE-001",
           "title": "支持 confirmation 场景字段、差异复核和报告",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Task Center supports confirmation task creation and document upload types; existing Workbench/Review Center render confirmation fields and rule results; Report Center previews confirmation reports.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P16-DB-001",
           "title": "优先复用现有表支持函证场景",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Reused audit_tasks.scenario, documents.doc_type/business_key, extracted_fields, audit_rules, audit_results, review_comments, reports, and control_table_rows; no confirmation-specific tables were created.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P16-API-001",
           "title": "复用文档、抽取、规则、复核和报告 API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Reused existing task, document, OCR, classify, extract, linkage, audit, review, and report APIs with confirmation scenario validation and report output.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P16-TEST-001",
           "title": "添加函证字段、日期、金额和差异调节测试",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added confirmation API tests covering task creation, classification, extraction, date inversion, amount mismatch, missing adjustment, review queue, report export, and adjustment behavior.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -1307,9 +1307,9 @@
         "差异样例进入 Review Center",
         "可导出函证差异清单"
       ],
-      "notes": "",
+      "notes": "Phase 16 completed confirmation walkthrough extension by reusing existing generic tables and APIs. Implemented confirmation scenario validation, confirmation doc types, field schemas, classification, extraction, confirmation_no linkage, CONF_* rules, Review Center queue reuse, confirmation exception report export, Evaluation classification sample, frontend task/report support, and synthetic confirmation sample data. No confirmation_* dedicated tables, external confirmation platform, auto-sending, email, bank interface, seal/signature authenticity judgment, RBAC, new Agent, or new RAG capability was added.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 17,

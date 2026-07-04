@@ -22,7 +22,13 @@ SalesDocType = Literal[
     "receipt_voucher",
     "accounting_voucher",
 ]
-DocumentDocType = ProcurementDocType | SalesDocType
+ConfirmationDocType = Literal[
+    "confirmation",
+    "confirmation_request",
+    "confirmation_reply",
+    "confirmation_adjustment",
+]
+DocumentDocType = ProcurementDocType | SalesDocType | ConfirmationDocType
 UnknownDocType = Literal["unknown"]
 ClassificationDocType = DocumentDocType | UnknownDocType
 

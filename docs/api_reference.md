@@ -16,7 +16,7 @@ Responses use JSON unless the endpoint is a report download. Errors use FastAPI'
 - `GET /tasks/{task_id}`
 - `PATCH /tasks/{task_id}`
 
-Supported task scenarios: `procurement`, `sales`.
+Supported task scenarios: `procurement`, `sales`, `confirmation`.
 
 ## Documents
 
@@ -60,12 +60,20 @@ Supported sales doc types:
 - `accounting_voucher`
 - `unknown`
 
+Supported confirmation doc types:
+
+- `confirmation`
+- `confirmation_request`
+- `confirmation_reply`
+- `confirmation_adjustment`
+- `unknown`
+
 ## Document Linkage
 
 - `POST /tasks/{task_id}/link-documents`
 - `GET /tasks/{task_id}/document-relations`
 
-Procurement and sales both reuse this API. Sales linkage prioritizes explicit contract/order/delivery/invoice references; low-confidence customer bridges are marked for review.
+Procurement, sales, and confirmation all reuse this API. Sales linkage prioritizes explicit contract/order/delivery/invoice references; low-confidence customer bridges are marked for review. Confirmation linkage prioritizes `confirmation_no` and keeps relation evidence reviewable.
 
 ## Rule Engine
 
@@ -94,6 +102,14 @@ Sales rule codes:
 - `SALES_NAME_001`
 - `SALES_QTY_001`
 
+Confirmation rule codes:
+
+- `CONF_MISSING_001`
+- `CONF_DATE_001`
+- `CONF_AMOUNT_001`
+- `CONF_NAME_001`
+- `CONF_SEAL_SIGN_001`
+
 Rule configuration stays inside the Python rule registry. `POST /rules` only accepts rule codes already present in the registry. `PATCH /rules/{rule_id}` supports enabled status, version, description, and approved parameters such as `tolerance_amount`, `tolerance_ratio`, `allowed_tax_rates`, `supplier_aliases`, `item_mappings`, `prepayment_allowed`, and `date_tolerance_days`. Rule updates write `audit_logs`; audit results include `rule_version`. `POST /rules/{rule_id}/evaluate` is a dry run and does not persist `audit_results`.
 
 ## Review
@@ -116,7 +132,7 @@ Dismiss requires a non-empty `reason`.
 
 Report files are xlsx only in MVP. Generated files are stored under ignored `local_storage/reports`.
 
-Procurement reports include `Procurement Control Table`. Sales reports include `Sales Control Table`. Both keep Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
+Procurement reports include `Procurement Control Table`. Sales reports include `Sales Control Table`. Confirmation reports include `Confirmation Results`. All keep Summary, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
 
 ## RAG Knowledge Base
 

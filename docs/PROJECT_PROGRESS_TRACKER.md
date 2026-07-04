@@ -43,7 +43,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 13 | Agent Workflow 状态机与工具调用 | Post-MVP | DONE | agent_runs、agent_steps、状态机、重试 |
 | Phase 14 | Bad Case Center 与 Evaluation Center | Post-MVP | DONE | bad_cases、evaluation_results、回归评测 |
 | Phase 15 | 销售穿行扩展 | Post-MVP | DONE | 销售穿行 Schema、规则、控制表 |
-| Phase 16 | 函证模块扩展 | Post-MVP | TODO | 函证字段抽取、差异比对、复核 |
+| Phase 16 | 函证模块扩展 | Post-MVP | DONE | 函证字段抽取、差异比对、复核 |
 | Phase 17 | 访谈模块扩展 | Post-MVP | TODO | 访谈字段、关键回答、底稿交叉验证 |
 | Phase 18 | 合同审核模块扩展 | Post-MVP | TODO | 合同条款抽取、风险提示、证据索引 |
 | Phase 19 | RBAC、审计、安全、工程化完善 | Post-MVP | TODO | 用户角色权限、安全、审计、异步工程化 |
@@ -1326,7 +1326,12 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：函证模块扩展
 - 是否属于 MVP：否
-- Status: TODO
+- Status: DONE
+- Updated At: 2026-07-04
+
+### Notes
+
+- 2026-07-04: Phase 16 完成 confirmation 场景横向扩展。复用现有 task/document/OCR/classification/extraction/linkage/audit/review/report/evaluation 基础框架，新增函证 doc_type、函证字段 Schema、分类关键词、confirmation_no 归集、五条 CONF_* 规则、Confirmation Results xlsx 导出、Task Center confirmation 创建/上传、Report Center confirmation 预览、synthetic confirmation sample data 和后端函证端到端测试。未新增 confirmation_* 专用表，未实现外部函证平台、自动发函、邮件发送、银行接口、公章真伪鉴定、签字真伪鉴定、访谈、合同审核、RBAC 或新 Agent/RAG 能力。
 
 ### 阶段目标
 
@@ -1334,63 +1339,63 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 定义 confirmation doc_type。
-- [ ] 定义函证字段 Schema。
-- [ ] 实现函证字段抽取。
-- [ ] 实现账面金额和回函金额比对规则。
-- [ ] 实现差异调节检查。
+- [x] 定义 confirmation doc_type。
+- [x] 定义函证字段 Schema。
+- [x] 实现函证字段抽取。
+- [x] 实现账面金额和回函金额比对规则。
+- [x] 实现差异调节检查。
 
 ### 前端任务
 
-- [ ] Task Center 支持 confirmation 场景。
-- [ ] Workbench 支持函证字段展示。
-- [ ] Review Center 支持函证差异复核。
-- [ ] Report Center 支持函证差异清单。
+- [x] Task Center 支持 confirmation 场景。
+- [x] Workbench 支持函证字段展示。
+- [x] Review Center 支持函证差异复核。
+- [x] Report Center 支持函证差异清单。
 
 ### 数据库 / Migration 任务
 
-- [ ] 优先复用 `documents`, `extracted_fields`, `audit_results`。
-- [ ] 如差异调节需要结构化表，先补充 tracker 后再开发。
+- [x] 优先复用 `documents`, `extracted_fields`, `audit_results`。
+- [x] 如差异调节需要结构化表，先补充 tracker 后再开发。
 
 ### API 任务
 
-- [ ] 复用文档处理 API。
-- [ ] 复用抽取 API。
-- [ ] 复用 audit API。
-- [ ] 复用 report API。
+- [x] 复用文档处理 API。
+- [x] 复用抽取 API。
+- [x] 复用 audit API。
+- [x] 复用 report API。
 
 ### 测试任务
 
-- [ ] 函证字段抽取测试。
-- [ ] 回函日期早于发函日期测试。
-- [ ] 回函金额与账面金额不一致测试。
-- [ ] 差异调节缺失测试。
+- [x] 函证字段抽取测试。
+- [x] 回函日期早于发函日期测试。
+- [x] 回函金额与账面金额不一致测试。
+- [x] 差异调节缺失测试。
 
 ### 验收标准
 
-- [ ] 能抽取函证核心字段。
-- [ ] 能比对账面金额、回函金额和差异金额。
-- [ ] 差异样例进入 Review Center。
-- [ ] 可导出函证差异清单。
+- [x] 能抽取函证核心字段。
+- [x] 能比对账面金额、回函金额和差异金额。
+- [x] 差异样例进入 Review Center。
+- [x] 可导出函证差异清单。
 
 ### 交付物
 
-- [ ] 函证 Schema。
-- [ ] 函证规则。
-- [ ] 函证差异报告。
-- [ ] 函证样例数据。
+- [x] 函证 Schema。
+- [x] 函证规则。
+- [x] 函证差异报告。
+- [x] 函证样例数据。
 
 ### 风险点
 
-- [ ] 回函格式差异大。
-- [ ] 公章和签字识别不稳定。
-- [ ] 差异调节表关联困难。
+- [x] 回函格式差异大。
+- [x] 公章和签字识别不稳定。
+- [x] 差异调节表关联困难。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做公章真伪鉴定。
-- [ ] 不做外部函证平台集成。
-- [ ] 不做自动替代人工函证判断。
+- [x] 不做公章真伪鉴定。
+- [x] 不做外部函证平台集成。
+- [x] 不做自动替代人工函证判断。
 
 ## Phase 17: 访谈模块扩展
 
@@ -1715,7 +1720,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [x] Phase 13 Agent Workflow 状态机与工具调用完成。
 - [x] Phase 14 Bad Case Center 与 Evaluation Center 完成。
 - [x] Phase 15 销售穿行扩展完成。
-- [ ] Phase 16 函证模块扩展完成。
+- [x] Phase 16 函证模块扩展完成。
 - [ ] Phase 17 访谈模块扩展完成。
 - [ ] Phase 18 合同审核模块扩展完成。
 - [ ] Phase 19 RBAC、审计、安全、工程化完善完成。

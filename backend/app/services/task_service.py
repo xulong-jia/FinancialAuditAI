@@ -11,7 +11,7 @@ from app.schemas.task import TaskCreate, TaskUpdate
 
 
 def create_task(db: Session, payload: TaskCreate) -> AuditTask:
-    prefix = "SALES" if payload.scenario == "sales" else "PROC"
+    prefix = {"sales": "SALES", "confirmation": "CONF"}.get(payload.scenario, "PROC")
     task = AuditTask(
         task_no=f"{prefix}-{datetime.now(timezone.utc):%Y%m%d%H%M%S}-{token_hex(4)}",
         name=payload.name,

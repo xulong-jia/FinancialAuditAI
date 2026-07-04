@@ -28,8 +28,20 @@ class AuditRule(Base):
 
     @property
     def category(self) -> str:
-        return "sales" if self.rule_code.startswith("SALES_") else "procurement"
+        if self.rule_code.startswith("SALES_"):
+            return "sales"
+        if self.rule_code.startswith("CONF_"):
+            return "confirmation"
+        return "procurement"
 
     @property
     def severity(self) -> str:
-        return "high" if self.rule_code in {"PROC_AMOUNT_001", "PROC_QTY_001", "SALES_AMOUNT_001", "SALES_QTY_001"} else "medium"
+        high_rules = {
+            "PROC_AMOUNT_001",
+            "PROC_QTY_001",
+            "SALES_AMOUNT_001",
+            "SALES_QTY_001",
+            "CONF_DATE_001",
+            "CONF_AMOUNT_001",
+        }
+        return "high" if self.rule_code in high_rules else "medium"

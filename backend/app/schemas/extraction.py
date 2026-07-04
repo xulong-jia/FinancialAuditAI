@@ -191,6 +191,46 @@ class SalesAccountingVoucherExtraction(BaseModel):
     related_invoice_no: ExtractedFieldValue
 
 
+class ConfirmationExtraction(BaseModel):
+    confirmation_no: ExtractedFieldValue
+    counterparty_name: ExtractedFieldValue
+    counterparty_address: ExtractedFieldValue
+    sent_date: ExtractedFieldValue
+    replied_date: ExtractedFieldValue
+    confirmed_amount: ExtractedFieldValue
+    book_amount: ExtractedFieldValue
+    difference_amount: ExtractedFieldValue
+    seal_detected: ExtractedFieldValue
+    signatory: ExtractedFieldValue
+    reply_channel: ExtractedFieldValue
+    exception_reason: ExtractedFieldValue
+
+
+class ConfirmationRequestExtraction(BaseModel):
+    confirmation_no: ExtractedFieldValue
+    counterparty_name: ExtractedFieldValue
+    counterparty_address: ExtractedFieldValue
+    sent_date: ExtractedFieldValue
+    book_amount: ExtractedFieldValue
+
+
+class ConfirmationReplyExtraction(BaseModel):
+    confirmation_no: ExtractedFieldValue
+    counterparty_name: ExtractedFieldValue
+    replied_date: ExtractedFieldValue
+    confirmed_amount: ExtractedFieldValue
+    seal_detected: ExtractedFieldValue
+    signatory: ExtractedFieldValue
+    reply_channel: ExtractedFieldValue
+
+
+class ConfirmationAdjustmentExtraction(BaseModel):
+    confirmation_no: ExtractedFieldValue
+    difference_amount: ExtractedFieldValue
+    exception_reason: ExtractedFieldValue
+    adjustment_items: ExtractedFieldValue
+
+
 DOCUMENT_EXTRACTION_SCHEMAS = {
     "purchase_request": PurchaseRequestExtraction,
     "purchase_contract": PurchaseContractExtraction,
@@ -210,6 +250,13 @@ SALES_DOCUMENT_EXTRACTION_SCHEMAS = {
     "accounting_voucher": SalesAccountingVoucherExtraction,
 }
 
+CONFIRMATION_DOCUMENT_EXTRACTION_SCHEMAS = {
+    "confirmation": ConfirmationExtraction,
+    "confirmation_request": ConfirmationRequestExtraction,
+    "confirmation_reply": ConfirmationReplyExtraction,
+    "confirmation_adjustment": ConfirmationAdjustmentExtraction,
+}
+
 
 def validate_document_extraction(
     doc_type: DocumentDocType,
@@ -217,7 +264,10 @@ def validate_document_extraction(
     scenario: str = "procurement",
 ) -> None:
     payload = {field.field_name: field for field in fields}
-    schemas = SALES_DOCUMENT_EXTRACTION_SCHEMAS if scenario == "sales" else DOCUMENT_EXTRACTION_SCHEMAS
+    schemas = {
+        "sales": SALES_DOCUMENT_EXTRACTION_SCHEMAS,
+        "confirmation": CONFIRMATION_DOCUMENT_EXTRACTION_SCHEMAS,
+    }.get(scenario, DOCUMENT_EXTRACTION_SCHEMAS)
     try:
         schemas[doc_type].model_validate(payload)
     except KeyError as exc:

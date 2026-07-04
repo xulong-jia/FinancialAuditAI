@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 TaskStatus = Literal["draft", "uploaded", "failed"]
-Scenario = Literal["procurement", "sales"]
+Scenario = Literal["procurement", "sales", "confirmation"]
 
 
 class TaskCreate(BaseModel):

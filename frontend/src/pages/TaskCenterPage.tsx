@@ -48,10 +48,17 @@ const salesDocTypes: { label: string; value: DocumentDocType }[] = [
   { label: "收款凭证", value: "receipt_voucher" },
   { label: "记账凭证", value: "accounting_voucher" },
 ];
+const confirmationDocTypes: { label: string; value: DocumentDocType }[] = [
+  { label: "函证", value: "confirmation" },
+  { label: "函证发函", value: "confirmation_request" },
+  { label: "函证回函", value: "confirmation_reply" },
+  { label: "函证差异调节", value: "confirmation_adjustment" },
+];
 
 const classificationDocTypes: { label: string; value: ClassificationDocType }[] = [
   ...procurementDocTypes,
   ...salesDocTypes.filter((option) => option.value !== "accounting_voucher"),
+  ...confirmationDocTypes,
   { label: "未知 / 需要复核", value: "unknown" },
 ];
 
@@ -326,7 +333,12 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
 
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId) ?? null;
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
-  const uploadDocTypes = selectedTask?.scenario === "sales" ? salesDocTypes : procurementDocTypes;
+  const uploadDocTypes =
+    selectedTask?.scenario === "sales"
+      ? salesDocTypes
+      : selectedTask?.scenario === "confirmation"
+        ? confirmationDocTypes
+        : procurementDocTypes;
   const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
   const documentNameById = Object.fromEntries(
     documents.map((document) => [document.id, document.original_filename]),
@@ -355,6 +367,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
               options={[
                 { label: "Procurement", value: "procurement" },
                 { label: "Sales", value: "sales" },
+                { label: "Confirmation", value: "confirmation" },
               ]}
             />
           </Form.Item>

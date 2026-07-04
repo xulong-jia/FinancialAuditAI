@@ -44,6 +44,12 @@ DOC_TYPES_BY_SCENARIO = {
         "receipt_voucher",
         "accounting_voucher",
     },
+    "confirmation": {
+        "confirmation",
+        "confirmation_request",
+        "confirmation_reply",
+        "confirmation_adjustment",
+    },
 }
 
 

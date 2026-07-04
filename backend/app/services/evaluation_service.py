@@ -79,6 +79,7 @@ def _evaluate_classification() -> tuple[int, dict, list[dict]]:
         ("contract.pdf", "purchase contract\ncontract no: C-1\nsupplier: Demo Co", "purchase_contract", "procurement"),
         ("invoice.pdf", "invoice\ninvoice number: I-1\nseller: Demo Co\ntax amount: 10", "invoice", "procurement"),
         ("sales-order.pdf", "sales order\norder no: SO-1\ncustomer: Demo Co", "sales_order", "sales"),
+        ("confirmation-reply.pdf", "confirmation reply\nconfirmation no: CF-1\nreplied date\nconfirmed amount\nseal\nsignatory", "confirmation_reply", "confirmation"),
     ]
     failed = []
     for filename, text, expected, scenario in samples:

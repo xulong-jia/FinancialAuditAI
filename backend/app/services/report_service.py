@@ -81,6 +81,26 @@ SALES_CONTROL_COLUMNS = [
     "evidence_refs",
     "reviewer_comment",
 ]
+CONFIRMATION_CONTROL_COLUMNS = [
+    "task_no",
+    "business_key",
+    "confirmation_no",
+    "counterparty_name",
+    "sent_date",
+    "replied_date",
+    "book_amount",
+    "confirmed_amount",
+    "difference_amount",
+    "exception_reason",
+    "date_check",
+    "amount_check",
+    "name_check",
+    "seal_sign_check",
+    "missing_field_check",
+    "overall_status",
+    "evidence_refs",
+    "reviewer_comment",
+]
 
 RULE_CHECK_COLUMNS = {
     "PROC_TIME_001": "time_check",
@@ -94,6 +114,11 @@ RULE_CHECK_COLUMNS = {
     "SALES_AMOUNT_001": "amount_check",
     "SALES_NAME_001": "name_check",
     "SALES_MISSING_001": "missing_field_check",
+    "CONF_DATE_001": "date_check",
+    "CONF_AMOUNT_001": "amount_check",
+    "CONF_NAME_001": "name_check",
+    "CONF_SEAL_SIGN_001": "seal_sign_check",
+    "CONF_MISSING_001": "missing_field_check",
 }
 
 
@@ -140,8 +165,15 @@ def generate_control_table_report(
     file_path = reports_root() / str(task_id) / f"{report_id}.xlsx"
     write_xlsx(file_path, sheets)
 
-    report_type = "sales_control_table" if task.scenario == "sales" else "procurement_control_table"
-    report_title = f"{task.task_no} Sales Control Table" if task.scenario == "sales" else f"{task.task_no} Procurement Control Table"
+    if task.scenario == "sales":
+        report_type = "sales_control_table"
+        report_title = f"{task.task_no} Sales Control Table"
+    elif task.scenario == "confirmation":
+        report_type = "confirmation_exception_report"
+        report_title = f"{task.task_no} Confirmation Exception Report"
+    else:
+        report_type = "procurement_control_table"
+        report_title = f"{task.task_no} Procurement Control Table"
     report = Report(
         id=report_id,
         task_id=task_id,
@@ -248,10 +280,12 @@ def _build_control_rows(
         common = {
             "task_no": task.task_no,
             "business_key": business_key,
+            "date_check": statuses.get("date_check", "-"),
             "time_check": statuses.get("time_check", "-"),
             "quantity_check": statuses.get("quantity_check", "-"),
             "amount_check": statuses.get("amount_check", "-"),
             "name_check": statuses.get("name_check", "-"),
+            "seal_sign_check": statuses.get("seal_sign_check", "-"),
             "missing_field_check": statuses.get("missing_field_check", "-"),
             "overall_status": _overall_status([result.status for result in group_results]),
             "evidence_refs": _json(evidence_refs),
@@ -275,6 +309,17 @@ def _build_control_rows(
                 "contract_amount": _sum_amounts(group_docs, fields_by_document, "sales_contract", "amount_including_tax"),
                 "invoice_amount": _sum_amounts(group_docs, fields_by_document, "sales_invoice", "amount_including_tax"),
                 "receipt_amount": _sum_amounts(group_docs, fields_by_document, "receipt_voucher", "amount"),
+            }
+        elif task.scenario == "confirmation":
+            row = common | {
+                "confirmation_no": _first_text(group_docs, fields_by_document, (("confirmation_request", "confirmation_no"), ("confirmation_reply", "confirmation_no"), ("confirmation_adjustment", "confirmation_no"), ("confirmation", "confirmation_no"))),
+                "counterparty_name": _first_text(group_docs, fields_by_document, (("confirmation_request", "counterparty_name"), ("confirmation_reply", "counterparty_name"), ("confirmation", "counterparty_name"))),
+                "sent_date": _first_text(group_docs, fields_by_document, (("confirmation_request", "sent_date"), ("confirmation", "sent_date"))),
+                "replied_date": _first_text(group_docs, fields_by_document, (("confirmation_reply", "replied_date"), ("confirmation", "replied_date"))),
+                "book_amount": _sum_amounts_for(group_docs, fields_by_document, (("confirmation_request", "book_amount"), ("confirmation", "book_amount"))),
+                "confirmed_amount": _sum_amounts_for(group_docs, fields_by_document, (("confirmation_reply", "confirmed_amount"), ("confirmation", "confirmed_amount"))),
+                "difference_amount": _sum_amounts_for(group_docs, fields_by_document, (("confirmation_adjustment", "difference_amount"), ("confirmation", "difference_amount"))),
+                "exception_reason": _first_text(group_docs, fields_by_document, (("confirmation_adjustment", "exception_reason"), ("confirmation", "exception_reason"))),
             }
         else:
             row = common | {
@@ -306,8 +351,15 @@ def _sheets(
     control_rows: list[dict],
     summary: dict,
 ) -> dict[str, list[list[object | None]]]:
-    control_columns = SALES_CONTROL_COLUMNS if task.scenario == "sales" else CONTROL_COLUMNS
-    control_sheet_name = "Sales Control Table" if task.scenario == "sales" else "Procurement Control Table"
+    if task.scenario == "sales":
+        control_columns = SALES_CONTROL_COLUMNS
+        control_sheet_name = "Sales Control Table"
+    elif task.scenario == "confirmation":
+        control_columns = CONFIRMATION_CONTROL_COLUMNS
+        control_sheet_name = "Confirmation Results"
+    else:
+        control_columns = CONTROL_COLUMNS
+        control_sheet_name = "Procurement Control Table"
     return {
         "Summary": _summary_rows(summary),
         control_sheet_name: [control_columns] + [[row[column] for column in control_columns] for row in control_rows],
@@ -493,6 +545,14 @@ def _sum_amounts(
         for amount in [_amount(field)]
         if amount is not None
     )
+
+
+def _sum_amounts_for(
+    documents: list[Document],
+    fields_by_document: dict[UUID, dict[str, ExtractedField]],
+    lookups: tuple[tuple[str, str], ...],
+) -> float:
+    return sum(_sum_amounts(documents, fields_by_document, doc_type, field_name) for doc_type, field_name in lookups)
 
 
 def _amount(field: ExtractedField | None) -> float | None:

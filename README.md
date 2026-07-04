@@ -1,6 +1,6 @@
 # FinancialAuditAI
 
-FinancialAuditAI is a financial document review platform that started with a procurement walkthrough MVP and now includes a sales walkthrough extension. It covers the slice from task creation to document parsing, classification, extraction, linkage, deterministic rule checks, human review, quality evaluation, and xlsx report export.
+FinancialAuditAI is a financial document review platform that started with a procurement walkthrough MVP and now includes sales walkthrough and confirmation extensions. It covers the slice from task creation to document parsing, classification, extraction, linkage, deterministic rule checks, human review, quality evaluation, and xlsx report export.
 
 This MVP is for learning, portfolio, and local demonstration only. It does not provide audit, legal, investment, or compliance advice.
 
@@ -51,11 +51,20 @@ Post-MVP Phase 15 implemented:
 - Sales xlsx export with Summary, Sales Control Table, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
 - Sales linkage uses explicit document references first and low-confidence customer bridging only when needed; low-confidence relationships remain reviewable.
 
+Post-MVP Phase 16 implemented:
+
+- Confirmation walkthrough extension using the existing OCR, classification, extraction, linkage, Rule Engine, Review Center, Report Center, and Evaluation foundations.
+- Confirmation document types: `confirmation`, `confirmation_request`, `confirmation_reply`, and `confirmation_adjustment`.
+- Confirmation rules: `CONF_MISSING_001`, `CONF_DATE_001`, `CONF_AMOUNT_001`, `CONF_NAME_001`, and `CONF_SEAL_SIGN_001`.
+- Confirmation xlsx export with Summary, Confirmation Results, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
+- Seal and signatory fields are risk prompts only; the system does not judge seal, signature, bank, or reply authenticity.
+
 Not implemented:
 
 - Full RBAC, Dashboard, PDF reports.
-- Confirmations, interviews, contract review, or other remaining Post-MVP scenarios.
+- Interviews, contract review, or other remaining Post-MVP scenarios.
 - Complex revenue recognition, sales forecasting, cash-flow forecasting, or customer credit assessment.
+- External confirmation sending, email delivery, bank interfaces, seal authenticity checks, signature authenticity checks, or final confirmation authenticity judgments.
 
 ## Local Setup
 
@@ -139,7 +148,7 @@ python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.js
 ## Demo Path
 
 1. Open Task Center.
-2. Create a procurement or sales task.
+2. Create a procurement, sales, or confirmation task.
 3. Upload the supported documents for that scenario.
 4. Run OCR, classification, extraction, linkage, and audit rules.
 5. Open Audit Workbench to inspect documents, fields, rule results, and evidence.
@@ -156,12 +165,12 @@ alembic upgrade head
 python ../scripts/seed_demo_data.py
 ```
 
-The seed script uses only synthetic procurement data from `samples/procurement/demo_seed.json`. Phase 15 sales sample metadata lives in `samples/sales/demo_seed.json`; it is also synthetic and does not include real documents.
+The seed script uses only synthetic procurement data from `samples/procurement/demo_seed.json`. Phase 15 sales sample metadata lives in `samples/sales/demo_seed.json`; Phase 16 confirmation sample metadata lives in `samples/confirmation/demo_seed.json`. These files are synthetic and do not include real documents.
 
 ## Data And Safety
 
 - Use public, simulated, or desensitized files only.
-- Do not upload real customer, bank, invoice, tax, contract, payroll, or confidential audit data.
+- Do not upload real customer, bank, invoice, tax, contract, confirmation, reply, payroll, or confidential audit data.
 - `.env`, `local_storage/`, uploaded files, generated reports, xlsx exports, virtual environments, `node_modules/`, logs, and secrets must not be committed.
 - Reports are saved under `local_storage/reports`, which is ignored by Git.
 - Uploaded documents are saved under `local_storage/uploads`, which is ignored by Git.

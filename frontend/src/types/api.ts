@@ -17,7 +17,13 @@ export type SalesDocType =
   | "receipt_voucher"
   | "accounting_voucher";
 
-export type DocumentDocType = ProcurementDocType | SalesDocType;
+export type ConfirmationDocType =
+  | "confirmation"
+  | "confirmation_request"
+  | "confirmation_reply"
+  | "confirmation_adjustment";
+
+export type DocumentDocType = ProcurementDocType | SalesDocType | ConfirmationDocType;
 export type ClassificationDocType = DocumentDocType | "unknown";
 
 export type AlternativeDocType = {
@@ -66,7 +72,7 @@ export type AuditTask = {
   id: string;
   task_no: string;
   name: string;
-  scenario: "procurement" | "sales";
+  scenario: "procurement" | "sales" | "confirmation";
   project_name: string | null;
   company_name: string | null;
   fiscal_year: number | null;
@@ -308,7 +314,7 @@ export type DocumentUpdatePayload = {
 
 export type CreateTaskPayload = {
   name: string;
-  scenario: "procurement" | "sales";
+  scenario: "procurement" | "sales" | "confirmation";
   project_name?: string;
   company_name?: string;
   fiscal_year?: number;

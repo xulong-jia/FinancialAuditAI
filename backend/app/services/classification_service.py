@@ -163,6 +163,50 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
         "付款方",
         "收款方",
     ),
+    "confirmation": (
+        "confirmation",
+        "confirmation no",
+        "counterparty",
+        "book amount",
+        "confirmed amount",
+        "reply",
+        "函证",
+        "被函证方",
+        "账面金额",
+        "回函金额",
+    ),
+    "confirmation_request": (
+        "confirmation request",
+        "sent date",
+        "counterparty",
+        "book amount",
+        "发函",
+        "发函日期",
+        "发函清单",
+        "账面金额",
+    ),
+    "confirmation_reply": (
+        "confirmation reply",
+        "replied date",
+        "confirmed amount",
+        "seal",
+        "signatory",
+        "回函",
+        "回函日期",
+        "公章",
+        "签字",
+    ),
+    "confirmation_adjustment": (
+        "confirmation",
+        "confirmation adjustment",
+        "confirmation no",
+        "difference amount",
+        "exception reason",
+        "adjustment items",
+        "差异调节",
+        "差异金额",
+        "差异原因",
+    ),
 }
 DOC_TYPES_BY_SCENARIO = {
     "procurement": {
@@ -181,6 +225,12 @@ DOC_TYPES_BY_SCENARIO = {
         "sales_invoice",
         "receipt_voucher",
         "accounting_voucher",
+    },
+    "confirmation": {
+        "confirmation",
+        "confirmation_request",
+        "confirmation_reply",
+        "confirmation_adjustment",
     },
 }
 
@@ -314,6 +364,8 @@ def _rank_document_types(filename: str, text: str, scenario: str = "procurement"
             elif normalized in filename_text:
                 score += 0.08
                 matched.append(f"filename:{keyword}")
+        if scenario == "confirmation" and doc_type != "confirmation":
+            score += 0.03
 
         if matched:
             confidence = min(0.98, 0.18 + score)

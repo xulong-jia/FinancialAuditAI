@@ -41,7 +41,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 11 | RAG 四库扩展 | Post-MVP | DONE | regulation / inquiry_case / prospectus / workpaper 检索、citation、no-answer |
 | Phase 12 | Rule Center 规则版本化与参数配置 | Post-MVP | DONE | 规则版本、启用状态、参数配置 |
 | Phase 13 | Agent Workflow 状态机与工具调用 | Post-MVP | DONE | agent_runs、agent_steps、状态机、重试 |
-| Phase 14 | Bad Case Center 与 Evaluation Center | Post-MVP | TODO | bad_cases、evaluation_results、回归评测 |
+| Phase 14 | Bad Case Center 与 Evaluation Center | Post-MVP | DONE | bad_cases、evaluation_results、回归评测 |
 | Phase 15 | 销售穿行扩展 | Post-MVP | TODO | 销售穿行 Schema、规则、控制表 |
 | Phase 16 | 函证模块扩展 | Post-MVP | TODO | 函证字段抽取、差异比对、复核 |
 | Phase 17 | 访谈模块扩展 | Post-MVP | TODO | 访谈字段、关键回答、底稿交叉验证 |
@@ -1167,7 +1167,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：Bad Case Center 与 Evaluation Center
 - 是否属于 MVP：否
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 14 完成 Bad Case Center 与 Evaluation Center。已实现 `BadCaseService`、`EvaluationService`、`bad_cases` / `evaluation_results` migration、Bad Case CRUD/筛选/状态更新、评测运行和结果查询 API、Bad Case Center、Evaluation Center、Audit Workbench 到 Bad Case Center 入口。评测覆盖 classification、ocr、extraction、rule、rag、agent、end_to_end、regression 的 synthetic smoke；失败样例自动落成 open Bad Case 并可进入 regression。metrics 包含 limitations，明确小样本 synthetic，未使用真实敏感客户数据，未修改主业务规则逻辑，未实现销售、函证、访谈、合同审核、RBAC 或 Phase 15 功能。
 
 ### 阶段目标
 
@@ -1175,67 +1179,72 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `BadCaseService`。
-- [ ] 实现 `EvaluationService`。
-- [ ] 支持创建、更新、筛选 Bad Case。
-- [ ] 支持运行评测脚本。
-- [ ] 支持失败样例转 Bad Case。
-- [ ] 支持 Bad Case 回归集。
+- [x] 实现 `BadCaseService`。
+- [x] 实现 `EvaluationService`。
+- [x] 支持创建、更新、筛选 Bad Case。
+- [x] 支持运行评测脚本。
+- [x] 支持失败样例转 Bad Case。
+- [x] 支持 Bad Case 回归集。
 
 ### 前端任务
 
-- [ ] 实现 Bad Case Center。
-- [ ] 实现 Evaluation Center。
-- [ ] 展示评测指标。
-- [ ] 展示失败样例。
-- [ ] 支持 Bad Case 状态更新。
+- [x] 实现 Bad Case Center。
+- [x] 实现 Evaluation Center。
+- [x] 展示评测指标。
+- [x] 展示失败样例。
+- [x] 支持 Bad Case 状态更新。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `bad_cases` 表。
-- [ ] 创建 `evaluation_results` 表。
-- [ ] 保存 metrics、failed_cases、dataset_name、model_name、prompt_version、rule_version。
+- [x] 创建 `bad_cases` 表。
+- [x] 创建 `evaluation_results` 表。
+- [x] 保存 metrics、failed_cases、dataset_name、model_name、prompt_version、rule_version。
 
 ### API 任务
 
-- [ ] `POST /api/v1/bad-cases`。
-- [ ] `GET /api/v1/bad-cases`。
-- [ ] `PATCH /api/v1/bad-cases/{case_id}`。
-- [ ] `POST /api/v1/evaluations/run`。
-- [ ] `GET /api/v1/evaluations/results`。
+- [x] `POST /api/v1/bad-cases`。
+- [x] `GET /api/v1/bad-cases`。
+- [x] `GET /api/v1/bad-cases/{case_id}`。
+- [x] `PATCH /api/v1/bad-cases/{case_id}`。
+- [x] `POST /api/v1/evaluations/run`。
+- [x] `GET /api/v1/evaluations/results`。
+- [x] `GET /api/v1/evaluations/results/{result_id}`。
 
 ### 测试任务
 
-- [ ] Bad Case CRUD 测试。
-- [ ] 规则评测脚本测试。
-- [ ] 字段抽取 expected JSON 对比测试。
-- [ ] 回归评测测试。
+- [x] Bad Case CRUD 测试。
+- [x] Evaluation run API 测试。
+- [x] 规则评测脚本测试。
+- [x] 字段抽取 expected JSON 对比测试。
+- [x] RAG no-answer / citation 基础评测测试。
+- [x] Agent state validity 基础评测测试。
+- [x] 回归评测测试。
 
 ### 验收标准
 
-- [ ] 能创建和筛选 Bad Case。
-- [ ] 每个 Bad Case 有输入、输出、期望、根因、修复方案。
-- [ ] 评测结果记录指标和失败样例。
-- [ ] Bad Case 能进入回归评测。
+- [x] 能创建和筛选 Bad Case。
+- [x] 每个 Bad Case 有输入、输出、期望、根因、修复方案。
+- [x] 评测结果记录指标和失败样例。
+- [x] Bad Case 能进入回归评测。
 
 ### 交付物
 
-- [ ] Bad Case Center。
-- [ ] Evaluation Center。
-- [ ] 评测脚本。
-- [ ] bad_cases / evaluation_results migration。
+- [x] Bad Case Center。
+- [x] Evaluation Center。
+- [x] 评测脚本。
+- [x] bad_cases / evaluation_results migration。
 
 ### 风险点
 
-- [ ] 标注集不足。
-- [ ] 指标不可复现。
-- [ ] Bad Case 只记录不回归。
+- [x] 标注集不足。
+- [x] 指标不可复现。
+- [x] Bad Case 只记录不回归。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做虚假的高指标展示。
-- [ ] 不用真实敏感客户数据作为公开样例。
-- [ ] 不把 Evaluation Center 放到 MVP 前置。
+- [x] 不做虚假的高指标展示。
+- [x] 不用真实敏感客户数据作为公开样例。
+- [x] 不把 Evaluation Center 放到 MVP 前置。
 
 ## Phase 15: 销售穿行扩展
 
@@ -1700,7 +1709,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [x] Phase 11 RAG 四库扩展完成。
 - [x] Phase 12 Rule Center 规则版本化与参数配置完成。
 - [x] Phase 13 Agent Workflow 状态机与工具调用完成。
-- [ ] Phase 14 Bad Case Center 与 Evaluation Center 完成。
+- [x] Phase 14 Bad Case Center 与 Evaluation Center 完成。
 - [ ] Phase 15 销售穿行扩展完成。
 - [ ] Phase 16 函证模块扩展完成。
 - [ ] Phase 17 访谈模块扩展完成。

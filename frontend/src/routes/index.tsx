@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
 
 import { AuditWorkbenchPage } from "../pages/AuditWorkbenchPage";
+import { BadCaseCenterPage } from "../pages/BadCaseCenterPage";
+import { EvaluationCenterPage } from "../pages/EvaluationCenterPage";
 import { KnowledgeCenterPage } from "../pages/KnowledgeCenterPage";
 import { ReportCenterPage } from "../pages/ReportCenterPage";
 import { ReviewCenterPage } from "../pages/ReviewCenterPage";
@@ -13,7 +15,9 @@ export type PageKey =
   | "review-center"
   | "report-center"
   | "knowledge-center"
-  | "rule-center";
+  | "rule-center"
+  | "bad-case-center"
+  | "evaluation-center";
 
 export type PageProps = {
   onNavigate: (key: PageKey) => void;
@@ -32,4 +36,6 @@ export const routes: AppRoute[] = [
   { key: "report-center", label: "Report Center", Component: ReportCenterPage },
   { key: "knowledge-center", label: "Knowledge Center", Component: KnowledgeCenterPage },
   { key: "rule-center", label: "Rule Center", Component: RuleCenterPage },
+  { key: "bad-case-center", label: "Bad Case Center", Component: BadCaseCenterPage },
+  { key: "evaluation-center", label: "Evaluation Center", Component: EvaluationCenterPage },
 ];

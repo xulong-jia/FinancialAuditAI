@@ -119,6 +119,18 @@ RAG query responses include `answer`, `citations`, and `limitations`. If evidenc
 
 Agent workflow is a fixed state machine with whitelisted tool calls only. It records `agent_runs` and `agent_steps` with input references, output references, status, duration, and errors. It calls the existing OCR, classification, extraction, linkage, Rule Engine, RAG retrieval, review routing, and report generation services. Agent workflow does not provide free chat, autonomous planning, RBAC, Evaluation Center, Bad Case Center, or final audit conclusions. It does not write Rule Engine pass/fail decisions directly and does not auto-confirm high-risk exceptions.
 
+## Quality Center
+
+- `POST /bad-cases`
+- `GET /bad-cases`
+- `GET /bad-cases/{case_id}`
+- `PATCH /bad-cases/{case_id}`
+- `POST /evaluations/run`
+- `GET /evaluations/results`
+- `GET /evaluations/results/{result_id}`
+
+Supported evaluation types: `classification`, `ocr`, `extraction`, `rule`, `rag`, `agent`, `end_to_end`, and `regression`. Phase 14 evaluations use synthetic smoke datasets and store explicit limitations in `metrics`; they are quality checks, not production score claims. Failed evaluation samples are stored in `failed_cases` and converted into open Bad Cases for regression tracking. Evaluation Center does not change Rule Engine logic, Review Center decisions, Agent behavior, or RAG answers.
+
 ## Security Notes
 
 - MVP does not implement login, RBAC, user roles, or production authorization.

@@ -36,9 +36,16 @@ Post-MVP Phase 13 implemented:
 - Audit Workbench includes AgentStateTimeline with run status, step details, and failed-step retry.
 - Agent calls existing services and does not bypass Rule Engine, auto-confirm high-risk exceptions, or generate final audit conclusions.
 
+Post-MVP Phase 14 implemented:
+
+- Bad Case Center for synthetic failed sample tracking, status updates, root cause, and fix plan notes.
+- Evaluation Center for synthetic smoke evaluations across classification, OCR, extraction, rules, RAG, Agent workflow, end-to-end, and regression.
+- Evaluation results store dataset name, model/prompt/rule version metadata, metrics, failed cases, and limitations.
+- Failed evaluation samples are converted into Bad Cases; metrics are synthetic quality checks, not production performance claims.
+
 Not implemented:
 
-- Evaluation Center, Bad Case Center, full RBAC, Dashboard, PDF reports.
+- Full RBAC, Dashboard, PDF reports.
 - Sales walkthrough, confirmations, interviews, contract review, or other Post-MVP scenarios.
 
 ## Local Setup

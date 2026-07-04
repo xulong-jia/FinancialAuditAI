@@ -1101,7 +1101,7 @@
       "phase_id": 14,
       "name": "Bad Case Center 与 Evaluation Center",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         10
       ],
@@ -1117,46 +1117,46 @@
           "id": "P14-BE-001",
           "title": "实现 BadCaseService 和 EvaluationService",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented BadCaseService and EvaluationService with Bad Case create/list/get/update/filter, synthetic smoke evaluations, failed sample conversion to Bad Cases, and regression over open/fixed Bad Cases.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P14-FE-001",
           "title": "实现 Bad Case Center 和 Evaluation Center",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented Bad Case Center and Evaluation Center pages with Bad Case list/create/filter/status update, evaluation run form, metrics display, failed case display, and Audit Workbench entry to Bad Case Center.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P14-DB-001",
           "title": "创建 bad_cases 和 evaluation_results 表",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added bad_cases and evaluation_results tables through migration 0013_bad_case_eval, including payloads, expected/model output, root cause, fix plan, status, severity, owner_name, metrics, failed_cases, dataset_name, model_name, prompt_version, and rule_version.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P14-API-001",
           "title": "实现 bad case 和 evaluation API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented POST/GET/PATCH bad case APIs and evaluation run/list/detail APIs under /api/v1.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P14-TEST-001",
           "title": "测试 Bad Case CRUD、规则评测、字段 expected 对比和回归评测",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added quality API tests for Bad Case CRUD/filtering, Evaluation run/results, Rule metrics and failed-case conversion, extraction expected JSON comparison, RAG no-answer/citation guard, Agent state validity, and regression evaluation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -1165,9 +1165,9 @@
         "评测结果记录指标和失败样例",
         "Bad Case 能进入回归评测"
       ],
-      "notes": "",
+      "notes": "Phase 14 completed Bad Case Center and Evaluation Center using synthetic smoke datasets only. Evaluation types cover classification, OCR, extraction, rule, RAG, Agent, end_to_end, and regression. Metrics include limitations and failed_cases; failed samples are converted to open Bad Cases for regression. No Phase 15 sales walkthrough, confirmations, interviews, contract review, RBAC, real sensitive data, fake metrics, production monitoring, or main business rule changes were implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 15,

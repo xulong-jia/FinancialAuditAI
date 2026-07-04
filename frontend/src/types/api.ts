@@ -200,6 +200,75 @@ export type AgentRunCreatePayload = {
   input_refs?: Record<string, unknown>;
 };
 
+export type EvalType =
+  | "classification"
+  | "ocr"
+  | "extraction"
+  | "rule"
+  | "rag"
+  | "agent"
+  | "end_to_end"
+  | "regression";
+
+export type BadCase = {
+  id: string;
+  task_id: string | null;
+  document_id: string | null;
+  case_type: EvalType;
+  title: string;
+  input_payload: Record<string, unknown>;
+  model_output: Record<string, unknown>;
+  expected_output: Record<string, unknown>;
+  root_cause: string | null;
+  fix_plan: string | null;
+  status: string;
+  severity: string;
+  owner_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BadCaseCreatePayload = {
+  case_type: EvalType;
+  title: string;
+  input_payload?: Record<string, unknown>;
+  model_output?: Record<string, unknown>;
+  expected_output?: Record<string, unknown>;
+  root_cause?: string | null;
+  fix_plan?: string | null;
+  status?: string;
+  severity?: string;
+  owner_name?: string | null;
+};
+
+export type BadCaseUpdatePayload = Partial<Omit<BadCaseCreatePayload, "case_type">>;
+
+export type EvaluationRunPayload = {
+  eval_type: EvalType;
+  eval_name?: string;
+  dataset_name?: string;
+  model_name?: string | null;
+  prompt_version?: string | null;
+  rule_version?: string | null;
+  created_by?: string | null;
+};
+
+export type EvaluationResult = {
+  id: string;
+  eval_name: string;
+  eval_type: EvalType;
+  dataset_name: string;
+  model_name: string | null;
+  prompt_version: string | null;
+  rule_version: string | null;
+  metrics: Record<string, unknown>;
+  sample_count: number;
+  failed_cases: Record<string, unknown>[];
+  report_path: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
 export type AuditResult = {
   id: string;
   task_id: string;

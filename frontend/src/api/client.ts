@@ -4,6 +4,9 @@ import type {
   AgentRun,
   AgentRunCreatePayload,
   AgentStep,
+  BadCase,
+  BadCaseCreatePayload,
+  BadCaseUpdatePayload,
   AuditTask,
   AuditResult,
   AuditRule,
@@ -19,6 +22,9 @@ import type {
   DocumentRelation,
   ExtractedField,
   DismissReviewPayload,
+  EvalType,
+  EvaluationResult,
+  EvaluationRunPayload,
   FieldCorrectionPayload,
   LinkDocumentsResult,
   ProcurementDocType,
@@ -246,4 +252,33 @@ export function listAgentSteps(runId: string): Promise<AgentStep[]> {
 
 export function retryAgentRun(runId: string): Promise<AgentRun> {
   return sendJson<AgentRun>(`/api/v1/agents/runs/${runId}/retry`, "POST", {});
+}
+
+export function createBadCase(payload: BadCaseCreatePayload): Promise<BadCase> {
+  return sendJson<BadCase>("/api/v1/bad-cases", "POST", payload);
+}
+
+export function listBadCases(filters: { case_type?: EvalType; status?: string } = {}): Promise<BadCase[]> {
+  const params = new URLSearchParams();
+  if (filters.case_type) {
+    params.set("case_type", filters.case_type);
+  }
+  if (filters.status) {
+    params.set("status", filters.status);
+  }
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return getJson<BadCase[]>(`/api/v1/bad-cases${query}`);
+}
+
+export function updateBadCase(caseId: string, payload: BadCaseUpdatePayload): Promise<BadCase> {
+  return sendJson<BadCase>(`/api/v1/bad-cases/${caseId}`, "PATCH", payload);
+}
+
+export function runEvaluation(payload: EvaluationRunPayload): Promise<EvaluationResult> {
+  return sendJson<EvaluationResult>("/api/v1/evaluations/run", "POST", payload);
+}
+
+export function listEvaluationResults(evalType?: EvalType): Promise<EvaluationResult[]> {
+  const query = evalType ? `?eval_type=${evalType}` : "";
+  return getJson<EvaluationResult[]>(`/api/v1/evaluations/results${query}`);
 }

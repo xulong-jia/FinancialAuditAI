@@ -358,6 +358,7 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
             <Typography.Title level={3} style={{ margin: 0 }}>
               Audit Workbench
             </Typography.Title>
+            <Button onClick={() => onNavigate("bad-case-center")}>Bad Case Center</Button>
             <Select
               placeholder="Select task"
               style={{ minWidth: 320 }}

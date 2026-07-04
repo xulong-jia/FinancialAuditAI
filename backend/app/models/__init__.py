@@ -4,11 +4,13 @@ from app.models.audit_task import AuditTask
 from app.models.audit_log import AuditLog
 from app.models.audit_rule import AuditRule
 from app.models.audit_result import AuditResult
+from app.models.bad_case import BadCase
 from app.models.control_table_row import ControlTableRow
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.document_relation import DocumentRelation
 from app.models.extracted_field import ExtractedField
+from app.models.evaluation_result import EvaluationResult
 from app.models.model_invocation import ModelInvocation
 from app.models.rag_chunk import RagChunk
 from app.models.rag_document import RagDocument
@@ -22,11 +24,13 @@ __all__ = [
     "AuditLog",
     "AuditRule",
     "AuditResult",
+    "BadCase",
     "ControlTableRow",
     "Document",
     "DocumentPage",
     "DocumentRelation",
     "ExtractedField",
+    "EvaluationResult",
     "ModelInvocation",
     "RagChunk",
     "RagDocument",

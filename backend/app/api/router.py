@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.agents import router as agents_router
 from app.api.documents import router as documents_router
+from app.api.quality import router as quality_router
 from app.api.reports import router as reports_router
 from app.api.rag import router as rag_router
 from app.api.review import router as review_router
@@ -13,6 +14,7 @@ router = APIRouter()
 router.include_router(agents_router)
 router.include_router(tasks_router)
 router.include_router(documents_router)
+router.include_router(quality_router)
 router.include_router(review_router)
 router.include_router(reports_router)
 router.include_router(rag_router)

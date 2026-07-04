@@ -2,11 +2,15 @@ import { Alert, Button, Card, Drawer, Empty, List, Select, Space, Spin, Table, T
 import { useEffect, useState } from "react";
 
 import {
+  confirmAuditResult,
+  dismissAuditResult,
   listAuditResults,
   listDocumentPages,
   listDocuments,
   listTaskFields,
   listTasks,
+  rerunAuditResult,
+  updateField,
 } from "../api/client";
 import type { PageProps } from "../routes";
 import type { AuditResult, AuditTask, DocumentPage, DocumentRecord, ExtractedField } from "../types/api";
@@ -68,7 +72,7 @@ function renderHighlightedText(rawText: string, evidenceText: string | null) {
   );
 }
 
-export function AuditWorkbenchPage(_props: PageProps) {
+export function AuditWorkbenchPage({ onNavigate }: PageProps) {
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [fields, setFields] = useState<ExtractedField[]>([]);
@@ -80,6 +84,7 @@ export function AuditWorkbenchPage(_props: PageProps) {
   const [pendingPageNumber, setPendingPageNumber] = useState<number | null>(null);
   const [activeEvidenceText, setActiveEvidenceText] = useState<string | null>(null);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [loadingTaskData, setLoadingTaskData] = useState(false);
   const [loadingPages, setLoadingPages] = useState(false);
@@ -167,7 +172,7 @@ export function AuditWorkbenchPage(_props: PageProps) {
     return () => {
       active = false;
     };
-  }, [selectedTaskId]);
+  }, [selectedTaskId, refreshKey]);
 
   useEffect(() => {
     if (!selectedDocumentId) {
@@ -269,6 +274,70 @@ export function AuditWorkbenchPage(_props: PageProps) {
       matchedField?.source_text ?? ref.source_text ?? (typeof ref.value === "string" ? ref.value : null);
 
     jumpToEvidence(ref.document_id ?? matchedField?.document_id, matchedField?.source_page ?? null, sourceText);
+  }
+
+  async function refreshReviewData() {
+    setRefreshKey((value) => value + 1);
+  }
+
+  async function handleCorrectField(field: ExtractedField) {
+    const nextValue = window.prompt("Corrected value", field.value_text ?? "");
+    if (nextValue === null) {
+      return;
+    }
+    try {
+      await updateField(field.id, {
+        value_text: nextValue,
+        actor_name: "reviewer",
+        comment: "Corrected in Audit Workbench.",
+      });
+      await refreshReviewData();
+      message.success("Field corrected");
+    } catch {
+      message.error("Failed to correct field");
+    }
+  }
+
+  async function handleConfirmResult(result: AuditResult) {
+    try {
+      await confirmAuditResult(result.id, {
+        actor_name: "reviewer",
+        reason: "Confirmed in Audit Workbench.",
+      });
+      await refreshReviewData();
+      message.success("Audit result confirmed");
+    } catch {
+      message.error("Failed to confirm audit result");
+    }
+  }
+
+  async function handleDismissResult(result: AuditResult) {
+    const reason = window.prompt("Dismiss reason");
+    if (!reason?.trim()) {
+      message.warning("Dismiss reason is required");
+      return;
+    }
+    try {
+      await dismissAuditResult(result.id, {
+        actor_name: "reviewer",
+        reason,
+      });
+      await refreshReviewData();
+      message.success("Audit result dismissed");
+    } catch {
+      message.error("Failed to dismiss audit result");
+    }
+  }
+
+  async function handleRerunResult(result: AuditResult) {
+    try {
+      const nextResults = await rerunAuditResult(result.id, { actor_name: "reviewer" });
+      setAuditResults(nextResults);
+      await refreshReviewData();
+      message.success("Rules rerun");
+    } catch {
+      message.error("Failed to rerun rules");
+    }
   }
 
   return (
@@ -483,6 +552,14 @@ export function AuditWorkbenchPage(_props: PageProps) {
                           "-"
                         ),
                     },
+                    {
+                      title: "Review",
+                      render: (_, record) => (
+                        <Button size="small" onClick={() => void handleCorrectField(record)}>
+                          Correct
+                        </Button>
+                      ),
+                    },
                   ]}
                 />
               ) : (
@@ -574,14 +651,59 @@ export function AuditWorkbenchPage(_props: PageProps) {
         title="Review Drawer"
         open={reviewDrawerOpen}
         onClose={() => setReviewDrawerOpen(false)}
-        width={420}
+        width={620}
       >
-        <Alert
-          type="info"
-          showIcon
-          message="Review actions are reserved for Phase 8"
-          description="Phase 7 only provides a read-only entry point for review context."
-        />
+        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+          <Button onClick={() => onNavigate("review-center")}>Open Review Center</Button>
+          <Card size="small" title="Field Review">
+            <Space direction="vertical" style={{ width: "100%" }}>
+              {selectedDocumentFields.length === 0 ? (
+                <Empty description="No fields" />
+              ) : (
+                selectedDocumentFields.map((field) => (
+                  <Space key={field.id} wrap>
+                    <Typography.Text>{field.field_label}</Typography.Text>
+                    {!field.value_text && field.is_required ? <Tag color="red">Missing</Tag> : null}
+                    {field.confidence != null && field.confidence < 0.6 ? <Tag color="gold">Low Confidence</Tag> : null}
+                    {field.is_verified ? <Tag color="green">Verified</Tag> : null}
+                    <Button size="small" onClick={() => void handleCorrectField(field)}>
+                      Correct
+                    </Button>
+                  </Space>
+                ))
+              )}
+            </Space>
+          </Card>
+          <Card size="small" title="Audit Result Review">
+            <Space direction="vertical" style={{ width: "100%" }}>
+              {visibleAuditResults.length === 0 ? (
+                <Empty description="No audit results" />
+              ) : (
+                visibleAuditResults.map((result) => (
+                  <Space key={result.id} direction="vertical" style={{ width: "100%" }}>
+                    <Space wrap>
+                      <Typography.Text strong>{result.rule_code}</Typography.Text>
+                      <Tag color={statusColor(result.status)}>{result.status}</Tag>
+                      <Tag color={statusColor(result.review_status)}>{result.review_status}</Tag>
+                    </Space>
+                    <Typography.Text>{result.message}</Typography.Text>
+                    <Space wrap>
+                      <Button size="small" onClick={() => void handleConfirmResult(result)}>
+                        Confirm
+                      </Button>
+                      <Button size="small" danger onClick={() => void handleDismissResult(result)}>
+                        Dismiss
+                      </Button>
+                      <Button size="small" onClick={() => void handleRerunResult(result)}>
+                        Rerun
+                      </Button>
+                    </Space>
+                  </Space>
+                ))
+              )}
+            </Space>
+          </Card>
+        </Space>
       </Drawer>
     </Space>
   );

@@ -35,7 +35,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 5 | 采购业务归集 | MVP | DONE | business_key、document_relations |
 | Phase 6 | Rule Engine MVP | MVP | DONE | Python rule registry、六条采购规则、audit_results |
 | Phase 7 | Audit Workbench 前端工作台 | MVP | DONE | 三栏审核工作台 |
-| Phase 8 | Review Center 基础复核闭环 | MVP | TODO | 字段修正、异常确认、驳回、重跑规则 |
+| Phase 8 | Review Center 基础复核闭环 | MVP | DONE | 字段修正、异常确认、驳回、重跑规则 |
 | Phase 9 | Report Center 控制表与异常清单导出 | MVP | TODO | xlsx 控制表、异常清单、证据索引 |
 | Phase 10 | MVP 测试、演示数据、README 和 Docker 交付 | MVP | TODO | 可演示 MVP、测试、README、Docker |
 | Phase 11 | RAG 四库扩展 | Post-MVP | TODO | regulation / inquiry_case / prospectus / workpaper 检索 |
@@ -685,7 +685,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：Review Center 基础复核闭环
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 8 完成 `ReviewService`、`review_comments` / `audit_logs` migration、Review Queue、字段修正 before/after 留痕、字段修正保留原始 `source_page` / `source_text` / `source_bbox`、异常确认、驳回异常强制原因、调用既有 `RuleEngineService.run_audit` 重跑规则、review comments 查询和新增、Review Center 队列 UI、复核意见历史、Audit Workbench ReviewDrawer 真实复核操作接入、后端 review API 测试。未实现 Phase 9 Report Center、xlsx 导出、完整 Bad Case Center、完整 RBAC、RAG、Agent 或 Post-MVP 功能。
 
 ### 阶段目标
 
@@ -693,53 +697,53 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `ReviewService`。
-- [ ] 支持字段修正并保留 before / after。
-- [ ] 支持异常确认。
-- [ ] 支持驳回异常并要求填写原因。
-- [ ] 支持字段修正后重跑相关规则。
-- [ ] 所有复核动作写入 audit_logs。
+- [x] 实现 `ReviewService`。
+- [x] 支持字段修正并保留 before / after。
+- [x] 支持异常确认。
+- [x] 支持驳回异常并要求填写原因。
+- [x] 支持字段修正后重跑相关规则。
+- [x] 所有复核动作写入 audit_logs。
 
 ### 前端任务
 
-- [ ] 实现 Review Center 复核队列。
-- [ ] 实现字段修正表单。
-- [ ] 实现确认异常按钮。
-- [ ] 实现驳回异常按钮。
-- [ ] 实现重跑规则按钮。
-- [ ] 展示复核意见历史。
+- [x] 实现 Review Center 复核队列。
+- [x] 实现字段修正表单。
+- [x] 实现确认异常按钮。
+- [x] 实现驳回异常按钮。
+- [x] 实现重跑规则按钮。
+- [x] 展示复核意见历史。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `review_comments` 表。
-- [ ] 创建 `audit_logs` 表。
-- [ ] 使用 `audit_results.review_status`。
-- [ ] 使用 `extracted_fields.is_verified`, `corrected_by`, `corrected_at`。
+- [x] 创建 `review_comments` 表。
+- [x] 创建 `audit_logs` 表。
+- [x] 使用 `audit_results.review_status`。
+- [x] 使用 `extracted_fields.is_verified`, `corrected_by`, `corrected_at`。
 
 ### API 任务
 
-- [ ] `GET /api/v1/review/queue`。
-- [ ] `POST /api/v1/review/comments`。
-- [ ] `PATCH /api/v1/fields/{field_id}`。
-- [ ] `POST /api/v1/audit-results/{result_id}/confirm`。
-- [ ] `POST /api/v1/audit-results/{result_id}/dismiss`。
-- [ ] `POST /api/v1/audit-results/{result_id}/rerun`。
+- [x] `GET /api/v1/review/queue`。
+- [x] `POST /api/v1/review/comments`。
+- [x] `PATCH /api/v1/fields/{field_id}`。
+- [x] `POST /api/v1/audit-results/{result_id}/confirm`。
+- [x] `POST /api/v1/audit-results/{result_id}/dismiss`。
+- [x] `POST /api/v1/audit-results/{result_id}/rerun`。
 
 ### 测试任务
 
-- [ ] 字段修正 before / after 测试。
-- [ ] 驳回异常必须填写原因测试。
-- [ ] 高风险异常不能自动关闭测试。
-- [ ] 修正后重跑规则测试。
-- [ ] audit_logs 写入测试。
+- [x] 字段修正 before / after 测试。
+- [x] 驳回异常必须填写原因测试。
+- [x] 高风险异常不能自动关闭测试。
+- [x] 修正后重跑规则测试。
+- [x] audit_logs 写入测试。
 
 ### 验收标准
 
-- [ ] 异常结果能进入复核队列。
-- [ ] 字段修正不覆盖原始证据。
-- [ ] 确认和驳回异常可记录。
-- [ ] 字段修正后可重跑规则。
-- [ ] 复核动作可审计。
+- [x] 异常结果能进入复核队列。
+- [x] 字段修正不覆盖原始证据。
+- [x] 确认和驳回异常可记录。
+- [x] 字段修正后可重跑规则。
+- [x] 复核动作可审计。
 
 ### Bad Case 边界补充
 
@@ -749,22 +753,22 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 交付物
 
-- [ ] Review Center 页面。
-- [ ] ReviewService。
-- [ ] 复核 API。
-- [ ] audit_logs。
+- [x] Review Center 页面。
+- [x] ReviewService。
+- [x] 复核 API。
+- [x] audit_logs。
 
 ### 风险点
 
-- [ ] 人工修正覆盖原始数据。
-- [ ] 复核意见没有进入报告。
-- [ ] 高风险异常被错误自动关闭。
+- [x] 人工修正覆盖原始数据。
+- [x] 复核意见没有进入报告。
+- [x] 高风险异常被错误自动关闭。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做完整用户角色权限。
-- [ ] 不做复杂工单系统。
-- [ ] 不做 Bad Case Center UI。
+- [x] 不做完整用户角色权限。
+- [x] 不做复杂工单系统。
+- [x] 不做 Bad Case Center UI。
 
 ## Phase 9: Report Center 控制表与异常清单导出
 
@@ -1653,7 +1657,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [ ] Phase 5 采购业务归集完成。
 - [ ] Phase 6 Rule Engine MVP 完成。
 - [x] Phase 7 Audit Workbench 前端工作台完成。
-- [ ] Phase 8 Review Center 基础复核闭环完成。
+- [x] Phase 8 Review Center 基础复核闭环完成。
 - [ ] Phase 9 Report Center 控制表与异常清单导出完成。
 - [ ] Phase 10 MVP 测试、演示数据、README 和 Docker 交付完成。
 - [ ] 可创建采购穿行任务。

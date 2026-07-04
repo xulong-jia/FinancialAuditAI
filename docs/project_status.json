@@ -651,7 +651,7 @@
       "phase_id": 8,
       "name": "Review Center 基础复核闭环",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         7
       ],
@@ -666,46 +666,46 @@
           "id": "P8-BE-001",
           "title": "实现 ReviewService 字段修正、确认、驳回、重跑",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented ReviewService for review queue, field correction, confirm, dismiss, rerun, comments, and audit log writes.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P8-FE-001",
           "title": "实现复核队列和复核操作 UI",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented Review Center queue UI, field correction drawer, confirm/dismiss/rerun buttons, comment history, and Audit Workbench ReviewDrawer review actions.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P8-DB-001",
           "title": "创建 review_comments 和 audit_logs 表",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added 0007 migration and models for review_comments and audit_logs; reused audit_results.review_status and extracted_fields verification metadata without users/RBAC tables.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P8-API-001",
           "title": "实现 review、field correction、confirm、dismiss、rerun API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented GET /review/queue, GET/POST /review/comments, PATCH /fields/{field_id}, confirm/dismiss/rerun audit result endpoints.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P8-TEST-001",
           "title": "测试 before/after、驳回原因、重跑规则和 audit_logs",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added review API tests for queue, comments, before/after field correction, source evidence preservation, dismiss reason validation, confirm, high-risk pending behavior, rerun, and audit_logs.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -715,9 +715,9 @@
         "字段修正后可重跑规则",
         "复核动作可审计"
       ],
-      "notes": "",
+      "notes": "Phase 8 completed ReviewService, review_comments and audit_logs migration, review queue, field correction with before/after audit trail, source_page/source_text/source_bbox preservation, audit result confirm/dismiss with required dismiss reason, rerun through existing RuleEngineService.run_audit, review comments create/list APIs, Review Center UI, comment history, and Audit Workbench ReviewDrawer real review actions. No Phase 9 report export, complete Bad Case Center, complete RBAC, RAG, Agent, or Post-MVP feature was implemented.",
       "blocked_reason": "",
-      "updated_at": null,
+      "updated_at": "2026-07-04",
       "scope_notes": [
         "MVP 阶段 Review Center 不实现完整 Bad Case Center UI",
         "MVP 阶段可以预留 bad_case_candidate 概念，但不开发完整 Bad Case 流程",

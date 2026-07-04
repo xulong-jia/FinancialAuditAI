@@ -11,8 +11,14 @@ import type {
   DocumentUpdatePayload,
   DocumentRelation,
   ExtractedField,
+  DismissReviewPayload,
+  FieldCorrectionPayload,
   LinkDocumentsResult,
   ProcurementDocType,
+  ReviewActionPayload,
+  ReviewComment,
+  ReviewCommentPayload,
+  ReviewQueueItem,
 } from "../types/api";
 
 export async function getJson<T>(path: string): Promise<T> {
@@ -93,6 +99,36 @@ export function listTaskFields(taskId: string): Promise<ExtractedField[]> {
 
 export function listDocumentPages(documentId: string): Promise<DocumentPage[]> {
   return getJson<DocumentPage[]>(`/api/v1/documents/${documentId}/pages`);
+}
+
+export function listReviewQueue(taskId?: string): Promise<ReviewQueueItem[]> {
+  const query = taskId ? `?task_id=${taskId}` : "";
+  return getJson<ReviewQueueItem[]>(`/api/v1/review/queue${query}`);
+}
+
+export function listReviewComments(taskId?: string): Promise<ReviewComment[]> {
+  const query = taskId ? `?task_id=${taskId}` : "";
+  return getJson<ReviewComment[]>(`/api/v1/review/comments${query}`);
+}
+
+export function createReviewComment(payload: ReviewCommentPayload): Promise<ReviewComment> {
+  return sendJson<ReviewComment>("/api/v1/review/comments", "POST", payload);
+}
+
+export function updateField(fieldId: string, payload: FieldCorrectionPayload): Promise<ExtractedField> {
+  return sendJson<ExtractedField>(`/api/v1/fields/${fieldId}`, "PATCH", payload);
+}
+
+export function confirmAuditResult(resultId: string, payload: ReviewActionPayload): Promise<AuditResult> {
+  return sendJson<AuditResult>(`/api/v1/audit-results/${resultId}/confirm`, "POST", payload);
+}
+
+export function dismissAuditResult(resultId: string, payload: DismissReviewPayload): Promise<AuditResult> {
+  return sendJson<AuditResult>(`/api/v1/audit-results/${resultId}/dismiss`, "POST", payload);
+}
+
+export function rerunAuditResult(resultId: string, payload: ReviewActionPayload): Promise<AuditResult[]> {
+  return sendJson<AuditResult[]>(`/api/v1/audit-results/${resultId}/rerun`, "POST", payload);
 }
 
 export async function uploadDocument(

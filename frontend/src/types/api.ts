@@ -183,3 +183,58 @@ export type DocumentPage = {
   created_at: string;
   updated_at: string;
 };
+
+export type ReviewQueueItem = {
+  item_type: "field" | "audit_result";
+  task_id: string;
+  document_id: string | null;
+  field_id: string | null;
+  audit_result_id: string | null;
+  reason: string;
+  field: ExtractedField | null;
+  audit_result: AuditResult | null;
+};
+
+export type ReviewComment = {
+  id: string;
+  task_id: string;
+  document_id: string | null;
+  audit_result_id: string | null;
+  field_id: string | null;
+  author_name: string | null;
+  comment_type: string;
+  content: string;
+  before_value: Record<string, unknown> | null;
+  after_value: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type FieldCorrectionPayload = {
+  value_text?: string | null;
+  value_normalized?: Record<string, unknown> | null;
+  confidence?: number | null;
+  actor_name?: string;
+  comment?: string;
+};
+
+export type ReviewActionPayload = {
+  actor_name?: string;
+  reason?: string;
+};
+
+export type DismissReviewPayload = {
+  actor_name?: string;
+  reason: string;
+};
+
+export type ReviewCommentPayload = {
+  task_id: string;
+  document_id?: string | null;
+  audit_result_id?: string | null;
+  field_id?: string | null;
+  author_name?: string | null;
+  comment_type: string;
+  content: string;
+  before_value?: Record<string, unknown> | null;
+  after_value?: Record<string, unknown> | null;
+};

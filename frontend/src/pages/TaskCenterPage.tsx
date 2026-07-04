@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import {
   classifyDocument,
   createTask,
+  extractDocument,
   listDocumentPages,
+  listDocumentFields,
   listDocuments,
   listTasks,
   runOcr,
@@ -18,6 +20,7 @@ import type {
   CreateTaskPayload,
   DocumentPage,
   DocumentRecord,
+  ExtractedField,
   ProcurementDocType,
 } from "../types/api";
 
@@ -35,8 +38,12 @@ const classificationDocTypes: { label: string; value: ClassificationDocType }[] 
   { label: "未知 / 需要复核", value: "unknown" },
 ];
 
-function formatConfidence(value: number | null) {
-  return value === null ? "-" : `${Math.round(value * 100)}%`;
+function formatConfidence(value: number | null | undefined) {
+  return value == null ? "-" : `${Math.round(value * 100)}%`;
+}
+
+function formatNormalized(value: Record<string, unknown> | null) {
+  return value ? JSON.stringify(value) : "-";
 }
 
 export function TaskCenterPage() {
@@ -46,6 +53,7 @@ export function TaskCenterPage() {
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [pages, setPages] = useState<DocumentPage[]>([]);
+  const [fields, setFields] = useState<ExtractedField[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [selectedPageNumber, setSelectedPageNumber] = useState<number | null>(null);
@@ -84,8 +92,10 @@ export function TaskCenterPage() {
   useEffect(() => {
     if (selectedDocumentId) {
       void refreshPages(selectedDocumentId).catch(() => message.error("Failed to load pages"));
+      void refreshFields(selectedDocumentId).catch(() => message.error("Failed to load fields"));
     } else {
       setPages([]);
+      setFields([]);
       setSelectedPageNumber(null);
     }
   }, [selectedDocumentId]);
@@ -99,6 +109,11 @@ export function TaskCenterPage() {
     const nextPages = await listDocumentPages(documentId);
     setPages(nextPages);
     setSelectedPageNumber(nextPages[0]?.page_number ?? null);
+  }
+
+  async function refreshFields(documentId: string) {
+    const nextFields = await listDocumentFields(documentId);
+    setFields(nextFields);
   }
 
   async function handleCreateTask(values: CreateTaskPayload) {
@@ -174,6 +189,23 @@ export function TaskCenterPage() {
       }
     } catch {
       message.error("Failed to classify document");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleExtract(documentId: string) {
+    setLoading(true);
+    try {
+      const nextFields = await extractDocument(documentId);
+      setFields(nextFields);
+      if (selectedTaskId) {
+        await refreshDocuments(selectedTaskId);
+      }
+      setSelectedDocumentId(documentId);
+      message.success("Fields extracted");
+    } catch {
+      message.error("Failed to extract fields");
     } finally {
       setLoading(false);
     }
@@ -336,6 +368,18 @@ export function TaskCenterPage() {
                   >
                     Classify
                   </Button>
+                  <Button
+                    size="small"
+                    loading={loading}
+                    disabled={
+                      record.ocr_status !== "completed" ||
+                      !record.doc_type ||
+                      record.doc_type === "unknown"
+                    }
+                    onClick={() => void handleExtract(record.id)}
+                  >
+                    Extract
+                  </Button>
                 </Space>
               ),
             },
@@ -390,6 +434,83 @@ export function TaskCenterPage() {
           </Space>
         ) : (
           <Typography.Text type="secondary">Select a document to view classification.</Typography.Text>
+        )}
+      </Card>
+
+      <Card title="Extracted Fields">
+        {selectedDocument ? (
+          <Space direction="vertical" style={{ width: "100%" }}>
+            {selectedDocument.extraction_status === "failed" ? (
+              <Alert type="error" showIcon message="Field extraction failed" />
+            ) : null}
+            <Table<ExtractedField>
+              rowKey="id"
+              dataSource={fields}
+              pagination={false}
+              columns={[
+                { title: "Field", dataIndex: "field_label" },
+                { title: "Type", dataIndex: "field_type" },
+                {
+                  title: "Value",
+                  dataIndex: "value_text",
+                  render: (value: string | null, record) => (
+                    <Space>
+                      <Typography.Text>{value ?? "null"}</Typography.Text>
+                      {!value && record.is_required ? <Tag color="red">Missing</Tag> : null}
+                      {record.confidence != null && record.confidence < 0.6 ? (
+                        <Tag color="gold">Low Confidence</Tag>
+                      ) : null}
+                    </Space>
+                  ),
+                },
+                {
+                  title: "Normalized",
+                  dataIndex: "value_normalized",
+                  render: (value: Record<string, unknown> | null) => (
+                    <Typography.Text ellipsis={{ tooltip: formatNormalized(value) }} style={{ maxWidth: 260 }}>
+                      {formatNormalized(value)}
+                    </Typography.Text>
+                  ),
+                },
+                {
+                  title: "Confidence",
+                  dataIndex: "confidence",
+                  render: (value: number | null) => formatConfidence(value),
+                },
+                { title: "Page", dataIndex: "source_page" },
+                {
+                  title: "Source Text",
+                  dataIndex: "source_text",
+                  render: (value: string | null) =>
+                    value ? (
+                      <Typography.Text ellipsis={{ tooltip: value }} style={{ maxWidth: 280 }}>
+                        {value}
+                      </Typography.Text>
+                    ) : (
+                      "-"
+                    ),
+                },
+                {
+                  title: "Warnings",
+                  dataIndex: "warnings",
+                  render: (warnings: string[]) =>
+                    warnings.length ? (
+                      <Space wrap>
+                        {warnings.map((warning) => (
+                          <Tag key={warning} color="orange">
+                            {warning}
+                          </Tag>
+                        ))}
+                      </Space>
+                    ) : (
+                      "-"
+                    ),
+                },
+              ]}
+            />
+          </Space>
+        ) : (
+          <Typography.Text type="secondary">Select a document to view extracted fields.</Typography.Text>
         )}
       </Card>
 

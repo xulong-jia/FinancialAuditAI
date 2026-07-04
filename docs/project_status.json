@@ -349,7 +349,7 @@
       "phase_id": 4,
       "name": "字段抽取与 Schema 校验",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         3
       ],
@@ -364,46 +364,46 @@
           "id": "P4-BE-001",
           "title": "实现 ExtractionService 和六类文档 Schema",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented ExtractionService, six procurement document schema specs, Pydantic validation, null + warning missing-field behavior, and basic normalizers.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P4-FE-001",
           "title": "实现字段表、置信度和来源展示",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Task Center now provides Extract action and read-only field table with confidence, source page/source text, missing, low-confidence, and warning markers.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P4-DB-001",
           "title": "创建 extracted_fields 表",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added extracted_fields table with required metadata, normalized JSON, source evidence fields, nullable corrected_by/corrected_at, and no users FK.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P4-API-001",
           "title": "实现 extract 和 fields API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented POST /api/v1/documents/{document_id}/extract, GET /api/v1/documents/{document_id}/fields, and GET /api/v1/tasks/{task_id}/fields.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P4-TEST-001",
           "title": "添加 Schema 校验、缺字段和标准化测试",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added extraction tests for schema completeness, Pydantic validation, missing fields, date/amount normalization, line_items, invalid provider JSON, and fields APIs.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -412,9 +412,9 @@
         "缺失字段输出 null 和 warning",
         "抽取结果可被 Rule Engine 读取"
       ],
-      "notes": "",
+      "notes": "Phase 4 completed: implemented extracted_fields migration, six procurement MVP schemas, regex/heuristic ExtractionService, basic date/amount/tax-rate/name normalization, missing-field null + warning behavior, basic line_items structure, extract/fields APIs, Task Center field table, and extraction tests. Phase 5 business aggregation, Phase 6 rule judgment, Phase 8 field correction, and Post-MVP features were not implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 5,

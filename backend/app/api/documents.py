@@ -12,7 +12,14 @@ from app.schemas.document import (
     DocumentUpdate,
     ProcurementDocType,
 )
-from app.services import classification_service, document_service, ocr_service, task_service
+from app.schemas.extraction import ExtractedFieldRead
+from app.services import (
+    classification_service,
+    document_service,
+    extraction_service,
+    ocr_service,
+    task_service,
+)
 
 router = APIRouter(tags=["documents"])
 
@@ -40,6 +47,12 @@ def list_documents(task_id: UUID, db: Session = Depends(get_db)):
     return document_service.list_documents(db, task_id)
 
 
+@router.get("/tasks/{task_id}/fields", response_model=list[ExtractedFieldRead])
+def list_task_fields(task_id: UUID, db: Session = Depends(get_db)):
+    task_service.get_task(db, task_id)
+    return extraction_service.list_task_fields(db, task_id)
+
+
 @router.get("/documents/{document_id}", response_model=DocumentRead)
 def get_document(document_id: UUID, db: Session = Depends(get_db)):
     return document_service.get_document(db, document_id)
@@ -58,6 +71,17 @@ def run_ocr(document_id: UUID, db: Session = Depends(get_db)):
 @router.post("/documents/{document_id}/classify", response_model=ClassificationRead)
 def classify_document(document_id: UUID, db: Session = Depends(get_db)):
     return classification_service.classify_document(db, document_id)
+
+
+@router.post("/documents/{document_id}/extract", response_model=list[ExtractedFieldRead])
+def extract_document(document_id: UUID, db: Session = Depends(get_db)):
+    return extraction_service.extract_document(db, document_id)
+
+
+@router.get("/documents/{document_id}/fields", response_model=list[ExtractedFieldRead])
+def list_document_fields(document_id: UUID, db: Session = Depends(get_db)):
+    document_service.get_document(db, document_id)
+    return extraction_service.list_document_fields(db, document_id)
 
 
 @router.get("/documents/{document_id}/pages", response_model=list[DocumentPageRead])

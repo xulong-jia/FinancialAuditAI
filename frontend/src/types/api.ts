@@ -25,6 +25,33 @@ export type ClassificationResult = {
   need_human_review: boolean;
 };
 
+export type FieldType = "text" | "date" | "money" | "tax_rate" | "name" | "status" | "line_items" | "currency";
+
+export type ExtractedField = {
+  id: string;
+  task_id: string;
+  document_id: string;
+  field_name: string;
+  field_label: string;
+  field_type: FieldType;
+  value_text: string | null;
+  value_normalized: Record<string, unknown> | null;
+  unit: string | null;
+  currency: string | null;
+  confidence: number | null;
+  source_page: number | null;
+  source_bbox: number[] | null;
+  source_text: string | null;
+  extraction_method: string;
+  is_required: boolean;
+  is_verified: boolean;
+  corrected_by: string | null;
+  corrected_at: string | null;
+  warnings: string[];
+  created_at: string;
+  updated_at: string;
+};
+
 export type AuditTask = {
   id: string;
   task_no: string;

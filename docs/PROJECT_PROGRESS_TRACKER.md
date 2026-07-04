@@ -31,7 +31,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 1 | 任务中心与文件上传 | MVP | DONE | 采购任务创建、六类文件上传、文件落盘 |
 | Phase 2 | OCR / 文档解析 / 页级文本保存 | MVP | DONE | 页级文本、OCR blocks、document_pages |
 | Phase 3 | 文档分类 | MVP | DONE | 六类采购文件 doc_type、置信度、分类理由 |
-| Phase 4 | 字段抽取与 Schema 校验 | MVP | TODO | 六类采购字段、line_items、Pydantic 校验 |
+| Phase 4 | 字段抽取与 Schema 校验 | MVP | DONE | 六类采购字段、line_items、Pydantic 校验 |
 | Phase 5 | 采购业务归集 | MVP | TODO | business_key、document_relations |
 | Phase 6 | Rule Engine MVP | MVP | TODO | Python rule registry、六条采购规则、audit_results |
 | Phase 7 | Audit Workbench 前端工作台 | MVP | TODO | 三栏审核工作台 |
@@ -365,7 +365,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：字段抽取与 Schema 校验
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 4 完成 `extracted_fields` migration、六类采购文档 MVP Schema、规则/正则 `ExtractionService`、日期/金额/税率/名称基础标准化、缺失字段 null + warning、基础 `line_items` 结构、extract/fields API、Task Center 字段表和后端抽取测试。未实现 Phase 5 业务归集、Phase 6 规则判断、Phase 8 字段人工修正或任何 Post-MVP 功能。
 
 ### 阶段目标
 
@@ -373,67 +377,67 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `ExtractionService`。
-- [ ] 定义通用字段结构：field_name、value、confidence、source_page、source_text、source_bbox。
-- [ ] 定义六类采购文档 MVP Schema。
-- [ ] 支持日期、金额、税率、名称标准化。
-- [ ] 缺失字段输出 null 和 warning，不允许编造。
-- [ ] 保存字段到 `extracted_fields`。
+- [x] 实现 `ExtractionService`。
+- [x] 定义通用字段结构：field_name、value、confidence、source_page、source_text、source_bbox。
+- [x] 定义六类采购文档 MVP Schema。
+- [x] 支持日期、金额、税率、名称标准化。
+- [x] 缺失字段输出 null 和 warning，不允许编造。
+- [x] 保存字段到 `extracted_fields`。
 
 ### 前端任务
 
-- [ ] 展示字段表。
-- [ ] 展示字段置信度。
-- [ ] 展示字段来源页和来源文本。
-- [ ] 标记缺失字段和低置信度字段。
+- [x] 展示字段表。
+- [x] 展示字段置信度。
+- [x] 展示字段来源页和来源文本。
+- [x] 标记缺失字段和低置信度字段。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `extracted_fields` 表。
-- [ ] 支持 `value_text`。
-- [ ] 支持 `value_normalized` JSONB。
-- [ ] 支持 `source_page`, `source_bbox`, `source_text`。
-- [ ] 支持 `is_required`, `is_verified`, `corrected_by`, `corrected_at`。
+- [x] 创建 `extracted_fields` 表。
+- [x] 支持 `value_text`。
+- [x] 支持 `value_normalized` JSONB。
+- [x] 支持 `source_page`, `source_bbox`, `source_text`。
+- [x] 支持 `is_required`, `is_verified`, `corrected_by`, `corrected_at`。
 
 ### API 任务
 
-- [ ] `POST /api/v1/documents/{document_id}/extract`。
-- [ ] `GET /api/v1/documents/{document_id}/fields`。
-- [ ] `GET /api/v1/tasks/{task_id}/fields`。
+- [x] `POST /api/v1/documents/{document_id}/extract`。
+- [x] `GET /api/v1/documents/{document_id}/fields`。
+- [x] `GET /api/v1/tasks/{task_id}/fields`。
 
 ### 测试任务
 
-- [ ] Pydantic Schema 校验测试。
-- [ ] 缺字段输出 null 和 warning 测试。
-- [ ] 金额和日期标准化测试。
-- [ ] line_items 基础结构测试。
-- [ ] LLM 输出非法 JSON 时失败可记录。
+- [x] Pydantic Schema 校验测试。
+- [x] 缺字段输出 null 和 warning 测试。
+- [x] 金额和日期标准化测试。
+- [x] line_items 基础结构测试。
+- [x] LLM 输出非法 JSON 时失败可记录。
 
 ### 验收标准
 
-- [ ] 六类采购文档都有 MVP 字段列表。
-- [ ] 每个字段都能追溯到页码和来源片段。
-- [ ] 必填字段缺失不会默认通过。
-- [ ] 抽取结果可被 Rule Engine 读取。
+- [x] 六类采购文档都有 MVP 字段列表。
+- [x] 每个字段都能追溯到页码和来源片段。
+- [x] 必填字段缺失不会默认通过。
+- [x] 抽取结果可被 Rule Engine 读取。
 
 ### 交付物
 
-- [ ] ExtractionService。
-- [ ] 六类采购 Pydantic Schema。
-- [ ] `extracted_fields` migration。
-- [ ] 字段表 UI。
+- [x] ExtractionService。
+- [x] 六类采购 Pydantic Schema。
+- [x] `extracted_fields` migration。
+- [x] 字段表 UI。
 
 ### 风险点
 
-- [ ] LLM 编造缺失字段。
-- [ ] OCR 表格错列导致金额、税额、数量串位。
-- [ ] 多行明细被合并。
+- [x] LLM 编造缺失字段。
+- [x] OCR 表格错列导致金额、税额、数量串位。
+- [x] 多行明细被合并。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做所有行业字段。
-- [ ] 不做复杂单位换算。
-- [ ] 不做完整合同条款抽取。
+- [x] 不做所有行业字段。
+- [x] 不做复杂单位换算。
+- [x] 不做完整合同条款抽取。
 
 ## Phase 5: 采购业务归集
 

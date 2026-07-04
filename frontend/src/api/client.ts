@@ -7,6 +7,7 @@ import type {
   DocumentPage,
   DocumentRecord,
   DocumentUpdatePayload,
+  ExtractedField,
   ProcurementDocType,
 } from "../types/api";
 
@@ -52,6 +53,14 @@ export function classifyDocument(documentId: string): Promise<ClassificationResu
 
 export function updateDocument(documentId: string, payload: DocumentUpdatePayload): Promise<DocumentRecord> {
   return sendJson<DocumentRecord>(`/api/v1/documents/${documentId}`, "PATCH", payload);
+}
+
+export function extractDocument(documentId: string): Promise<ExtractedField[]> {
+  return sendJson<ExtractedField[]>(`/api/v1/documents/${documentId}/extract`, "POST", {});
+}
+
+export function listDocumentFields(documentId: string): Promise<ExtractedField[]> {
+  return getJson<ExtractedField[]>(`/api/v1/documents/${documentId}/fields`);
 }
 
 export function listDocumentPages(documentId: string): Promise<DocumentPage[]> {

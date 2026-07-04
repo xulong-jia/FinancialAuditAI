@@ -32,6 +32,8 @@ class Settings(BaseModel):
         "postgresql+psycopg://financial_audit_ai:change-me-local-only"
         "@localhost:5432/financial_audit_ai"
     )
+    embedding_provider: str = "deterministic-local"
+    embedding_dimensions: int = 32
 
 
 @lru_cache
@@ -51,6 +53,8 @@ def get_settings() -> Settings:
             "postgresql+psycopg://financial_audit_ai:change-me-local-only"
             "@localhost:5432/financial_audit_ai",
         ),
+        embedding_provider=os.getenv("EMBEDDING_PROVIDER", "deterministic-local"),
+        embedding_dimensions=int(os.getenv("EMBEDDING_DIMENSIONS", "32")),
     )
 
 

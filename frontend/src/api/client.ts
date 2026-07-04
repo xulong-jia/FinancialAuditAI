@@ -21,6 +21,11 @@ import type {
   ReviewQueueItem,
   ReportGeneratePayload,
   ReportRecord,
+  KnowledgeBase,
+  RagDocument,
+  RagIndexResult,
+  RagQueryPayload,
+  RagQueryResponse,
 } from "../types/api";
 
 export async function getJson<T>(path: string): Promise<T> {
@@ -162,4 +167,48 @@ export async function uploadDocument(
     throw new Error("Upload failed");
   }
   return response.json() as Promise<DocumentRecord>;
+}
+
+export function listRagDocuments(knowledgeBase?: KnowledgeBase): Promise<RagDocument[]> {
+  const query = knowledgeBase ? `?knowledge_base=${knowledgeBase}` : "";
+  return getJson<RagDocument[]>(`/api/v1/rag/documents${query}`);
+}
+
+export async function createRagDocument(payload: {
+  knowledge_base: KnowledgeBase;
+  title: string;
+  source_type: string;
+  metadata_json?: string;
+  content_text?: string;
+  file?: File;
+}): Promise<RagDocument> {
+  const form = new FormData();
+  form.append("knowledge_base", payload.knowledge_base);
+  form.append("title", payload.title);
+  form.append("source_type", payload.source_type);
+  if (payload.metadata_json) {
+    form.append("metadata_json", payload.metadata_json);
+  }
+  if (payload.content_text) {
+    form.append("content_text", payload.content_text);
+  }
+  if (payload.file) {
+    form.append("file", payload.file);
+  }
+  const response = await fetch(`${baseUrl}/api/v1/rag/documents`, {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) {
+    throw new Error("RAG document create failed");
+  }
+  return response.json() as Promise<RagDocument>;
+}
+
+export function indexRagDocument(documentId: string): Promise<RagIndexResult> {
+  return sendJson<RagIndexResult>(`/api/v1/rag/documents/${documentId}/index`, "POST", {});
+}
+
+export function queryRag(payload: RagQueryPayload): Promise<RagQueryResponse> {
+  return sendJson<RagQueryResponse>("/api/v1/rag/query", "POST", payload);
 }

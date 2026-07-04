@@ -257,3 +257,55 @@ export type ReportRecord = {
 export type ReportGeneratePayload = {
   generated_by?: string;
 };
+
+export type KnowledgeBase = "regulation" | "inquiry_case" | "prospectus" | "workpaper";
+
+export type RagDocument = {
+  id: string;
+  knowledge_base: KnowledgeBase;
+  title: string;
+  source_type: string;
+  source_url: string | null;
+  issuer_name: string | null;
+  publish_date: string | null;
+  effective_date: string | null;
+  file_path: string | null;
+  checksum: string;
+  metadata: Record<string, unknown>;
+  created_by: string | null;
+  chunk_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RagIndexResult = {
+  document_id: string;
+  knowledge_base: KnowledgeBase;
+  chunk_count: number;
+};
+
+export type RagCitation = {
+  chunk_id: string;
+  document_id: string;
+  knowledge_base: KnowledgeBase;
+  title: string;
+  section: string | null;
+  page: number | null;
+  score: number;
+  quote: string;
+  metadata: Record<string, unknown>;
+};
+
+export type RagQueryResponse = {
+  status: "answer" | "no_answer";
+  answer: string;
+  citations: RagCitation[];
+  limitations: string[];
+};
+
+export type RagQueryPayload = {
+  query: string;
+  knowledge_base: KnowledgeBase;
+  top_k: number;
+  metadata_filter: Record<string, unknown>;
+};

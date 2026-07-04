@@ -88,8 +88,26 @@ Dismiss requires a non-empty `reason`.
 
 Report files are xlsx only in MVP. Generated files are stored under ignored `local_storage/reports`.
 
+## RAG Knowledge Base
+
+- `GET /rag/documents`
+- `POST /rag/documents`
+- `POST /rag/documents/{doc_id}/index`
+- `POST /rag/query`
+- `GET /rag/chunks/{chunk_id}`
+
+Supported knowledge bases:
+
+- `regulation`
+- `inquiry_case`
+- `prospectus`
+- `workpaper`
+
+RAG query responses include `answer`, `citations`, and `limitations`. If evidence is insufficient, the API returns `status: "no_answer"` and no fabricated citation. RAG citations are evidence only and do not replace Rule Engine results or human review.
+
 ## Security Notes
 
 - MVP does not implement login, RBAC, user roles, or production authorization.
 - User fields such as `actor_name`, `reviewed_by`, `corrected_by`, and `generated_by` are nullable strings.
 - Do not use this API with real confidential documents.
+- Workpaper content must stay isolated from public RAG knowledge bases.

@@ -32,6 +32,15 @@ function formatJson(value: Record<string, unknown> | null) {
   return value ? JSON.stringify(value) : "-";
 }
 
+function formatRagCitations(value: Record<string, unknown>[] | null) {
+  if (!value?.length) {
+    return "-";
+  }
+  return value
+    .map((citation) => String(citation.title ?? citation.chunk_id ?? "citation"))
+    .join(", ");
+}
+
 function getEvidenceRefs(evidence: Record<string, unknown>) {
   const refs = evidence.refs;
   if (!Array.isArray(refs)) {
@@ -639,6 +648,15 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
                         </Space>
                       );
                     },
+                  },
+                  {
+                    title: "RAG Citations",
+                    dataIndex: "rag_citations",
+                    render: (value: Record<string, unknown>[] | null) => (
+                      <Typography.Text ellipsis={{ tooltip: formatRagCitations(value) }} style={{ maxWidth: 220 }}>
+                        {formatRagCitations(value)}
+                      </Typography.Text>
+                    ),
                   },
                 ]}
               />

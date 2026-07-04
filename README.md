@@ -16,9 +16,16 @@ Implemented:
 - xlsx export with Summary, Procurement Control Table, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
 - Local PostgreSQL, FastAPI, React + TypeScript + Ant Design, and Docker Compose.
 
-Not implemented in MVP:
+Post-MVP Phase 11 implemented:
 
-- RAG, Agent Workflow, Evaluation Center, full RBAC, Rule Center UI, Dashboard, PDF reports.
+- RAG Knowledge Center for `regulation`, `inquiry_case`, `prospectus`, and `workpaper`.
+- pgvector-backed chunk retrieval with deterministic local embeddings for tests and local demos.
+- Metadata filters, citations, and no-answer handling.
+- Workpaper retrieval is isolated from public knowledge bases.
+
+Not implemented:
+
+- Agent Workflow, Evaluation Center, full RBAC, Rule Center UI, Dashboard, PDF reports.
 - Sales walkthrough, confirmations, interviews, contract review, or other Post-MVP scenarios.
 
 ## Local Setup
@@ -72,6 +79,8 @@ For a fresh Docker database, run migrations after the backend container starts:
 ```bash
 docker compose exec backend alembic upgrade head
 ```
+
+Docker uses the `pgvector/pgvector:pg16` PostgreSQL image so Phase 11 can enable the `vector` extension.
 
 ## Tests
 

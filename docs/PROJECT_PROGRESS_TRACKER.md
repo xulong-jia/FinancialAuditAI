@@ -38,7 +38,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 8 | Review Center 基础复核闭环 | MVP | DONE | 字段修正、异常确认、驳回、重跑规则 |
 | Phase 9 | Report Center 控制表与异常清单导出 | MVP | DONE | xlsx 控制表、异常清单、证据索引 |
 | Phase 10 | MVP 测试、演示数据、README 和 Docker 交付 | MVP | DONE | 可复现 MVP、测试、README、Docker、demo seed |
-| Phase 11 | RAG 四库扩展 | Post-MVP | TODO | regulation / inquiry_case / prospectus / workpaper 检索 |
+| Phase 11 | RAG 四库扩展 | Post-MVP | DONE | regulation / inquiry_case / prospectus / workpaper 检索、citation、no-answer |
 | Phase 12 | Rule Center 规则版本化与参数配置 | Post-MVP | TODO | 规则版本、启用状态、参数配置 |
 | Phase 13 | Agent Workflow 状态机与工具调用 | Post-MVP | TODO | agent_runs、agent_steps、状态机、重试 |
 | Phase 14 | Bad Case Center 与 Evaluation Center | Post-MVP | TODO | bad_cases、evaluation_results、回归评测 |
@@ -930,7 +930,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：RAG 四库扩展
 - 是否属于 MVP：否
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 11 完成 RAG 四库扩展。已启用 pgvector extension，新增 `rag_documents` / `rag_chunks` migration 和模型，实现 deterministic local embedding provider、文本/PDF 基础解析、按段落/固定长度 chunking、metadata filter、pgvector 相似度检索、citation 输出、no-answer handling、workpaper 与公开知识库按 `knowledge_base` 强隔离、RAG API 和 Knowledge Center。验证通过：`alembic upgrade head`、临时空库 migration、RAG API tests、全量 `pytest`、前端 `npm run build`、`docker compose config`。未实现 Phase 12 Rule Center、Phase 13 Agent、Phase 14 Evaluation/Bad Case、RBAC 或其他 Post-MVP 场景。
 
 ### 阶段目标
 
@@ -938,69 +942,69 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `RagService`。
-- [ ] 实现文档解析和 chunking。
-- [ ] 实现 embedding provider。
-- [ ] 实现 pgvector 检索。
-- [ ] 实现 metadata filter。
-- [ ] 实现 citation 输出。
-- [ ] 实现 no-answer handling。
+- [x] 实现 `RagService`。
+- [x] 实现文档解析和 chunking。
+- [x] 实现 embedding provider。
+- [x] 实现 pgvector 检索。
+- [x] 实现 metadata filter。
+- [x] 实现 citation 输出。
+- [x] 实现 no-answer handling。
 
 ### 前端任务
 
-- [ ] 实现 Knowledge Center。
-- [ ] 支持四库文档列表。
-- [ ] 支持检索测试。
-- [ ] 展示 citations、score、metadata。
-- [ ] 在异常结果中展示 RAG 引用。
+- [x] 实现 Knowledge Center。
+- [x] 支持四库文档列表。
+- [x] 支持检索测试。
+- [x] 展示 citations、score、metadata。
+- [x] 在异常结果中展示 RAG 引用。
 
 ### 数据库 / Migration 任务
 
-- [ ] 启用 pgvector extension。
-- [ ] 创建 `rag_documents` 表。
-- [ ] 创建 `rag_chunks` 表。
-- [ ] 为 chunk 保存 knowledge_base、title、section、page、metadata、embedding。
+- [x] 启用 pgvector extension。
+- [x] 创建 `rag_documents` 表。
+- [x] 创建 `rag_chunks` 表。
+- [x] 为 chunk 保存 knowledge_base、title、section、page、metadata、embedding。
 
 ### API 任务
 
-- [ ] `POST /api/v1/rag/documents`。
-- [ ] `POST /api/v1/rag/documents/{doc_id}/index`。
-- [ ] `POST /api/v1/rag/query`。
-- [ ] `GET /api/v1/rag/chunks/{chunk_id}`。
+- [x] `POST /api/v1/rag/documents`。
+- [x] `POST /api/v1/rag/documents/{doc_id}/index`。
+- [x] `POST /api/v1/rag/query`。
+- [x] `GET /api/v1/rag/chunks/{chunk_id}`。
 
 ### 测试任务
 
-- [ ] chunking 测试。
-- [ ] metadata filter 测试。
-- [ ] no-answer 测试。
-- [ ] citation schema 测试。
-- [ ] RAG smoke evaluation。
+- [x] chunking 测试。
+- [x] metadata filter 测试。
+- [x] no-answer 测试。
+- [x] citation schema 测试。
+- [x] RAG smoke evaluation。
 
 ### 验收标准
 
-- [ ] 四库可分别入库和检索。
-- [ ] workpaper 与公开知识库隔离。
-- [ ] 回答包含 citations。
-- [ ] 检索不到依据时返回证据不足。
+- [x] 四库可分别入库和检索。
+- [x] workpaper 与公开知识库隔离。
+- [x] 回答包含 citations。
+- [x] 检索不到依据时返回证据不足。
 
 ### 交付物
 
-- [ ] RagService。
-- [ ] Knowledge Center。
-- [ ] pgvector migration。
-- [ ] RAG API。
+- [x] RagService。
+- [x] Knowledge Center。
+- [x] pgvector migration。
+- [x] RAG API。
 
 ### 风险点
 
-- [ ] 检索结果不相关。
-- [ ] 公开知识库和 workpaper 混淆。
-- [ ] 引用不能支撑回答。
+- [x] 检索结果不相关。
+- [x] 公开知识库和 workpaper 混淆。
+- [x] 引用不能支撑回答。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不替代 Rule Engine。
-- [ ] 不让 RAG 输出最终审核结论。
-- [ ] 不做自动法规更新系统。
+- [x] 不替代 Rule Engine。
+- [x] 不让 RAG 输出最终审核结论。
+- [x] 不做自动法规更新系统。
 
 ## Phase 12: Rule Center 规则版本化与参数配置
 
@@ -1684,7 +1688,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 ## Post-MVP Expansion Checklist
 
 - [x] Phase 10 已标记 DONE。
-- [ ] Phase 11 RAG 四库扩展完成。
+- [x] Phase 11 RAG 四库扩展完成。
 - [ ] Phase 12 Rule Center 规则版本化与参数配置完成。
 - [ ] Phase 13 Agent Workflow 状态机与工具调用完成。
 - [ ] Phase 14 Bad Case Center 与 Evaluation Center 完成。
@@ -1693,7 +1697,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [ ] Phase 17 访谈模块扩展完成。
 - [ ] Phase 18 合同审核模块扩展完成。
 - [ ] Phase 19 RBAC、审计、安全、工程化完善完成。
-- [ ] RAG 输出包含 citation 和 no-answer handling。
+- [x] RAG 输出包含 citation 和 no-answer handling。
 - [ ] Agent 不绕过 Rule Engine。
 - [ ] Evaluation Center 可运行回归评测。
 - [ ] 扩展场景不破坏采购穿行 MVP。

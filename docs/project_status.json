@@ -882,7 +882,7 @@
       "phase_id": 11,
       "name": "RAG 四库扩展",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         10
       ],
@@ -897,46 +897,46 @@
           "id": "P11-BE-001",
           "title": "实现 RagService、chunking、embedding、retrieval 和 citation",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented RagService with document parsing, chunking, deterministic local embeddings, pgvector retrieval, metadata filtering, citations, no-answer handling, and workpaper/public knowledge-base isolation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P11-FE-001",
           "title": "实现 Knowledge Center 和 citation 展示",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented Knowledge Center with four-knowledge-base document list, document create/upload, index build, retrieval test, citation score/metadata display, and no-answer display; Audit Workbench now shows rag_citations read-only when present.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P11-DB-001",
           "title": "创建 rag_documents、rag_chunks 并启用 pgvector",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added 0010 migration enabling pgvector and creating rag_documents/rag_chunks with metadata and vector embedding columns; Docker PostgreSQL image switched to pgvector/pgvector:pg16.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P11-API-001",
           "title": "实现 RAG 文档入库、索引、查询和 chunk API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented RAG document create/list, document index, query, and chunk detail APIs under /api/v1/rag.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P11-TEST-001",
           "title": "测试 chunking、metadata filter、no-answer 和 citation schema",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added RAG API tests for chunking, metadata filter, no-answer, citation schema, workpaper/public isolation, and deterministic local embeddings; full pytest passed.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -945,9 +945,9 @@
         "回答包含 citations",
         "检索不到依据时返回证据不足"
       ],
-      "notes": "",
+      "notes": "Phase 11 completed RAG four-knowledge-base expansion: pgvector extension, rag_documents and rag_chunks migrations, RagService, deterministic local embedding provider, text/PDF parsing, paragraph/fixed-length chunking, metadata filters, pgvector retrieval, citations, no-answer handling, workpaper/public knowledge-base isolation, RAG APIs, Knowledge Center UI, and RAG tests. No Phase 12 Rule Center, Phase 13 Agent Workflow, Phase 14 Bad Case/Evaluation, RBAC, or other scenario expansion was implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 12,

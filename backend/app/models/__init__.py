@@ -8,6 +8,8 @@ from app.models.document_page import DocumentPage
 from app.models.document_relation import DocumentRelation
 from app.models.extracted_field import ExtractedField
 from app.models.model_invocation import ModelInvocation
+from app.models.rag_chunk import RagChunk
+from app.models.rag_document import RagDocument
 from app.models.report import Report
 from app.models.review_comment import ReviewComment
 
@@ -22,6 +24,8 @@ __all__ = [
     "DocumentRelation",
     "ExtractedField",
     "ModelInvocation",
+    "RagChunk",
+    "RagDocument",
     "Report",
     "ReviewComment",
 ]

@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 import re
 from typing import Callable
 from uuid import UUID
@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.audit_log import AuditLog
 from app.models.audit_result import AuditResult
 from app.models.audit_rule import AuditRule
 from app.models.document import Document
@@ -52,10 +53,21 @@ TOLERANCE = 1.0
 DEFAULT_RULES = {
     "PROC_MISSING_001": ("必填字段缺失检查", {}),
     "PROC_TIME_001": ("采购时间顺序检查", {}),
-    "PROC_AMOUNT_001": ("金额一致性检查", {"tolerance": 1.0}),
-    "PROC_NAME_001": ("主体名称一致性检查", {"mismatch_status": "warning"}),
-    "PROC_QTY_001": ("数量一致性检查", {"tolerance": 0.0001}),
-    "PROC_TAX_001": ("税率与税额基础校验", {"tolerance": 1.0}),
+    "PROC_AMOUNT_001": ("金额一致性检查", {"tolerance_amount": 1.0, "tolerance_ratio": 0.0}),
+    "PROC_NAME_001": ("主体名称一致性检查", {"mismatch_status": "warning", "supplier_aliases": {}}),
+    "PROC_QTY_001": ("数量一致性检查", {"tolerance_amount": 0.0001, "item_mappings": {}}),
+    "PROC_TAX_001": ("税率与税额基础校验", {"tolerance_amount": 1.0, "allowed_tax_rates": []}),
+}
+ALLOWED_PARAMETER_KEYS = {
+    "tolerance",
+    "tolerance_amount",
+    "tolerance_ratio",
+    "allowed_tax_rates",
+    "supplier_aliases",
+    "item_mappings",
+    "prepayment_allowed",
+    "date_tolerance_days",
+    "mismatch_status",
 }
 
 
@@ -80,7 +92,7 @@ def run_audit(db: Session, task_id: UUID) -> list[AuditResult]:
                 business_key=business_key,
                 documents=group_documents,
                 fields=fields,
-                parameters=rule.parameters or {},
+                parameters=_rule_parameters(rule),
             )
             result = RULE_REGISTRY[rule.rule_code](context)
             db.add(_to_model(task_id, rule, result))
@@ -123,6 +135,102 @@ def list_rules(db: Session) -> list[AuditRule]:
         )
     db.commit()
     return list(db.scalars(select(AuditRule).order_by(AuditRule.rule_code.asc())))
+
+
+def create_rule(
+    db: Session,
+    *,
+    rule_code: str,
+    name: str,
+    version: str,
+    enabled: bool,
+    parameters: dict,
+    description: str | None,
+    actor_name: str | None = None,
+) -> AuditRule:
+    if rule_code not in RULE_REGISTRY:
+        raise HTTPException(status_code=400, detail="Rule code is not in Python registry")
+    if db.scalar(select(AuditRule).where(AuditRule.rule_code == rule_code)) is not None:
+        raise HTTPException(status_code=400, detail="Rule already exists")
+    _validate_parameters(parameters)
+    rule = AuditRule(
+        rule_code=rule_code,
+        name=name,
+        version=version,
+        enabled=enabled,
+        parameters=parameters,
+        description=description,
+    )
+    db.add(rule)
+    db.flush()
+    _add_rule_log(db, actor_name, "audit_rule_created", rule.id, None, _rule_snapshot(rule))
+    db.commit()
+    db.refresh(rule)
+    return rule
+
+
+def update_rule(
+    db: Session,
+    rule_id: UUID,
+    *,
+    name: str | None = None,
+    version: str | None = None,
+    enabled: bool | None = None,
+    parameters: dict | None = None,
+    description: str | None = None,
+    actor_name: str | None = None,
+) -> AuditRule:
+    rule = db.get(AuditRule, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    before = _rule_snapshot(rule)
+    if name is not None:
+        rule.name = name
+    if version is not None:
+        rule.version = version
+    if enabled is not None:
+        rule.enabled = enabled
+    if parameters is not None:
+        _validate_parameters(parameters)
+        rule.parameters = parameters
+    if description is not None:
+        rule.description = description
+    rule.updated_at = utc_now()
+    after = _rule_snapshot(rule)
+    _add_rule_log(db, actor_name, "audit_rule_updated", rule.id, before, after)
+    db.commit()
+    db.refresh(rule)
+    return rule
+
+
+def evaluate_rule(db: Session, rule_id: UUID, task_id: UUID, parameters: dict | None = None) -> list[dict]:
+    rule = db.get(AuditRule, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    if rule.rule_code not in RULE_REGISTRY:
+        raise HTTPException(status_code=400, detail="Rule code is not in Python registry")
+    if parameters is not None:
+        _validate_parameters(parameters)
+
+    documents = _list_documents(db, task_id)
+    groups = _business_groups(documents)
+    if not groups:
+        raise HTTPException(status_code=400, detail="Task has no linked business documents")
+
+    fields = _field_map(_list_fields(db, task_id))
+    merged_parameters = _rule_parameters(rule) | (parameters or {})
+    return [
+        _evaluation_read(rule, RULE_REGISTRY[rule.rule_code](
+            RuleContext(
+                task_id=task_id,
+                business_key=business_key,
+                documents=group_documents,
+                fields=fields,
+                parameters=merged_parameters,
+            )
+        ))
+        for business_key, group_documents in groups.items()
+    ]
 
 
 def rule_missing_required(context: RuleContext) -> RuleResult:
@@ -197,10 +305,15 @@ def rule_time_order(context: RuleContext) -> RuleResult:
             missing,
         )
 
+    tolerance_days = int(context.parameters.get("date_tolerance_days", 0) or 0)
+    prepayment_allowed = bool(context.parameters.get("prepayment_allowed", False))
+    comparable_values = [
+        value for value in values if prepayment_allowed or value[0] != "payment_date"
+    ]
     inversions = [
-        {"previous": values[index - 1][0], "next": values[index][0]}
-        for index in range(1, len(values))
-        if values[index - 1][1] > values[index][1]
+        {"previous": comparable_values[index - 1][0], "next": comparable_values[index][0]}
+        for index in range(1, len(comparable_values))
+        if comparable_values[index - 1][1] > comparable_values[index][1] + timedelta(days=tolerance_days)
     ]
     evidence = [_evidence_ref(document, field) for _, _, field, document in values]
     if inversions:
@@ -250,7 +363,8 @@ def rule_amount(context: RuleContext) -> RuleResult:
             missing,
         )
 
-    tolerance = float(context.parameters.get("tolerance", TOLERANCE))
+    tolerance = _tolerance_amount(context.parameters, TOLERANCE)
+    tolerance_ratio = float(context.parameters.get("tolerance_ratio", 0) or 0)
     contract_total = contract_amount[0][0]
     invoice_total = sum(amount for amount, _, _ in invoice_amounts)
     payment_total = sum(amount for amount, _, _ in payment_amounts)
@@ -262,9 +376,10 @@ def rule_amount(context: RuleContext) -> RuleResult:
         if comparable_values and not any(abs(amount - other) <= tolerance for other in comparable_values)
     ]
     failures = {}
-    if invoice_total - contract_total > tolerance:
+    allowed_overage = tolerance + contract_total * tolerance_ratio
+    if invoice_total - contract_total > allowed_overage:
         failures["invoice_total"] = invoice_total
-    if payment_total - contract_total > tolerance:
+    if payment_total - contract_total > allowed_overage:
         failures["payment_total"] = payment_total
     if voucher_mismatch:
         failures["voucher_mismatch"] = voucher_mismatch
@@ -277,7 +392,7 @@ def rule_amount(context: RuleContext) -> RuleResult:
             "fail",
             "high",
             "Procurement amounts exceed or do not match expected values.",
-            {"contract_amount": contract_total, "tolerance": tolerance},
+            {"contract_amount": contract_total, "tolerance": tolerance, "tolerance_ratio": tolerance_ratio},
             {
                 "invoice_total": invoice_total,
                 "payment_total": payment_total,
@@ -292,7 +407,7 @@ def rule_amount(context: RuleContext) -> RuleResult:
         _pass_or_warning(evidence),
         _severity_for_pass(evidence),
         "Procurement amounts are within contract and voucher tolerance.",
-        {"contract_amount": contract_total, "tolerance": tolerance},
+        {"contract_amount": contract_total, "tolerance": tolerance, "tolerance_ratio": tolerance_ratio},
         {"invoice_total": invoice_total, "payment_total": payment_total, "voucher_amounts": voucher_values},
         evidence,
     )
@@ -330,7 +445,7 @@ def rule_name(context: RuleContext) -> RuleResult:
             missing,
         )
 
-    normalized = {_normalize_name(value) for _, value, _, _ in values}
+    normalized = {_normalize_name(value, context.parameters.get("supplier_aliases")) for _, value, _, _ in values}
     evidence = [_evidence_ref(document, field) for _, _, field, document in values]
     if len(normalized) > 1:
         status = str(context.parameters.get("mismatch_status", "warning"))
@@ -361,11 +476,11 @@ def rule_qty(context: RuleContext) -> RuleResult:
     missing: list[EvidenceRef] = []
     for doc_type in ("purchase_contract", "warehouse_receipt", "invoice"):
         field, document = _first_field(context, doc_type, "item_lines")
-        quantity = _quantity_total(field)
-        if field is None or document is None or quantity is None:
+        quantity_map = _quantity_map(field, context.parameters.get("item_mappings"))
+        if field is None or document is None or quantity_map is None:
             missing.append(_missing_ref(document, "item_lines.quantity", field, doc_type))
         else:
-            quantities.append((doc_type, quantity, field, document))
+            quantities.append((doc_type, quantity_map, field, document))
     if missing:
         return _result(
             context,
@@ -378,10 +493,26 @@ def rule_qty(context: RuleContext) -> RuleResult:
             missing,
         )
 
-    tolerance = float(context.parameters.get("tolerance", 0.0001))
+    tolerance = _tolerance_amount(context.parameters, 0.0001)
     evidence = [_evidence_ref(document, field) for _, _, field, document in quantities]
-    values = {doc_type: quantity for doc_type, quantity, _, _ in quantities}
-    if max(values.values()) - min(values.values()) > tolerance:
+    item_quantities = {doc_type: quantity_map for doc_type, quantity_map, _, _ in quantities}
+    values = {
+        doc_type: sum(quantity_map.values())
+        for doc_type, quantity_map, _, _ in quantities
+    }
+    item_keys = {item_key for quantity_map in item_quantities.values() for item_key in quantity_map}
+    quantity_failures = {
+        item_key: {
+            doc_type: quantity_map.get(item_key)
+            for doc_type, quantity_map in item_quantities.items()
+        }
+        for item_key in item_keys
+        if None in {quantity_map.get(item_key) for quantity_map in item_quantities.values()}
+        or max(quantity_map.get(item_key, 0.0) for quantity_map in item_quantities.values())
+        - min(quantity_map.get(item_key, 0.0) for quantity_map in item_quantities.values())
+        > tolerance
+    }
+    if quantity_failures:
         return _result(
             context,
             "PROC_QTY_001",
@@ -389,7 +520,7 @@ def rule_qty(context: RuleContext) -> RuleResult:
             "high",
             "Contract, receipt, and invoice quantities do not match.",
             {"quantity": "contract = receipt = invoice", "tolerance": tolerance},
-            values,
+            values | {"item_quantities": item_quantities, "failures": quantity_failures},
             evidence,
         )
     return _result(
@@ -399,7 +530,7 @@ def rule_qty(context: RuleContext) -> RuleResult:
         _severity_for_pass(evidence),
         "Contract, receipt, and invoice quantities match.",
         {"quantity": "contract = receipt = invoice", "tolerance": tolerance},
-        values,
+        values | {"item_quantities": item_quantities},
         evidence,
     )
 
@@ -427,7 +558,7 @@ def rule_tax(context: RuleContext) -> RuleResult:
             missing,
         )
 
-    tolerance = float(context.parameters.get("tolerance", TOLERANCE))
+    tolerance = _tolerance_amount(context.parameters, TOLERANCE)
     expected_total = excluding[0][0] + tax_amount[0][0]
     actual_total = including[0][0]
     evidence = _amount_evidence(excluding + tax_amount + including)
@@ -447,6 +578,18 @@ def rule_tax(context: RuleContext) -> RuleResult:
     invoice_tax = _single_rate(context, "invoice", "tax_rate")
     if contract_tax and invoice_tax:
         evidence.extend(_rate_evidence(contract_tax + invoice_tax))
+        allowed_tax_rates = _allowed_tax_rates(context.parameters)
+        if allowed_tax_rates and invoice_tax[0][0] not in allowed_tax_rates:
+            return _result(
+                context,
+                "PROC_TAX_001",
+                "warning",
+                "medium",
+                "Invoice tax rate is not in configured allowed_tax_rates.",
+                {"allowed_tax_rates": sorted(allowed_tax_rates)},
+                {"invoice_tax_rate": invoice_tax[0][0]},
+                evidence,
+            )
         if abs(contract_tax[0][0] - invoice_tax[0][0]) > 0.0001:
             return _result(
                 context,
@@ -497,6 +640,7 @@ def _to_model(task_id: UUID, rule: AuditRule, result: RuleResult) -> AuditResult
         task_id=task_id,
         rule_id=rule.id,
         rule_code=result.rule_code,
+        rule_version=rule.version,
         business_key=result.business_key,
         status=result.status,
         severity=result.severity,
@@ -641,16 +785,22 @@ def _single_rate(
     return []
 
 
-def _quantity_total(field: ExtractedField | None) -> float | None:
+def _quantity_map(field: ExtractedField | None, item_mappings: object = None) -> dict[str, float] | None:
     if field is None or not field.value_normalized:
         return None
     items = field.value_normalized.get("items")
     if not isinstance(items, list) or not items:
         return None
-    quantities = [item.get("quantity") for item in items if isinstance(item, dict)]
-    if not quantities or any(quantity is None for quantity in quantities):
-        return None
-    return sum(float(quantity) for quantity in quantities)
+    totals: dict[str, float] = defaultdict(float)
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        quantity = item.get("quantity")
+        if quantity is None:
+            return None
+        name = _mapped_item_name(str(item.get("item_name") or "item"), item_mappings)
+        totals[name] += float(quantity)
+    return dict(totals) or None
 
 
 def _missing_amount_refs(items: list[tuple[str, str, list]]) -> list[EvidenceRef]:
@@ -736,5 +886,126 @@ def _low_confidence(ref: EvidenceRef) -> bool:
     return ref.confidence is not None and ref.confidence < 0.6
 
 
-def _normalize_name(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", value.casefold())
+def _normalize_name(value: str, aliases: object = None) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "", value.casefold())
+    if not isinstance(aliases, dict):
+        return normalized
+    for canonical, alias_values in aliases.items():
+        names = alias_values if isinstance(alias_values, list) else [alias_values]
+        normalized_names = {_normalize_name(str(name)) for name in [canonical, *names]}
+        if normalized in normalized_names:
+            return _normalize_name(str(canonical))
+    return normalized
+
+
+def _mapped_item_name(value: str, mappings: object = None) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "", value.casefold())
+    if not isinstance(mappings, dict):
+        return normalized
+    for canonical, alias_values in mappings.items():
+        names = alias_values if isinstance(alias_values, list) else [alias_values]
+        normalized_names = {_mapped_item_name(str(name)) for name in [canonical, *names]}
+        if normalized in normalized_names:
+            return _mapped_item_name(str(canonical))
+    return normalized
+
+
+def _tolerance_amount(parameters: dict, default: float) -> float:
+    return float(parameters.get("tolerance_amount", parameters.get("tolerance", default)) or 0)
+
+
+def _allowed_tax_rates(parameters: dict) -> set[float]:
+    raw = parameters.get("allowed_tax_rates") or []
+    if not isinstance(raw, list):
+        return set()
+    return {float(value) for value in raw}
+
+
+def _rule_parameters(rule: AuditRule) -> dict:
+    defaults = DEFAULT_RULES.get(rule.rule_code, ("", {}))[1]
+    return defaults | (rule.parameters or {})
+
+
+def _validate_parameters(parameters: dict) -> None:
+    unknown = set(parameters) - ALLOWED_PARAMETER_KEYS
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unsupported rule parameter: {sorted(unknown)[0]}")
+    if "mismatch_status" in parameters and parameters["mismatch_status"] not in {"warning", "fail"}:
+        raise HTTPException(status_code=400, detail="mismatch_status must be warning or fail")
+    for key in ("tolerance", "tolerance_amount", "tolerance_ratio", "date_tolerance_days"):
+        if key in parameters:
+            try:
+                numeric_value = float(parameters[key])
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail=f"{key} must be numeric") from None
+            if numeric_value < 0:
+                raise HTTPException(status_code=400, detail=f"{key} must be non-negative")
+    if "prepayment_allowed" in parameters and not isinstance(parameters["prepayment_allowed"], bool):
+        raise HTTPException(status_code=400, detail="prepayment_allowed must be boolean")
+    for key in ("supplier_aliases", "item_mappings"):
+        if key in parameters and not isinstance(parameters[key], dict):
+            raise HTTPException(status_code=400, detail=f"{key} must be an object")
+    for key in ("allowed_tax_rates",):
+        if key in parameters and not isinstance(parameters[key], list):
+            raise HTTPException(status_code=400, detail=f"{key} must be a list")
+        if key in parameters:
+            try:
+                [float(value) for value in parameters[key]]
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail=f"{key} values must be numeric") from None
+
+
+def _evaluation_read(rule: AuditRule, result: RuleResult) -> dict:
+    return {
+        "rule_code": result.rule_code,
+        "rule_version": rule.version,
+        "business_key": result.business_key,
+        "status": result.status,
+        "severity": result.severity,
+        "message": result.message,
+        "expected_value": result.expected_value,
+        "actual_value": result.actual_value,
+        "evidence": {
+            "refs": [
+                ref.__dict__ | {"document_id": str(ref.document_id) if ref.document_id else None}
+                for ref in result.evidence
+            ]
+        },
+    }
+
+
+def _rule_snapshot(rule: AuditRule) -> dict:
+    return {
+        "id": str(rule.id),
+        "rule_code": rule.rule_code,
+        "name": rule.name,
+        "version": rule.version,
+        "enabled": rule.enabled,
+        "parameters": rule.parameters,
+        "description": rule.description,
+    }
+
+
+def _add_rule_log(
+    db: Session,
+    actor_name: str | None,
+    action: str,
+    target_id: UUID,
+    before_value: dict | None,
+    after_value: dict | None,
+) -> None:
+    db.add(
+        AuditLog(
+            actor_name=actor_name,
+            task_id=None,
+            action=action,
+            target_type="audit_rule",
+            target_id=target_id,
+            before_value=before_value,
+            after_value=after_value,
+        )
+    )
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)

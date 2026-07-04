@@ -4,6 +4,7 @@ from app.api.documents import router as documents_router
 from app.api.reports import router as reports_router
 from app.api.rag import router as rag_router
 from app.api.review import router as review_router
+from app.api.rules import router as rules_router
 from app.api.tasks import router as tasks_router
 from app.core.config import settings
 
@@ -13,6 +14,7 @@ router.include_router(documents_router)
 router.include_router(review_router)
 router.include_router(reports_router)
 router.include_router(rag_router)
+router.include_router(rules_router)
 
 
 @router.get("/config")

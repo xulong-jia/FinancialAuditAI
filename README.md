@@ -23,9 +23,15 @@ Post-MVP Phase 11 implemented:
 - Metadata filters, citations, and no-answer handling.
 - Workpaper retrieval is isolated from public knowledge bases.
 
+Post-MVP Phase 12 implemented:
+
+- Rule Center for deterministic procurement rule configuration.
+- Rule enable/disable, version tracking, approved parameter editing, dry-run rule evaluation, and audit log records for rule changes.
+- Rule Engine remains Python registry based; no DSL, user-provided expressions, or LLM pass/fail judgment is implemented.
+
 Not implemented:
 
-- Agent Workflow, Evaluation Center, full RBAC, Rule Center UI, Dashboard, PDF reports.
+- Agent Workflow, Evaluation Center, full RBAC, Dashboard, PDF reports.
 - Sales walkthrough, confirmations, interviews, contract review, or other Post-MVP scenarios.
 
 ## Local Setup

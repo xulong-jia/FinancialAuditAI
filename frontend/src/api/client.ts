@@ -4,6 +4,10 @@ import type {
   AuditTask,
   AuditResult,
   AuditRule,
+  AuditRuleCreatePayload,
+  AuditRuleEvaluatePayload,
+  AuditRuleEvaluateResult,
+  AuditRuleUpdatePayload,
   ClassificationResult,
   CreateTaskPayload,
   DocumentPage,
@@ -78,6 +82,18 @@ export function listAuditResults(taskId: string): Promise<AuditResult[]> {
 
 export function listRules(): Promise<AuditRule[]> {
   return getJson<AuditRule[]>("/api/v1/rules");
+}
+
+export function createRule(payload: AuditRuleCreatePayload): Promise<AuditRule> {
+  return sendJson<AuditRule>("/api/v1/rules", "POST", payload);
+}
+
+export function updateRule(ruleId: string, payload: AuditRuleUpdatePayload): Promise<AuditRule> {
+  return sendJson<AuditRule>(`/api/v1/rules/${ruleId}`, "PATCH", payload);
+}
+
+export function evaluateRule(ruleId: string, payload: AuditRuleEvaluatePayload): Promise<AuditRuleEvaluateResult[]> {
+  return sendJson<AuditRuleEvaluateResult[]>(`/api/v1/rules/${ruleId}/evaluate`, "POST", payload);
 }
 
 export function runOcr(documentId: string): Promise<DocumentRecord> {

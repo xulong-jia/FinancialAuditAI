@@ -953,7 +953,7 @@
       "phase_id": 12,
       "name": "Rule Center 规则版本化与参数配置",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         10,
         6
@@ -968,46 +968,46 @@
           "id": "P12-BE-001",
           "title": "扩展 RuleEngineService 参数加载和版本追踪",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Extended RuleEngineService parameter loading while preserving the Python rule registry. Supports enabled/disabled rules, version tracking, tolerance_amount, tolerance_ratio, allowed_tax_rates, supplier_aliases, item_mappings, prepayment_allowed, and date_tolerance_days without DSL or LLM pass/fail judgment.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P12-FE-001",
           "title": "实现 Rule Center 列表、详情、参数编辑和测试入口",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented Rule Center with rule list, details, enabled switch, parameter JSON editor, version display/editing, and dry-run rule evaluation against selected tasks.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P12-DB-001",
           "title": "完善 audit_rules parameters、version、enabled 和审计日志",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Reused audit_rules.parameters, audit_rules.version, and audit_rules.enabled; added audit_results.rule_version migration and wrote rule changes to existing audit_logs.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P12-API-001",
           "title": "实现 rules CRUD 和 evaluate API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented POST /api/v1/rules, PATCH /api/v1/rules/{rule_id}, and POST /api/v1/rules/{rule_id}/evaluate while preserving existing GET /api/v1/rules.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P12-TEST-001",
           "title": "测试启用禁用、参数变更、版本写入和审计日志",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added rule center API tests for enable/disable, amount tolerance, supplier aliases, item mappings, rule_version persistence, audit_logs, dry-run evaluate, registry-only create, and parameter validation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -1016,9 +1016,9 @@
         "规则版本可追踪",
         "规则结果可复现"
       ],
-      "notes": "",
+      "notes": "Phase 12 completed Rule Center configuration: deterministic Python registry remains the rule authority; rule enabled state, version, approved parameters, dry-run evaluation, audit_logs, and audit_results.rule_version are implemented. No Phase 13 Agent Workflow, Evaluation Center, Bad Case Center, RBAC, DSL, user expression execution, or LLM audit judgment was implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 13,

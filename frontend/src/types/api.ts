@@ -122,9 +122,47 @@ export type AuditRule = {
   version: string;
   enabled: boolean;
   parameters: Record<string, unknown>;
+  category: string;
+  severity: string;
   description: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type AuditRuleCreatePayload = {
+  rule_code: string;
+  name: string;
+  version?: string;
+  enabled?: boolean;
+  parameters?: Record<string, unknown>;
+  description?: string | null;
+  actor_name?: string;
+};
+
+export type AuditRuleUpdatePayload = {
+  name?: string;
+  version?: string;
+  enabled?: boolean;
+  parameters?: Record<string, unknown>;
+  description?: string | null;
+  actor_name?: string;
+};
+
+export type AuditRuleEvaluatePayload = {
+  task_id: string;
+  parameters?: Record<string, unknown>;
+};
+
+export type AuditRuleEvaluateResult = {
+  rule_code: string;
+  rule_version: string;
+  business_key: string;
+  status: string;
+  severity: string;
+  message: string;
+  expected_value: Record<string, unknown> | null;
+  actual_value: Record<string, unknown> | null;
+  evidence: Record<string, unknown>;
 };
 
 export type AuditResult = {
@@ -132,6 +170,7 @@ export type AuditResult = {
   task_id: string;
   rule_id: string | null;
   rule_code: string;
+  rule_version: string | null;
   business_key: string;
   status: string;
   severity: string;

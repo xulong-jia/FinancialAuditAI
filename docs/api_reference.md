@@ -58,6 +58,9 @@ Supported MVP doc types:
 - `GET /tasks/{task_id}/audit-results`
 - `GET /audit-results/{result_id}`
 - `GET /rules`
+- `POST /rules`
+- `PATCH /rules/{rule_id}`
+- `POST /rules/{rule_id}/evaluate`
 
 MVP rule codes:
 
@@ -67,6 +70,8 @@ MVP rule codes:
 - `PROC_NAME_001`
 - `PROC_QTY_001`
 - `PROC_TAX_001`
+
+Rule configuration stays inside the Python rule registry. `POST /rules` only accepts rule codes already present in the registry. `PATCH /rules/{rule_id}` supports enabled status, version, description, and approved parameters such as `tolerance_amount`, `tolerance_ratio`, `allowed_tax_rates`, `supplier_aliases`, `item_mappings`, `prepayment_allowed`, and `date_tolerance_days`. Rule updates write `audit_logs`; audit results include `rule_version`. `POST /rules/{rule_id}/evaluate` is a dry run and does not persist `audit_results`.
 
 ## Review
 

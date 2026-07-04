@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.audit import AuditResultRead, AuditRuleRead
+from app.schemas.audit import AuditResultRead
 from app.schemas.document import (
     ClassificationRead,
     DocumentPageRead,
@@ -79,11 +79,6 @@ def run_task_audit(task_id: UUID, db: Session = Depends(get_db)):
 def list_task_audit_results(task_id: UUID, db: Session = Depends(get_db)):
     task_service.get_task(db, task_id)
     return rule_engine_service.list_audit_results(db, task_id)
-
-
-@router.get("/rules", response_model=list[AuditRuleRead])
-def list_rules(db: Session = Depends(get_db)):
-    return rule_engine_service.list_rules(db)
 
 
 @router.get("/audit-results/{result_id}", response_model=AuditResultRead)

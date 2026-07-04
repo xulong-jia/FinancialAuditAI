@@ -25,3 +25,11 @@ class AuditRule(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+    @property
+    def category(self) -> str:
+        return "procurement"
+
+    @property
+    def severity(self) -> str:
+        return "high" if self.rule_code in {"PROC_AMOUNT_001", "PROC_QTY_001"} else "medium"

@@ -22,6 +22,7 @@ class AuditResult(Base):
         ForeignKey("audit_rules.id", ondelete="SET NULL"), nullable=True, index=True
     )
     rule_code: Mapped[str] = mapped_column(String(64), index=True)
+    rule_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     business_key: Mapped[str] = mapped_column(String(160), index=True)
     status: Mapped[str] = mapped_column(String(32), index=True)
     severity: Mapped[str] = mapped_column(String(32))

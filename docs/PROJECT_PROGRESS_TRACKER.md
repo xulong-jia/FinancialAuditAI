@@ -1010,7 +1010,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：Rule Center 规则版本化与参数配置
 - 是否属于 MVP：否
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 12 完成 Rule Center 规则版本化与参数配置。已扩展 `RuleEngineService` 参数加载，支持规则启用/禁用、版本号、容忍差额、供应商别名、品种映射、预付款和日期容忍参数；新增 `audit_results.rule_version` migration，复用 `audit_rules.parameters` / `version` / `enabled` 和既有 `audit_logs`；实现 `POST /api/v1/rules`、`PATCH /api/v1/rules/{rule_id}`、`POST /api/v1/rules/{rule_id}/evaluate`，保留已有 `GET /api/v1/rules`；实现 Rule Center 页面、规则详情、参数编辑和 dry-run 测试入口。规则仍由 Python rule registry 决定，不支持复杂 DSL、拖拽规则编辑、用户自定义表达式、LLM pass/fail、Agent、Evaluation、RBAC 或 Phase 13 功能。
 
 ### 阶段目标
 
@@ -1018,66 +1022,67 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 扩展 `RuleEngineService` 参数加载。
-- [ ] 支持规则启用/禁用。
-- [ ] 支持规则版本号。
-- [ ] 支持容忍差额参数。
-- [ ] 支持供应商别名参数。
-- [ ] 支持品种映射参数。
+- [x] 扩展 `RuleEngineService` 参数加载。
+- [x] 支持规则启用/禁用。
+- [x] 支持规则版本号。
+- [x] 支持容忍差额参数。
+- [x] 支持供应商别名参数。
+- [x] 支持品种映射参数。
 
 ### 前端任务
 
-- [ ] 实现 Rule Center 规则列表。
-- [ ] 实现规则详情。
-- [ ] 实现启用/禁用操作。
-- [ ] 实现参数编辑。
-- [ ] 实现规则测试入口。
+- [x] 实现 Rule Center 规则列表。
+- [x] 实现规则详情。
+- [x] 实现启用/禁用操作。
+- [x] 实现参数编辑。
+- [x] 实现规则测试入口。
 
 ### 数据库 / Migration 任务
 
-- [ ] 扩展或确认 `audit_rules.parameters`。
-- [ ] 扩展或确认 `audit_rules.version`。
-- [ ] 扩展或确认 `audit_rules.enabled`。
-- [ ] 记录规则修改 audit_logs。
+- [x] 扩展或确认 `audit_rules.parameters`。
+- [x] 扩展或确认 `audit_rules.version`。
+- [x] 扩展或确认 `audit_rules.enabled`。
+- [x] 新增 `audit_results.rule_version` 以记录规则结果使用版本。
+- [x] 记录规则修改 audit_logs。
 
 ### API 任务
 
-- [ ] `GET /api/v1/rules`。
-- [ ] `POST /api/v1/rules`。
-- [ ] `PATCH /api/v1/rules/{rule_id}`。
-- [ ] `POST /api/v1/rules/{rule_id}/evaluate`。
+- [x] `GET /api/v1/rules`。
+- [x] `POST /api/v1/rules`。
+- [x] `PATCH /api/v1/rules/{rule_id}`。
+- [x] `POST /api/v1/rules/{rule_id}/evaluate`。
 
 ### 测试任务
 
-- [ ] 规则启用/禁用测试。
-- [ ] 参数变更影响规则结果测试。
-- [ ] 规则版本写入 audit_results 测试。
-- [ ] 规则修改审计日志测试。
+- [x] 规则启用/禁用测试。
+- [x] 参数变更影响规则结果测试。
+- [x] 规则版本写入 audit_results 测试。
+- [x] 规则修改审计日志测试。
 
 ### 验收标准
 
-- [ ] 规则可启用和禁用。
-- [ ] 规则参数可配置。
-- [ ] 规则版本可追踪。
-- [ ] 规则结果可复现。
+- [x] 规则可启用和禁用。
+- [x] 规则参数可配置。
+- [x] 规则版本可追踪。
+- [x] 规则结果可复现。
 
 ### 交付物
 
-- [ ] Rule Center 页面。
-- [ ] 规则配置 API。
-- [ ] 规则版本和参数测试。
+- [x] Rule Center 页面。
+- [x] 规则配置 API。
+- [x] 规则版本和参数测试。
 
 ### 风险点
 
-- [ ] 过早设计 DSL。
-- [ ] 参数配置导致历史结果不可复现。
-- [ ] 非技术用户误改规则。
+- [x] 过早设计 DSL。
+- [x] 参数配置导致历史结果不可复现。
+- [x] 非技术用户误改规则。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做复杂 DSL。
-- [ ] 不做可视化拖拽规则编辑器。
-- [ ] 不允许规则绕过代码审查直接执行任意表达式。
+- [x] 不做复杂 DSL。
+- [x] 不做可视化拖拽规则编辑器。
+- [x] 不允许规则绕过代码审查直接执行任意表达式。
 
 ## Phase 13: Agent Workflow 状态机与工具调用
 
@@ -1689,7 +1694,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - [x] Phase 10 已标记 DONE。
 - [x] Phase 11 RAG 四库扩展完成。
-- [ ] Phase 12 Rule Center 规则版本化与参数配置完成。
+- [x] Phase 12 Rule Center 规则版本化与参数配置完成。
 - [ ] Phase 13 Agent Workflow 状态机与工具调用完成。
 - [ ] Phase 14 Bad Case Center 与 Evaluation Center 完成。
 - [ ] Phase 15 销售穿行扩展完成。

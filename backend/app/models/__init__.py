@@ -7,6 +7,7 @@ from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.document_relation import DocumentRelation
 from app.models.extracted_field import ExtractedField
+from app.models.model_invocation import ModelInvocation
 from app.models.report import Report
 from app.models.review_comment import ReviewComment
 
@@ -20,6 +21,7 @@ __all__ = [
     "DocumentPage",
     "DocumentRelation",
     "ExtractedField",
+    "ModelInvocation",
     "Report",
     "ReviewComment",
 ]

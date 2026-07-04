@@ -1,0 +1,92 @@
+{
+  "task": {
+    "name": "MVP Demo Procurement Walkthrough",
+    "project_name": "Synthetic MVP Demo",
+    "company_name": "Demo Manufacturing Co",
+    "fiscal_year": 2026,
+    "actor_name": "demo_seed"
+  },
+  "business_key": "CONTRACT-DEMO-001",
+  "documents": [
+    {
+      "original_filename": "demo_purchase_request.pdf",
+      "doc_type": "purchase_request",
+      "fields": {
+        "request_no": "PR-DEMO-001",
+        "request_date": "2026-01-02",
+        "approval_date": "2026-01-05",
+        "approval_status": "approved",
+        "item_lines": "Item: Demo Widget; Quantity: 10; Unit: pcs",
+        "total_estimated_amount": "1000.00"
+      }
+    },
+    {
+      "original_filename": "demo_purchase_contract.pdf",
+      "doc_type": "purchase_contract",
+      "fields": {
+        "contract_no": "DEMO-001",
+        "signing_date": "2026-01-10",
+        "buyer_name": "Demo Manufacturing Co",
+        "supplier_name": "Demo Supplier Co",
+        "item_lines": "Item: Demo Widget; Quantity: 10; Unit: pcs",
+        "amount_including_tax": "1000.00",
+        "tax_rate": "10%",
+        "payment_terms": "Pay after invoice review"
+      }
+    },
+    {
+      "original_filename": "demo_warehouse_receipt.pdf",
+      "doc_type": "warehouse_receipt",
+      "fields": {
+        "receipt_no": "WR-DEMO-001",
+        "receipt_date": "2026-01-20",
+        "supplier_name": "Demo Supplier Co",
+        "item_lines": "Item: Demo Widget; Quantity: 10; Unit: pcs",
+        "related_contract_no": "DEMO-001"
+      }
+    },
+    {
+      "original_filename": "demo_invoice.pdf",
+      "doc_type": "invoice",
+      "fields": {
+        "invoice_no": "INV-DEMO-001",
+        "invoice_date": "2026-01-25",
+        "seller_name": "Demo Supplier Co",
+        "buyer_name": "Demo Manufacturing Co",
+        "item_lines": "Item: Demo Widget; Quantity: 10; Unit: pcs",
+        "amount_excluding_tax": "909.09",
+        "tax_amount": "90.91",
+        "amount_including_tax": "1000.00",
+        "tax_rate": "10%"
+      }
+    },
+    {
+      "original_filename": "demo_voucher.pdf",
+      "doc_type": "accounting_voucher",
+      "fields": {
+        "voucher_no": "V-DEMO-001",
+        "voucher_date": "2026-01-30",
+        "summary": "Invoice INV-DEMO-001 for contract DEMO-001",
+        "debit_subject": "Inventory",
+        "credit_subject": "Accounts Payable",
+        "amount": "1000.00",
+        "supplier_name": "Demo Supplier Co",
+        "related_invoice_no": "INV-DEMO-001"
+      }
+    },
+    {
+      "original_filename": "demo_payment_receipt.pdf",
+      "doc_type": "payment_receipt",
+      "fields": {
+        "payment_no": "PAY-DEMO-001",
+        "payment_date": "2026-02-05",
+        "payer_name": "Demo Manufacturing Co",
+        "payee_name": "Demo Supplier Co",
+        "amount": "1000.00",
+        "currency": "CNY",
+        "payment_purpose": "Payment for contract DEMO-001",
+        "related_contract_no": "DEMO-001"
+      }
+    }
+  ]
+}

@@ -37,7 +37,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 7 | Audit Workbench 前端工作台 | MVP | DONE | 三栏审核工作台 |
 | Phase 8 | Review Center 基础复核闭环 | MVP | DONE | 字段修正、异常确认、驳回、重跑规则 |
 | Phase 9 | Report Center 控制表与异常清单导出 | MVP | DONE | xlsx 控制表、异常清单、证据索引 |
-| Phase 10 | MVP 测试、演示数据、README 和 Docker 交付 | MVP | TODO | 可演示 MVP、测试、README、Docker |
+| Phase 10 | MVP 测试、演示数据、README 和 Docker 交付 | MVP | DONE | 可复现 MVP、测试、README、Docker、demo seed |
 | Phase 11 | RAG 四库扩展 | Post-MVP | TODO | regulation / inquiry_case / prospectus / workpaper 检索 |
 | Phase 12 | Rule Center 规则版本化与参数配置 | Post-MVP | TODO | 规则版本、启用状态、参数配置 |
 | Phase 13 | Agent Workflow 状态机与工具调用 | Post-MVP | TODO | agent_runs、agent_steps、状态机、重试 |
@@ -855,7 +855,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：MVP 测试、演示数据、README 和 Docker 交付
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: 完成 Phase 10 MVP 可复现交付。已补齐 `model_invocations` model 和 migration、synthetic demo samples、`scripts/seed_demo_data.py`、MVP smoke test、README、本地/Docker 启动说明、API 草稿和 MVP 验收记录。验证通过：`alembic upgrade head`、全量 `pytest`、前端 `npm run build`、`docker compose config`、PostgreSQL 容器 healthy、`pg_isready`、`select 1`、临时空库顺序执行全部 migrations。未开发 Phase 11 或 Post-MVP 功能。
 
 ### 阶段目标
 
@@ -863,64 +867,64 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 清理 MVP API 响应结构。
-- [ ] 记录模型调用到 `model_invocations`。
-- [ ] 补齐错误处理。
-- [ ] 补齐 seed demo data 脚本。
+- [x] 清理 MVP API 响应结构。
+- [x] 记录模型调用到 `model_invocations`。
+- [x] 补齐错误处理。
+- [x] 补齐 seed demo data 脚本。
 
 ### 前端任务
 
-- [ ] 打磨 MVP 演示路径。
-- [ ] 处理空状态、错误状态、加载状态。
-- [ ] 确保 Task Center -> Workbench -> Review -> Report 链路可用。
+- [x] 打磨 MVP 演示路径。
+- [x] 处理空状态、错误状态、加载状态。
+- [x] 确保 Task Center -> Workbench -> Review -> Report 链路可用。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `model_invocations` 表。
-- [ ] 检查 Phase 0-9 migrations 可从空库顺序执行。
-- [ ] 准备 demo seed 数据。
+- [x] 创建 `model_invocations` 表。
+- [x] 检查 Phase 0-9 migrations 可从空库顺序执行。
+- [x] 准备 demo seed 数据。
 
 ### API 任务
 
-- [ ] 确认 MVP API 路径稳定。
-- [ ] 补齐 API 文档草稿。
-- [ ] 确认下载接口可在 Docker 环境工作。
+- [x] 确认 MVP API 路径稳定。
+- [x] 补齐 API 文档草稿。
+- [x] 确认下载接口可在 Docker 环境工作。
 
 ### 测试任务
 
-- [ ] 规则单测全部通过。
-- [ ] 关键 API 测试通过。
-- [ ] 报告导出测试通过。
-- [ ] 端到端采购 demo smoke test 通过。
-- [ ] Docker Compose 启动验证通过。
+- [x] 规则单测全部通过。
+- [x] 关键 API 测试通过。
+- [x] 报告导出测试通过。
+- [x] 端到端采购 demo smoke test 通过。
+- [x] Docker Compose 启动验证通过。
 
 ### 验收标准
 
-- [ ] 新环境可以按 README 启动。
-- [ ] 采购穿行 MVP 能从任务创建跑到报告导出。
-- [ ] 不包含真实密钥和真实敏感数据。
-- [ ] 测试命令可运行。
-- [ ] Phase 10 完成后才允许启动 Phase 11-20。
+- [x] 新环境可以按 README 启动。
+- [x] 采购穿行 MVP 能从任务创建跑到报告导出。
+- [x] 不包含真实密钥和真实敏感数据。
+- [x] 测试命令可运行。
+- [x] Phase 10 完成后才允许启动 Phase 11-20。
 
 ### 交付物
 
-- [ ] README。
-- [ ] Docker Compose。
-- [ ] demo samples。
-- [ ] seed 脚本。
-- [ ] MVP 测试报告。
+- [x] README。
+- [x] Docker Compose。
+- [x] demo samples。
+- [x] seed 脚本。
+- [x] MVP 测试报告。
 
 ### 风险点
 
-- [ ] 演示数据不足。
-- [ ] Docker 环境和本地环境不一致。
-- [ ] README 与实际命令不一致。
+- [x] 演示数据不足。
+- [x] Docker 环境和本地环境不一致。
+- [x] README 与实际命令不一致。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不在 MVP 结束前引入 Post-MVP 模块开发。
-- [ ] 不补做完整 RAG、Agent、Evaluation、RBAC。
-- [ ] 不加入未验收的多场景功能。
+- [x] 不在 MVP 结束前引入 Post-MVP 模块开发。
+- [x] 不补做完整 RAG、Agent、Evaluation、RBAC。
+- [x] 不加入未验收的多场景功能。
 
 ## Phase 11: RAG 四库扩展
 
@@ -1656,26 +1660,26 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [x] Phase 0 项目初始化与工程骨架完成。
 - [x] Phase 1 任务中心与文件上传完成。
 - [x] Phase 2 OCR / 文档解析 / 页级文本保存完成。
-- [ ] Phase 3 文档分类完成。
-- [ ] Phase 4 字段抽取与 Schema 校验完成。
-- [ ] Phase 5 采购业务归集完成。
-- [ ] Phase 6 Rule Engine MVP 完成。
+- [x] Phase 3 文档分类完成。
+- [x] Phase 4 字段抽取与 Schema 校验完成。
+- [x] Phase 5 采购业务归集完成。
+- [x] Phase 6 Rule Engine MVP 完成。
 - [x] Phase 7 Audit Workbench 前端工作台完成。
 - [x] Phase 8 Review Center 基础复核闭环完成。
 - [x] Phase 9 Report Center 控制表与异常清单导出完成。
-- [ ] Phase 10 MVP 测试、演示数据、README 和 Docker 交付完成。
-- [ ] 可创建采购穿行任务。
-- [ ] 可上传六类采购文件。
-- [ ] 可完成 OCR / 文本解析。
-- [ ] 可完成文档分类。
-- [ ] 可完成字段抽取。
-- [ ] 可完成业务归集。
-- [ ] 可执行六条采购 Rule Engine MVP 规则。
-- [ ] 异常可进入 Review Center。
-- [ ] 字段修正后可重跑规则。
-- [ ] 可导出 xlsx 控制表、异常清单、证据索引。
-- [ ] 基础 pytest 通过。
-- [ ] Docker Compose 可启动。
+- [x] Phase 10 MVP 测试、演示数据、README 和 Docker 交付完成。
+- [x] 可创建采购穿行任务。
+- [x] 可上传六类采购文件。
+- [x] 可完成 OCR / 文本解析。
+- [x] 可完成文档分类。
+- [x] 可完成字段抽取。
+- [x] 可完成业务归集。
+- [x] 可执行六条采购 Rule Engine MVP 规则。
+- [x] 异常可进入 Review Center。
+- [x] 字段修正后可重跑规则。
+- [x] 可导出 xlsx 控制表、异常清单、证据索引。
+- [x] 基础 pytest 通过。
+- [x] Docker Compose 可启动。
 
 ## Post-MVP Expansion Checklist
 

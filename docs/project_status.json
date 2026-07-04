@@ -800,7 +800,7 @@
       "phase_id": 10,
       "name": "MVP 测试、演示数据、README 和 Docker 交付",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         9
       ],
@@ -816,55 +816,55 @@
           "id": "P10-BE-001",
           "title": "清理 MVP API 响应和错误处理",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Confirmed MVP API path stability and added ModelInvocation persistence support for model-call audit records without adding RAG, Agent, Evaluation, or RBAC features.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P10-FE-001",
           "title": "打磨 MVP 演示路径和空状态",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Verified the MVP navigation path Task Center -> Audit Workbench -> Review Center -> Report Center through frontend build; retained existing empty/loading/error states without adding Dashboard or Post-MVP pages.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P10-DB-001",
           "title": "创建 model_invocations 表并验证 migrations",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added model_invocations table migration and validated the full migration chain on a temporary empty PostgreSQL database through alembic upgrade head.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P10-TEST-001",
           "title": "运行规则、API、导出和 E2E demo smoke tests",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added end-to-end procurement MVP smoke test and verified alembic upgrade head, 47 backend pytest cases, report export tests, frontend build, docker compose config, and PostgreSQL health checks.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P10-DOC-001",
           "title": "补齐 README、API 草稿和 demo 说明",
           "area": "docs",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Updated README and added docs/api_reference.md, docs/mvp_acceptance.md, samples/procurement/README.md, and synthetic demo_seed.json with safety and scope boundaries.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P10-INFRA-001",
           "title": "验证 Docker Compose 一键启动",
           "area": "infra",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Validated docker compose config, PostgreSQL container healthy status, pg_isready, and select 1 database connectivity after Docker Desktop was running.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -874,9 +874,9 @@
         "测试命令可运行",
         "Phase 10 完成后才允许启动 Post-MVP"
       ],
-      "notes": "",
+      "notes": "Phase 10 completed MVP reproducible delivery: model_invocations model and migration, synthetic procurement demo samples, seed_demo_data.py, MVP smoke test, README, API draft, MVP acceptance record, Docker/PostgreSQL verification, frontend build, pytest, and temporary empty-database migration validation. No Phase 11 or Post-MVP feature was implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 11,

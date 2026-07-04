@@ -1,0 +1,1629 @@
+{
+  "project": "FinancialAuditAI",
+  "last_updated": "2026-07-04",
+  "status_values": [
+    "TODO",
+    "IN_PROGRESS",
+    "DONE",
+    "BLOCKED",
+    "DEFERRED"
+  ],
+  "principles": [
+    "先完成 vertical slice，再做横向扩展",
+    "先完成采购穿行 MVP，再做 RAG / Agent / Evaluation",
+    "Rule Engine 优先于 Agent",
+    "Human Review 优先于自动结论",
+    "证据链优先于漂亮 UI",
+    "不在 tracker 里的功能默认不开发"
+  ],
+  "mvp_boundary": [
+    "MVP 只交付采购穿行 vertical slice",
+    "MVP 不实现完整 RAG 四库",
+    "MVP 不实现完整 Evaluation Center",
+    "MVP 不实现完整 Bad Case Center UI",
+    "MVP 不实现完整 Agent Workflow",
+    "MVP 不实现完整 RBAC",
+    "MVP 不实现销售、函证、访谈、合同审核扩展场景",
+    "MVP 允许保留证据索引、规则 evidence、基础测试、demo data、Provider 接口和后续扩展接口",
+    "不得在 Phase 10 完成前开发 Post-MVP 功能"
+  ],
+  "user_field_policy": [
+    "MVP 阶段不实现完整 RBAC",
+    "MVP 阶段所有 user 相关字段使用 nullable UUID、nullable string 或 actor_name 记录操作者，不强制 FK 到 users",
+    "Phase 19 实现 users / roles / user_roles 后，再评估是否回填真实外键",
+    "在 Phase 19 前，不允许为了 owner_id / uploaded_by / reviewed_by 等字段提前实现完整认证系统"
+  ],
+  "phases": [
+    {
+      "phase_id": 0,
+      "name": "项目初始化与工程骨架",
+      "category": "MVP",
+      "status": "DONE",
+      "dependencies": [],
+      "deliverables": [
+        "FastAPI backend skeleton",
+        "React TypeScript Ant Design frontend skeleton",
+        "PostgreSQL Docker Compose",
+        "health API",
+        ".env.example"
+      ],
+      "tasks": [
+        {
+          "id": "P0-INFRA-001",
+          "title": "创建基础目录和配置文件",
+          "area": "infra",
+          "status": "DONE",
+          "notes": "Completed in Phase 0 skeleton implementation.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-04"
+        },
+        {
+          "id": "P0-BE-001",
+          "title": "初始化 FastAPI app",
+          "area": "backend",
+          "status": "DONE",
+          "notes": "Completed in Phase 0 skeleton implementation.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-04"
+        },
+        {
+          "id": "P0-FE-001",
+          "title": "初始化 React TypeScript Ant Design 工程",
+          "area": "frontend",
+          "status": "DONE",
+          "notes": "Completed in Phase 0 skeleton implementation.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-04"
+        },
+        {
+          "id": "P0-DB-001",
+          "title": "初始化 SQLAlchemy 和 Alembic",
+          "area": "database",
+          "status": "DONE",
+          "notes": "Completed in Phase 0 skeleton implementation.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-04"
+        },
+        {
+          "id": "P0-API-001",
+          "title": "实现 health 和 config API",
+          "area": "api",
+          "status": "DONE",
+          "notes": "Completed in Phase 0 skeleton implementation.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-04"
+        },
+        {
+          "id": "P0-TEST-001",
+          "title": "添加 health API 测试",
+          "area": "test",
+          "status": "DONE",
+          "notes": "Completed in Phase 0 skeleton implementation.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-04"
+        },
+        {
+          "id": "P0-DOC-001",
+          "title": "编写最小启动说明",
+          "area": "docs",
+          "status": "DONE",
+          "notes": "Completed in Phase 0 skeleton implementation.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-04"
+        }
+      ],
+      "acceptance_criteria": [
+        "后端可启动",
+        "前端可启动",
+        "PostgreSQL 可连接",
+        "GET /health 返回正常",
+        ".env.example 不包含真实密钥"
+      ],
+      "notes": "Phase 0 completed: root config files, FastAPI health/config skeleton, SQLAlchemy/Alembic skeleton, React TypeScript Ant Design skeleton, Docker Compose, and health tests.",
+      "blocked_reason": "",
+      "updated_at": "2026-07-04"
+    },
+    {
+      "phase_id": 1,
+      "name": "任务中心与文件上传",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        0
+      ],
+      "deliverables": [
+        "Task Center",
+        "Document Upload",
+        "audit_tasks migration",
+        "documents migration",
+        "task and document APIs"
+      ],
+      "tasks": [
+        {
+          "id": "P1-BE-001",
+          "title": "实现 TaskService",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P1-BE-002",
+          "title": "实现 DocumentService 文件校验和保存",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P1-FE-001",
+          "title": "实现 Task Center 和上传组件",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P1-DB-001",
+          "title": "创建 audit_tasks 和 documents 表",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P1-API-001",
+          "title": "实现 task 和 document API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P1-TEST-001",
+          "title": "添加任务和文件上传 API 测试",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "可创建 procurement 任务",
+        "可上传六类采购文件",
+        "文件保存到 local_storage/uploads",
+        "documents 记录包含 hash 和 storage_path"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 2,
+      "name": "OCR / 文档解析 / 页级文本保存",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        1
+      ],
+      "deliverables": [
+        "OCRService",
+        "document_pages migration",
+        "OCR API",
+        "page text viewer"
+      ],
+      "tasks": [
+        {
+          "id": "P2-BE-001",
+          "title": "实现 OCRService 和页级文本保存",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P2-FE-001",
+          "title": "展示 OCR 状态和页级 raw_text",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P2-DB-001",
+          "title": "创建 document_pages 表",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P2-API-001",
+          "title": "实现 OCR 和 pages API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P2-TEST-001",
+          "title": "测试 PDF 样例页级解析",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "每份文档可生成 document_pages",
+        "每页包含 page_number、raw_text、ocr_blocks",
+        "OCR 失败可记录错误状态",
+        "分类服务可读取页级文本"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 3,
+      "name": "文档分类",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        2
+      ],
+      "deliverables": [
+        "ClassificationService",
+        "classification API",
+        "document type display and correction UI"
+      ],
+      "tasks": [
+        {
+          "id": "P3-BE-001",
+          "title": "实现六类采购文档分类",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P3-FE-001",
+          "title": "展示 doc_type、置信度和分类理由",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P3-DB-001",
+          "title": "使用 documents 分类字段保存结果",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P3-API-001",
+          "title": "实现 classify API 和人工修正入口",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P3-TEST-001",
+          "title": "添加六类采购样例分类测试",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "六类采购文件可被分类",
+        "分类结果包含 doc_type、confidence、reason",
+        "低置信度进入复核标记",
+        "人工修正不覆盖原始分类理由"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 4,
+      "name": "字段抽取与 Schema 校验",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        3
+      ],
+      "deliverables": [
+        "ExtractionService",
+        "six procurement Pydantic schemas",
+        "extracted_fields migration",
+        "field table UI"
+      ],
+      "tasks": [
+        {
+          "id": "P4-BE-001",
+          "title": "实现 ExtractionService 和六类文档 Schema",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P4-FE-001",
+          "title": "实现字段表、置信度和来源展示",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P4-DB-001",
+          "title": "创建 extracted_fields 表",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P4-API-001",
+          "title": "实现 extract 和 fields API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P4-TEST-001",
+          "title": "添加 Schema 校验、缺字段和标准化测试",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "六类采购文档都有 MVP 字段列表",
+        "每个字段可追溯到页码和来源片段",
+        "缺失字段输出 null 和 warning",
+        "抽取结果可被 Rule Engine 读取"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 5,
+      "name": "采购业务归集",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        4
+      ],
+      "deliverables": [
+        "LinkageService",
+        "document_relations migration",
+        "business linkage API",
+        "business chain UI"
+      ],
+      "tasks": [
+        {
+          "id": "P5-BE-001",
+          "title": "实现 LinkageService 和 business_key 生成",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P5-FE-001",
+          "title": "展示业务链路和低置信度归集",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P5-DB-001",
+          "title": "创建 document_relations 表",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P5-API-001",
+          "title": "实现 link-documents API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P5-TEST-001",
+          "title": "添加合同号、一对多和低置信度归集测试",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "能生成 business_key",
+        "能生成 document_relations",
+        "归集证据可查看",
+        "低置信度归集不自动通过"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 6,
+      "name": "Rule Engine MVP",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        5
+      ],
+      "deliverables": [
+        "Python rule registry",
+        "six procurement rules",
+        "audit_rules migration",
+        "audit_results migration",
+        "rule result UI"
+      ],
+      "tasks": [
+        {
+          "id": "P6-BE-001",
+          "title": "实现 RuleContext、RuleResult 和 rule registry",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P6-BE-002",
+          "title": "实现六条采购 MVP 规则",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P6-FE-001",
+          "title": "展示规则结果、expected、actual 和 evidence",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P6-DB-001",
+          "title": "创建 audit_rules 和 audit_results 表",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P6-API-001",
+          "title": "实现 audit、audit-results 和 rules API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P6-TEST-001",
+          "title": "为每条规则添加 pass、fail、need_review 测试",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "六条 MVP 规则可执行",
+        "规则输出包含完整 RuleResult 字段",
+        "缺字段输出 need_review",
+        "高风险 fail 进入 Review Center",
+        "规则单测可运行"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null,
+      "scope_notes": [
+        "MVP 中 PROC_QTY_001 只覆盖基础 line_items 数量一致性",
+        "MVP 中 PROC_TAX_001 只覆盖基础税率、税额、含税/不含税口径校验",
+        "完整品种一致性、复杂多品种逐行匹配、单位换算、item_key 标准化和复杂品种映射后置到 Post-MVP Rule Center / 规则增强阶段",
+        "MVP 不新增独立 PROC_ITEM_001，除非 Phase 6 完成后仍有明确时间"
+      ]
+    },
+    {
+      "phase_id": 7,
+      "name": "Audit Workbench 前端工作台",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        6
+      ],
+      "deliverables": [
+        "Audit Workbench",
+        "DocumentViewer",
+        "FieldTable",
+        "RuleResultTable",
+        "evidence navigation"
+      ],
+      "tasks": [
+        {
+          "id": "P7-BE-001",
+          "title": "提供工作台聚合数据查询",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P7-FE-001",
+          "title": "实现左文档、中证据、右字段和规则的三栏工作台",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P7-DB-001",
+          "title": "校验证据定位字段满足工作台展示",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P7-API-001",
+          "title": "复用或实现 workbench 聚合 API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P7-TEST-001",
+          "title": "验证异常点击能定位证据片段",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "用户可在一个页面查看文档、字段、规则结果",
+        "异常可以定位到来源文档和页级文本",
+        "不依赖完整 bbox 高亮也能完成复核",
+        "页面能支撑 MVP 演示"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 8,
+      "name": "Review Center 基础复核闭环",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        7
+      ],
+      "deliverables": [
+        "Review Center",
+        "ReviewService",
+        "review APIs",
+        "audit_logs"
+      ],
+      "tasks": [
+        {
+          "id": "P8-BE-001",
+          "title": "实现 ReviewService 字段修正、确认、驳回、重跑",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P8-FE-001",
+          "title": "实现复核队列和复核操作 UI",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P8-DB-001",
+          "title": "创建 review_comments 和 audit_logs 表",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P8-API-001",
+          "title": "实现 review、field correction、confirm、dismiss、rerun API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P8-TEST-001",
+          "title": "测试 before/after、驳回原因、重跑规则和 audit_logs",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "异常结果能进入复核队列",
+        "字段修正不覆盖原始证据",
+        "确认和驳回异常可记录",
+        "字段修正后可重跑规则",
+        "复核动作可审计"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null,
+      "scope_notes": [
+        "MVP 阶段 Review Center 不实现完整 Bad Case Center UI",
+        "MVP 阶段可以预留 bad_case_candidate 概念，但不开发完整 Bad Case 流程",
+        "实际 Bad Case 创建、筛选、根因分析、修复方案和回归评测在 Phase 14 完成"
+      ]
+    },
+    {
+      "phase_id": 9,
+      "name": "Report Center 控制表与异常清单导出",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        8
+      ],
+      "deliverables": [
+        "ReportService",
+        "Report Center",
+        "xlsx export",
+        "control_table_rows migration",
+        "reports migration"
+      ],
+      "tasks": [
+        {
+          "id": "P9-BE-001",
+          "title": "实现 ReportService 和 xlsx 导出",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P9-FE-001",
+          "title": "实现报告预览、生成状态和下载入口",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P9-DB-001",
+          "title": "创建 control_table_rows 和 reports 表",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P9-API-001",
+          "title": "实现报告生成、列表和下载 API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P9-TEST-001",
+          "title": "测试 xlsx sheets、异常清单、证据索引和报告记录",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "可导出 xlsx",
+        "xlsx 包含 Summary、Procurement Control Table、Exceptions、Evidence Index、Field Corrections、Rule Definitions",
+        "异常清单不隐藏失败规则",
+        "证据索引包含文件、页码、来源文本"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 10,
+      "name": "MVP 测试、演示数据、README 和 Docker 交付",
+      "category": "MVP",
+      "status": "TODO",
+      "dependencies": [
+        9
+      ],
+      "deliverables": [
+        "README",
+        "Docker Compose",
+        "demo samples",
+        "seed script",
+        "MVP test report"
+      ],
+      "tasks": [
+        {
+          "id": "P10-BE-001",
+          "title": "清理 MVP API 响应和错误处理",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P10-FE-001",
+          "title": "打磨 MVP 演示路径和空状态",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P10-DB-001",
+          "title": "创建 model_invocations 表并验证 migrations",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P10-TEST-001",
+          "title": "运行规则、API、导出和 E2E demo smoke tests",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P10-DOC-001",
+          "title": "补齐 README、API 草稿和 demo 说明",
+          "area": "docs",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P10-INFRA-001",
+          "title": "验证 Docker Compose 一键启动",
+          "area": "infra",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "新环境可以按 README 启动",
+        "采购穿行 MVP 能从任务创建跑到报告导出",
+        "不包含真实密钥和真实敏感数据",
+        "测试命令可运行",
+        "Phase 10 完成后才允许启动 Post-MVP"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 11,
+      "name": "RAG 四库扩展",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        10
+      ],
+      "deliverables": [
+        "RagService",
+        "Knowledge Center",
+        "pgvector migration",
+        "RAG APIs"
+      ],
+      "tasks": [
+        {
+          "id": "P11-BE-001",
+          "title": "实现 RagService、chunking、embedding、retrieval 和 citation",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P11-FE-001",
+          "title": "实现 Knowledge Center 和 citation 展示",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P11-DB-001",
+          "title": "创建 rag_documents、rag_chunks 并启用 pgvector",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P11-API-001",
+          "title": "实现 RAG 文档入库、索引、查询和 chunk API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P11-TEST-001",
+          "title": "测试 chunking、metadata filter、no-answer 和 citation schema",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "四库可分别入库和检索",
+        "workpaper 与公开知识库隔离",
+        "回答包含 citations",
+        "检索不到依据时返回证据不足"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 12,
+      "name": "Rule Center 规则版本化与参数配置",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        10,
+        6
+      ],
+      "deliverables": [
+        "Rule Center",
+        "rule configuration APIs",
+        "rule version and parameter tests"
+      ],
+      "tasks": [
+        {
+          "id": "P12-BE-001",
+          "title": "扩展 RuleEngineService 参数加载和版本追踪",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P12-FE-001",
+          "title": "实现 Rule Center 列表、详情、参数编辑和测试入口",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P12-DB-001",
+          "title": "完善 audit_rules parameters、version、enabled 和审计日志",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P12-API-001",
+          "title": "实现 rules CRUD 和 evaluate API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P12-TEST-001",
+          "title": "测试启用禁用、参数变更、版本写入和审计日志",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "规则可启用和禁用",
+        "规则参数可配置",
+        "规则版本可追踪",
+        "规则结果可复现"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 13,
+      "name": "Agent Workflow 状态机与工具调用",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        10,
+        6,
+        8,
+        9
+      ],
+      "deliverables": [
+        "AgentService",
+        "agent_runs migration",
+        "agent_steps migration",
+        "AgentStateTimeline",
+        "Agent APIs"
+      ],
+      "tasks": [
+        {
+          "id": "P13-BE-001",
+          "title": "实现 AgentService、状态机、工具白名单和重试",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P13-FE-001",
+          "title": "实现 AgentStateTimeline 和失败重试入口",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P13-DB-001",
+          "title": "创建 agent_runs 和 agent_steps 表",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P13-API-001",
+          "title": "实现 agent runs、steps 和 retry API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P13-TEST-001",
+          "title": "测试状态合法性、重试、人工复核路由和 Rule Engine 约束",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "Agent 可从上传推进到报告生成",
+        "每一步有状态、输入引用、输出引用和耗时",
+        "失败步骤可重试",
+        "Agent 不能自动确认高风险异常",
+        "Agent 不能绕过 Rule Engine 直接生成 pass/fail",
+        "Agent 不能在无 citation 时生成依据性结论"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 14,
+      "name": "Bad Case Center 与 Evaluation Center",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        10
+      ],
+      "deliverables": [
+        "Bad Case Center",
+        "Evaluation Center",
+        "evaluation scripts",
+        "bad_cases migration",
+        "evaluation_results migration"
+      ],
+      "tasks": [
+        {
+          "id": "P14-BE-001",
+          "title": "实现 BadCaseService 和 EvaluationService",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P14-FE-001",
+          "title": "实现 Bad Case Center 和 Evaluation Center",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P14-DB-001",
+          "title": "创建 bad_cases 和 evaluation_results 表",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P14-API-001",
+          "title": "实现 bad case 和 evaluation API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P14-TEST-001",
+          "title": "测试 Bad Case CRUD、规则评测、字段 expected 对比和回归评测",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "能创建和筛选 Bad Case",
+        "每个 Bad Case 有输入、输出、期望、根因、修复方案",
+        "评测结果记录指标和失败样例",
+        "Bad Case 能进入回归评测"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 15,
+      "name": "销售穿行扩展",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        10
+      ],
+      "deliverables": [
+        "sales schema",
+        "sales rules",
+        "sales control table",
+        "sales sample data"
+      ],
+      "tasks": [
+        {
+          "id": "P15-BE-001",
+          "title": "定义销售 doc_type、Schema、归集和规则",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P15-FE-001",
+          "title": "支持 sales 场景字段、规则、复核和报告展示",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P15-DB-001",
+          "title": "复用现有表并支持 sales scenario",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P15-API-001",
+          "title": "复用现有 API 并增加 sales 参数校验",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P15-TEST-001",
+          "title": "添加销售分类、抽取、规则和导出测试",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "至少一组销售穿行样例端到端跑通",
+        "销售异常能进入 Review Center",
+        "销售报告可导出",
+        "不影响采购 MVP"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 16,
+      "name": "函证模块扩展",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        10
+      ],
+      "deliverables": [
+        "confirmation schema",
+        "confirmation rules",
+        "confirmation exception report",
+        "confirmation sample data"
+      ],
+      "tasks": [
+        {
+          "id": "P16-BE-001",
+          "title": "定义函证 Schema、抽取和差异比对规则",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P16-FE-001",
+          "title": "支持 confirmation 场景字段、差异复核和报告",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P16-DB-001",
+          "title": "优先复用现有表支持函证场景",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P16-API-001",
+          "title": "复用文档、抽取、规则、复核和报告 API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P16-TEST-001",
+          "title": "添加函证字段、日期、金额和差异调节测试",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "能抽取函证核心字段",
+        "能比对账面金额、回函金额和差异金额",
+        "差异样例进入 Review Center",
+        "可导出函证差异清单"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 17,
+      "name": "访谈模块扩展",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        10
+      ],
+      "deliverables": [
+        "interview schema",
+        "interview rules",
+        "interview sample data",
+        "interview review view"
+      ],
+      "tasks": [
+        {
+          "id": "P17-BE-001",
+          "title": "定义访谈 Schema、关键回答抽取和差异规则",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P17-FE-001",
+          "title": "支持访谈长文本、关键回答和复核展示",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P17-DB-001",
+          "title": "优先复用现有表支持访谈场景",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P17-API-001",
+          "title": "复用 OCR、抽取、规则和复核 API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P17-TEST-001",
+          "title": "添加访谈字段、来源证据、缺签字和差异测试",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "能抽取访谈核心字段",
+        "能识别提及金额、主体、关键回答",
+        "缺签字、日期异常和底稿差异进入 Review Center"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 18,
+      "name": "合同审核模块扩展",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        10
+      ],
+      "deliverables": [
+        "contract review schema",
+        "contract rules",
+        "contract review report",
+        "contract sample data"
+      ],
+      "tasks": [
+        {
+          "id": "P18-BE-001",
+          "title": "定义合同字段和条款 Schema、抽取和规则",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P18-FE-001",
+          "title": "支持条款展示、来源片段和风险复核",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P18-DB-001",
+          "title": "优先复用 extracted_fields 和 JSONB 条款结构",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P18-API-001",
+          "title": "复用文档处理、抽取、规则、复核和报告 API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P18-TEST-001",
+          "title": "添加基础字段、缺失条款、特殊条款和 evidence 测试",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "能抽取合同基础字段和关键条款",
+        "能识别缺失条款和特殊条款",
+        "条款风险能进入 Review Center",
+        "报告包含条款证据"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 19,
+      "name": "RBAC、审计、安全、工程化完善",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        10
+      ],
+      "deliverables": [
+        "RBAC",
+        "Admin Center",
+        "security checklist",
+        "audit log query",
+        "engineering hardening"
+      ],
+      "tasks": [
+        {
+          "id": "P19-BE-001",
+          "title": "实现用户、角色、权限、审计和日志脱敏",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P19-FE-001",
+          "title": "实现登录页、Admin Center 和权限控制 UI",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P19-DB-001",
+          "title": "创建 users、roles、user_roles 并回填外键",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P19-API-001",
+          "title": "实现 Auth、User、Role、Audit Log API",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P19-TEST-001",
+          "title": "测试登录、权限拒绝、只读限制、日志脱敏和上传安全",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P19-INFRA-001",
+          "title": "评估并按需引入异步任务工程化",
+          "area": "infra",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "角色权限能限制关键操作",
+        "字段修正、规则修改、报告导出有审计日志",
+        "API Key 和 .env 不提交",
+        "上传、OCR 中间文件、报告不进入 Git",
+        "日志不输出完整敏感底稿"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    },
+    {
+      "phase_id": 20,
+      "name": "最终验收、文档整理、作品集展示材料",
+      "category": "POST_MVP",
+      "status": "TODO",
+      "dependencies": [
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "deliverables": [
+        "final README",
+        "docs set",
+        "demo script",
+        "screenshots",
+        "acceptance report",
+        "portfolio materials"
+      ],
+      "tasks": [
+        {
+          "id": "P20-BE-001",
+          "title": "清理 API、确认错误处理和 migration 可复现",
+          "area": "backend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P20-FE-001",
+          "title": "整理演示路径、截图、空状态和基础响应式",
+          "area": "frontend",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P20-DB-001",
+          "title": "输出数据库结构文档并确认 demo 数据安全",
+          "area": "database",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P20-API-001",
+          "title": "输出 API reference 并确认接口一致",
+          "area": "api",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P20-TEST-001",
+          "title": "运行完整 pytest、E2E demo、Post-MVP smoke 和安全 checklist",
+          "area": "test",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        },
+        {
+          "id": "P20-DOC-001",
+          "title": "整理 README、架构、API、数据库、规则、RAG、Agent、Review、Evaluation 和作品集材料",
+          "area": "docs",
+          "status": "TODO",
+          "notes": "",
+          "blocked_reason": "",
+          "updated_at": null
+        }
+      ],
+      "acceptance_criteria": [
+        "README 可指导新环境启动",
+        "docs 覆盖架构、API、数据库、Rule Engine、RAG、Agent、Review、Evaluation、安全",
+        "演示材料不夸大商业落地或真实客户使用",
+        "作品集材料清楚说明使用模拟或公开数据",
+        "最终验收 checklist 全部完成"
+      ],
+      "notes": "",
+      "blocked_reason": "",
+      "updated_at": null
+    }
+  ]
+}

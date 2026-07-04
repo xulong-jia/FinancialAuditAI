@@ -28,7 +28,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase | Phase 名称 | MVP / Post-MVP | Status | 主要交付物 |
 | --- | --- | --- | --- | --- |
 | Phase 0 | 项目初始化与工程骨架 | MVP | DONE | 可启动的 FastAPI、React、PostgreSQL、Docker Compose 骨架 |
-| Phase 1 | 任务中心与文件上传 | MVP | TODO | 采购任务创建、六类文件上传、文件落盘 |
+| Phase 1 | 任务中心与文件上传 | MVP | DONE | 采购任务创建、六类文件上传、文件落盘 |
 | Phase 2 | OCR / 文档解析 / 页级文本保存 | MVP | TODO | 页级文本、OCR blocks、document_pages |
 | Phase 3 | 文档分类 | MVP | TODO | 六类采购文件 doc_type、置信度、分类理由 |
 | Phase 4 | 字段抽取与 Schema 校验 | MVP | TODO | 六类采购字段、line_items、Pydantic 校验 |
@@ -129,7 +129,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：任务中心与文件上传
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 1 完成任务 CRUD、六类采购文件上传、基础文件安全校验、`audit_tasks` / `documents` migration、Task Center 页面和 API 测试。未实现 Phase 2 OCR 或任何后续模块。
 
 ### 阶段目标
 
@@ -137,24 +141,24 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `TaskService` 创建、查询、更新任务。
-- [ ] 实现 `DocumentService` 文件校验、hash、保存。
-- [ ] 支持六类采购文件上传。
-- [ ] 记录上传状态和文件基础信息。
+- [x] 实现 `TaskService` 创建、查询、更新任务。
+- [x] 实现 `DocumentService` 文件校验、hash、保存。
+- [x] 支持六类采购文件上传。
+- [x] 记录上传状态和文件基础信息。
 
 ### 前端任务
 
-- [ ] 实现 Task Center 任务列表。
-- [ ] 实现新建采购任务表单。
-- [ ] 实现 Document Upload 组件。
-- [ ] 展示上传文件列表、文件类型、大小、状态。
+- [x] 实现 Task Center 任务列表。
+- [x] 实现新建采购任务表单。
+- [x] 实现 Document Upload 组件。
+- [x] 展示上传文件列表、文件类型、大小、状态。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `audit_tasks` 表。
-- [ ] 创建 `documents` 表。
-- [ ] 添加任务状态字段：`draft`, `uploaded`, `failed`。
-- [ ] 添加文件 hash、storage_path、doc_type、处理状态字段。
+- [x] 创建 `audit_tasks` 表。
+- [x] 创建 `documents` 表。
+- [x] 添加任务状态字段：`draft`, `uploaded`, `failed`。
+- [x] 添加文件 hash、storage_path、doc_type、处理状态字段。
 
 ### MVP 用户字段处理说明
 
@@ -165,48 +169,48 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### API 任务
 
-- [ ] `POST /api/v1/tasks`。
-- [ ] `GET /api/v1/tasks`。
-- [ ] `GET /api/v1/tasks/{task_id}`。
-- [ ] `PATCH /api/v1/tasks/{task_id}`。
-- [ ] `POST /api/v1/tasks/{task_id}/documents`。
-- [ ] `GET /api/v1/tasks/{task_id}/documents`。
-- [ ] `GET /api/v1/documents/{document_id}`。
+- [x] `POST /api/v1/tasks`。
+- [x] `GET /api/v1/tasks`。
+- [x] `GET /api/v1/tasks/{task_id}`。
+- [x] `PATCH /api/v1/tasks/{task_id}`。
+- [x] `POST /api/v1/tasks/{task_id}/documents`。
+- [x] `GET /api/v1/tasks/{task_id}/documents`。
+- [x] `GET /api/v1/documents/{document_id}`。
 
 ### 测试任务
 
-- [ ] 添加任务创建 API 测试。
-- [ ] 添加任务列表 API 测试。
-- [ ] 添加文件上传 API 测试。
-- [ ] 测试不支持文件类型会被拒绝。
-- [ ] 测试文件 hash 和 storage_path 会写入数据库。
+- [x] 添加任务创建 API 测试。
+- [x] 添加任务列表 API 测试。
+- [x] 添加文件上传 API 测试。
+- [x] 测试不支持文件类型会被拒绝。
+- [x] 测试文件 hash 和 storage_path 会写入数据库。
 
 ### 验收标准
 
-- [ ] 可创建 `procurement` 场景任务。
-- [ ] 可上传采购申请单、采购合同、入库单、发票、记账凭证、付款回单。
-- [ ] 文件保存到 `local_storage/uploads`。
-- [ ] 数据库存在对应 `documents` 记录。
-- [ ] 上传失败不会产生脏数据。
+- [x] 可创建 `procurement` 场景任务。
+- [x] 可上传采购申请单、采购合同、入库单、发票、记账凭证、付款回单。
+- [x] 文件保存到 `local_storage/uploads`。
+- [x] 数据库存在对应 `documents` 记录。
+- [x] 上传失败不会产生脏数据。
 
 ### 交付物
 
-- [ ] Task Center 页面。
-- [ ] Document Upload 页面或组件。
-- [ ] `audit_tasks` 和 `documents` migration。
-- [ ] task/document API。
+- [x] Task Center 页面。
+- [x] Document Upload 页面或组件。
+- [x] `audit_tasks` 和 `documents` migration。
+- [x] task/document API。
 
 ### 风险点
 
-- [ ] 文件大小和类型校验不足。
-- [ ] 重复上传导致重复业务记录。
-- [ ] local storage 路径设计不稳定。
+- [x] 文件大小和类型校验不足。
+- [x] 重复上传导致重复业务记录。
+- [x] local storage 路径设计不稳定。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做销售、函证、访谈、合同审核上传流程。
-- [ ] 不做云存储。
-- [ ] 不做复杂权限控制。
+- [x] 不做销售、函证、访谈、合同审核上传流程。
+- [x] 不做云存储。
+- [x] 不做复杂权限控制。
 
 ## Phase 2: OCR / 文档解析 / 页级文本保存
 
@@ -1616,7 +1620,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 ## MVP Completion Checklist
 
 - [x] Phase 0 项目初始化与工程骨架完成。
-- [ ] Phase 1 任务中心与文件上传完成。
+- [x] Phase 1 任务中心与文件上传完成。
 - [ ] Phase 2 OCR / 文档解析 / 页级文本保存完成。
 - [ ] Phase 3 文档分类完成。
 - [ ] Phase 4 字段抽取与 Schema 校验完成。

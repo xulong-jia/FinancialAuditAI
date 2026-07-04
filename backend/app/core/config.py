@@ -27,6 +27,7 @@ class Settings(BaseModel):
     app_name: str = "FinancialAuditAI"
     environment: str = "local"
     api_v1_prefix: str = "/api/v1"
+    cors_origins: list[str] = ["http://localhost:5173"]
     database_url: str = (
         "postgresql+psycopg://financial_audit_ai:change-me-local-only"
         "@localhost:5432/financial_audit_ai"
@@ -40,6 +41,11 @@ def get_settings() -> Settings:
         app_name=os.getenv("APP_NAME", "FinancialAuditAI"),
         environment=os.getenv("ENVIRONMENT", "local"),
         api_v1_prefix=os.getenv("API_V1_PREFIX", "/api/v1"),
+        cors_origins=[
+            origin.strip()
+            for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+            if origin.strip()
+        ],
         database_url=os.getenv(
             "DATABASE_URL",
             "postgresql+psycopg://financial_audit_ai:change-me-local-only"

@@ -5,9 +5,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
+    "@vitejs/plugin-react": "4.3.4",
     "antd": "latest",
-    "vite": "latest",
+    "vite": "6.4.3",
     "typescript": "latest",
     "react": "latest",
     "react-dom": "latest"

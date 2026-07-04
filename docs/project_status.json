@@ -127,7 +127,7 @@
       "phase_id": 1,
       "name": "任务中心与文件上传",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         0
       ],
@@ -143,55 +143,55 @@
           "id": "P1-BE-001",
           "title": "实现 TaskService",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 1 task and document upload implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P1-BE-002",
           "title": "实现 DocumentService 文件校验和保存",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 1 task and document upload implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P1-FE-001",
           "title": "实现 Task Center 和上传组件",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 1 task and document upload implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P1-DB-001",
           "title": "创建 audit_tasks 和 documents 表",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 1 task and document upload implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P1-API-001",
           "title": "实现 task 和 document API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 1 task and document upload implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P1-TEST-001",
           "title": "添加任务和文件上传 API 测试",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Completed in Phase 1 task and document upload implementation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -200,9 +200,9 @@
         "文件保存到 local_storage/uploads",
         "documents 记录包含 hash 和 storage_path"
       ],
-      "notes": "",
+      "notes": "Phase 1 completed: TaskService task CRUD, DocumentService upload validation/hash/storage, audit_tasks/documents migration, task/document APIs, Task Center UI, and API tests. Phase 2 OCR and later modules were not implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 2,

@@ -26,6 +26,7 @@ class Document(Base):
     file_hash: Mapped[str] = mapped_column(String(64), index=True)
     storage_path: Mapped[str] = mapped_column(Text)
     doc_type: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    business_key: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
     doc_type_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     classification_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     alternative_types: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)

@@ -7,7 +7,9 @@ import type {
   DocumentPage,
   DocumentRecord,
   DocumentUpdatePayload,
+  DocumentRelation,
   ExtractedField,
+  LinkDocumentsResult,
   ProcurementDocType,
 } from "../types/api";
 
@@ -41,6 +43,14 @@ export function createTask(payload: CreateTaskPayload): Promise<AuditTask> {
 
 export function listDocuments(taskId: string): Promise<DocumentRecord[]> {
   return getJson<DocumentRecord[]>(`/api/v1/tasks/${taskId}/documents`);
+}
+
+export function linkDocuments(taskId: string): Promise<LinkDocumentsResult> {
+  return sendJson<LinkDocumentsResult>(`/api/v1/tasks/${taskId}/link-documents`, "POST", {});
+}
+
+export function listDocumentRelations(taskId: string): Promise<DocumentRelation[]> {
+  return getJson<DocumentRelation[]>(`/api/v1/tasks/${taskId}/document-relations`);
 }
 
 export function runOcr(documentId: string): Promise<DocumentRecord> {

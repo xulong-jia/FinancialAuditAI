@@ -13,10 +13,12 @@ from app.schemas.document import (
     ProcurementDocType,
 )
 from app.schemas.extraction import ExtractedFieldRead
+from app.schemas.linkage import DocumentRelationRead, LinkDocumentsResult
 from app.services import (
     classification_service,
     document_service,
     extraction_service,
+    linkage_service,
     ocr_service,
     task_service,
 )
@@ -51,6 +53,18 @@ def list_documents(task_id: UUID, db: Session = Depends(get_db)):
 def list_task_fields(task_id: UUID, db: Session = Depends(get_db)):
     task_service.get_task(db, task_id)
     return extraction_service.list_task_fields(db, task_id)
+
+
+@router.post("/tasks/{task_id}/link-documents", response_model=LinkDocumentsResult)
+def link_task_documents(task_id: UUID, db: Session = Depends(get_db)):
+    task_service.get_task(db, task_id)
+    return linkage_service.link_documents(db, task_id)
+
+
+@router.get("/tasks/{task_id}/document-relations", response_model=list[DocumentRelationRead])
+def list_task_document_relations(task_id: UUID, db: Session = Depends(get_db)):
+    task_service.get_task(db, task_id)
+    return linkage_service.list_document_relations(db, task_id)
 
 
 @router.get("/documents/{document_id}", response_model=DocumentRead)

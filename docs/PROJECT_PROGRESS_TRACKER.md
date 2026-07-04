@@ -32,7 +32,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 2 | OCR / 文档解析 / 页级文本保存 | MVP | DONE | 页级文本、OCR blocks、document_pages |
 | Phase 3 | 文档分类 | MVP | DONE | 六类采购文件 doc_type、置信度、分类理由 |
 | Phase 4 | 字段抽取与 Schema 校验 | MVP | DONE | 六类采购字段、line_items、Pydantic 校验 |
-| Phase 5 | 采购业务归集 | MVP | TODO | business_key、document_relations |
+| Phase 5 | 采购业务归集 | MVP | DONE | business_key、document_relations |
 | Phase 6 | Rule Engine MVP | MVP | TODO | Python rule registry、六条采购规则、audit_results |
 | Phase 7 | Audit Workbench 前端工作台 | MVP | TODO | 三栏审核工作台 |
 | Phase 8 | Review Center 基础复核闭环 | MVP | TODO | 字段修正、异常确认、驳回、重跑规则 |
@@ -443,7 +443,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：采购业务归集
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 5 完成 `LinkageService`、`documents.business_key`、`document_relations` migration、任务内采购文档归集 API、Task Center 业务链路展示、合同号/发票号/付款用途/凭证摘要辅助归集、供应商+日期+金额低置信度归集、低置信度 `need_review` 标记和后端 linkage 测试。未实现 Phase 6 Rule Engine、Review Center、复杂图谱匹配、跨任务归集或人工关系编辑。
 
 ### 阶段目标
 
@@ -451,62 +455,62 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `LinkageService`。
-- [ ] 优先按合同号、发票号、银行流水号、凭证摘要归集。
-- [ ] 缺少显式编号时使用供应商、日期、金额组合匹配。
-- [ ] 低置信度归集标记为需要复核。
-- [ ] 支持一合同多发票、多付款的基础聚合。
+- [x] 实现 `LinkageService`。
+- [x] 优先按合同号、发票号、银行流水号、凭证摘要归集。
+- [x] 缺少显式编号时使用供应商、日期、金额组合匹配。
+- [x] 低置信度归集标记为需要复核。
+- [x] 支持一合同多发票、多付款的基础聚合。
 
 ### 前端任务
 
-- [ ] 展示 business_key。
-- [ ] 展示同一业务链路下的文件关系。
-- [ ] 标记低置信度归集。
-- [ ] 提供人工查看关系的入口。
+- [x] 展示 business_key。
+- [x] 展示同一业务链路下的文件关系。
+- [x] 标记低置信度归集。
+- [x] 提供人工查看关系的入口。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `document_relations` 表。
-- [ ] 使用 `documents.business_key`。
-- [ ] relation 记录 source_document_id、target_document_id、relation_type、confidence、evidence。
+- [x] 创建 `document_relations` 表。
+- [x] 使用 `documents.business_key`。
+- [x] relation 记录 source_document_id、target_document_id、relation_type、confidence、evidence。
 
 ### API 任务
 
-- [ ] `POST /api/v1/tasks/{task_id}/link-documents`。
-- [ ] `GET /api/v1/tasks/{task_id}/document-relations`。
+- [x] `POST /api/v1/tasks/{task_id}/link-documents`。
+- [x] `GET /api/v1/tasks/{task_id}/document-relations`。
 
 ### 测试任务
 
-- [ ] 合同号归集测试。
-- [ ] 发票号/回单用途归集测试。
-- [ ] 低置信度归集测试。
-- [ ] 一对多发票或付款基础聚合测试。
+- [x] 合同号归集测试。
+- [x] 发票号/回单用途归集测试。
+- [x] 低置信度归集测试。
+- [x] 一对多发票或付款基础聚合测试。
 
 ### 验收标准
 
-- [ ] 能为采购样例生成 business_key。
-- [ ] 能生成 document_relations。
-- [ ] 归集证据可查看。
-- [ ] 低置信度归集不自动通过。
+- [x] 能为采购样例生成 business_key。
+- [x] 能生成 document_relations。
+- [x] 归集证据可查看。
+- [x] 低置信度归集不自动通过。
 
 ### 交付物
 
-- [ ] LinkageService。
-- [ ] `document_relations` migration。
-- [ ] 业务链路 API。
-- [ ] 业务链路展示 UI。
+- [x] LinkageService。
+- [x] `document_relations` migration。
+- [x] 业务链路 API。
+- [x] 业务链路展示 UI。
 
 ### 风险点
 
-- [ ] 编号缺失导致错配。
-- [ ] 分批付款被误认为异常。
-- [ ] 供应商别名导致主体不一致误报。
+- [x] 编号缺失导致错配。
+- [x] 分批付款被误认为异常。
+- [x] 供应商别名导致主体不一致误报。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做复杂图谱匹配。
-- [ ] 不做跨任务归集。
-- [ ] 不做销售链路归集。
+- [x] 不做复杂图谱匹配。
+- [x] 不做跨任务归集。
+- [x] 不做销售链路归集。
 
 ## Phase 6: Rule Engine MVP
 

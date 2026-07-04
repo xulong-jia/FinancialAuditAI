@@ -79,6 +79,7 @@ export type DocumentRecord = {
   file_hash: string;
   storage_path: string;
   doc_type: ClassificationDocType | null;
+  business_key: string | null;
   doc_type_confidence: number | null;
   classification_reason: string | null;
   alternative_types: AlternativeDocType[] | null;
@@ -91,6 +92,27 @@ export type DocumentRecord = {
   review_status: string;
   created_at: string;
   updated_at: string;
+};
+
+export type DocumentRelation = {
+  id: string;
+  task_id: string;
+  business_key: string;
+  source_document_id: string;
+  target_document_id: string;
+  relation_type: string;
+  confidence: number;
+  evidence: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LinkDocumentsResult = {
+  task_id: string;
+  linked_document_count: number;
+  relation_count: number;
+  warnings: string[];
+  relations: DocumentRelation[];
 };
 
 export type DocumentUpdatePayload = {

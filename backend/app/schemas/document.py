@@ -51,6 +51,7 @@ class DocumentRead(BaseModel):
     file_hash: str
     storage_path: str
     doc_type: ClassificationDocType | None
+    business_key: str | None
     doc_type_confidence: float | None
     classification_reason: str | None
     alternative_types: list[AlternativeDocType] | None

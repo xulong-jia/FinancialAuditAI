@@ -420,7 +420,7 @@
       "phase_id": 5,
       "name": "采购业务归集",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         4
       ],
@@ -435,46 +435,46 @@
           "id": "P5-BE-001",
           "title": "实现 LinkageService 和 business_key 生成",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented LinkageService with stable CONTRACT/INVOICE/TASK group business_key generation and low-confidence need_review marking.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P5-FE-001",
           "title": "展示业务链路和低置信度归集",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Task Center now shows business_key, Link Documents action, read-only document relations, confidence, low-confidence marker, and evidence.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P5-DB-001",
           "title": "创建 document_relations 表",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added documents.business_key and document_relations table with relation_type, confidence, and evidence JSONB.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P5-API-001",
           "title": "实现 link-documents API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented POST /api/v1/tasks/{task_id}/link-documents and GET /api/v1/tasks/{task_id}/document-relations.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P5-TEST-001",
           "title": "添加合同号、一对多和低置信度归集测试",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added linkage tests for contract number grouping, invoice/payment purpose grouping, low-confidence fallback, one-to-many payments, relation writes, and missing-field warning.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -483,9 +483,9 @@
         "归集证据可查看",
         "低置信度归集不自动通过"
       ],
-      "notes": "",
+      "notes": "Phase 5 completed: implemented LinkageService, documents.business_key, document_relations migration, task-scoped document linkage APIs, Task Center relation display, explicit contract/invoice linkage, payment purpose and voucher summary assisted linkage, supplier/date/amount low-confidence fallback, need_review marking for low-confidence groups, and linkage API tests. Phase 6 Rule Engine, Review Center, complex graph matching, cross-task linkage, and manual relation editing were not implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 6,

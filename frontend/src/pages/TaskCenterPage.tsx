@@ -8,6 +8,8 @@ import {
   extractDocument,
   listDocumentPages,
   listDocumentFields,
+  linkDocuments,
+  listDocumentRelations,
   listDocuments,
   listTasks,
   runOcr,
@@ -20,6 +22,7 @@ import type {
   CreateTaskPayload,
   DocumentPage,
   DocumentRecord,
+  DocumentRelation,
   ExtractedField,
   ProcurementDocType,
 } from "../types/api";
@@ -46,12 +49,17 @@ function formatNormalized(value: Record<string, unknown> | null) {
   return value ? JSON.stringify(value) : "-";
 }
 
+function formatEvidence(value: Record<string, unknown>) {
+  return JSON.stringify(value);
+}
+
 export function TaskCenterPage() {
   const [form] = Form.useForm<CreateTaskPayload>();
   const [uploadForm] = Form.useForm<{ doc_type_hint: ProcurementDocType }>();
   const [manualForm] = Form.useForm<{ doc_type: ClassificationDocType }>();
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [relations, setRelations] = useState<DocumentRelation[]>([]);
   const [pages, setPages] = useState<DocumentPage[]>([]);
   const [fields, setFields] = useState<ExtractedField[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -76,6 +84,11 @@ export function TaskCenterPage() {
     }
   }
 
+  async function refreshRelations(taskId: string) {
+    const nextRelations = await listDocumentRelations(taskId);
+    setRelations(nextRelations);
+  }
+
   useEffect(() => {
     void refreshTasks().catch(() => message.error("Failed to load tasks"));
   }, []);
@@ -83,8 +96,10 @@ export function TaskCenterPage() {
   useEffect(() => {
     if (selectedTaskId) {
       void refreshDocuments(selectedTaskId).catch(() => message.error("Failed to load documents"));
+      void refreshRelations(selectedTaskId).catch(() => message.error("Failed to load document relations"));
     } else {
       setDocuments([]);
+      setRelations([]);
       setSelectedDocumentId(null);
     }
   }, [selectedTaskId]);
@@ -211,6 +226,29 @@ export function TaskCenterPage() {
     }
   }
 
+  async function handleLinkDocuments() {
+    if (!selectedTaskId) {
+      message.warning("Select a task first");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await linkDocuments(selectedTaskId);
+      await refreshDocuments(selectedTaskId);
+      setRelations(result.relations);
+      if (result.warnings.length > 0) {
+        message.warning(result.warnings.join(", "));
+      } else {
+        message.success("Documents linked");
+      }
+    } catch {
+      message.error("Failed to link documents");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleManualCorrection(values: { doc_type: ClassificationDocType }) {
     if (!selectedDocumentId || !selectedTaskId) {
       message.warning("Select a document first");
@@ -234,6 +272,9 @@ export function TaskCenterPage() {
 
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId) ?? null;
   const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
+  const documentNameById = Object.fromEntries(
+    documents.map((document) => [document.id, document.original_filename]),
+  );
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
@@ -307,6 +348,11 @@ export function TaskCenterPage() {
       </Card>
 
       <Card title="Documents">
+        <Space style={{ marginBottom: 16 }}>
+          <Button type="primary" loading={loading} disabled={!selectedTaskId} onClick={() => void handleLinkDocuments()}>
+            Link Documents
+          </Button>
+        </Space>
         <Table<DocumentRecord>
           rowKey="id"
           dataSource={documents}
@@ -318,6 +364,11 @@ export function TaskCenterPage() {
           }}
           columns={[
             { title: "Filename", dataIndex: "original_filename" },
+            {
+              title: "Business Key",
+              dataIndex: "business_key",
+              render: (value: string | null) => value ?? "-",
+            },
             {
               title: "Doc Type",
               dataIndex: "doc_type",
@@ -381,6 +432,47 @@ export function TaskCenterPage() {
                     Extract
                   </Button>
                 </Space>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      <Card title="Document Relations">
+        <Table<DocumentRelation>
+          rowKey="id"
+          dataSource={relations}
+          pagination={false}
+          columns={[
+            { title: "Business Key", dataIndex: "business_key" },
+            { title: "Relation", dataIndex: "relation_type" },
+            {
+              title: "Confidence",
+              dataIndex: "confidence",
+              render: (value: number) => (
+                <Space>
+                  <Typography.Text>{formatConfidence(value)}</Typography.Text>
+                  {value < 0.6 ? <Tag color="gold">Needs Review</Tag> : null}
+                </Space>
+              ),
+            },
+            {
+              title: "Source",
+              dataIndex: "source_document_id",
+              render: (value: string) => documentNameById[value] ?? value,
+            },
+            {
+              title: "Target",
+              dataIndex: "target_document_id",
+              render: (value: string) => documentNameById[value] ?? value,
+            },
+            {
+              title: "Evidence",
+              dataIndex: "evidence",
+              render: (value: Record<string, unknown>) => (
+                <Typography.Text ellipsis={{ tooltip: formatEvidence(value) }} style={{ maxWidth: 320 }}>
+                  {formatEvidence(value)}
+                </Typography.Text>
               ),
             },
           ]}

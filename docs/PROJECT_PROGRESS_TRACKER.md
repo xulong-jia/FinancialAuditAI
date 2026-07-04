@@ -42,7 +42,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 12 | Rule Center 规则版本化与参数配置 | Post-MVP | DONE | 规则版本、启用状态、参数配置 |
 | Phase 13 | Agent Workflow 状态机与工具调用 | Post-MVP | DONE | agent_runs、agent_steps、状态机、重试 |
 | Phase 14 | Bad Case Center 与 Evaluation Center | Post-MVP | DONE | bad_cases、evaluation_results、回归评测 |
-| Phase 15 | 销售穿行扩展 | Post-MVP | TODO | 销售穿行 Schema、规则、控制表 |
+| Phase 15 | 销售穿行扩展 | Post-MVP | DONE | 销售穿行 Schema、规则、控制表 |
 | Phase 16 | 函证模块扩展 | Post-MVP | TODO | 函证字段抽取、差异比对、复核 |
 | Phase 17 | 访谈模块扩展 | Post-MVP | TODO | 访谈字段、关键回答、底稿交叉验证 |
 | Phase 18 | 合同审核模块扩展 | Post-MVP | TODO | 合同条款抽取、风险提示、证据索引 |
@@ -1250,7 +1250,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：销售穿行扩展
 - 是否属于 MVP：否
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 15 完成 sales 场景横向扩展。复用现有 task/document/OCR/classification/extraction/linkage/audit/review/report/evaluation 基础框架，新增销售 doc_type、销售字段 Schema、销售分类关键词、销售业务归集、五条销售规则、Sales Control Table xlsx 导出、Task Center sales 创建/上传、Report Center sales 预览、synthetic sales sample data 和后端销售端到端测试。未新增 sales 专用表，未实现函证、访谈、合同审核、RBAC、复杂收入准则判断、销售预测、现金流预测或客户信用评估。
 
 ### 阶段目标
 
@@ -1258,65 +1262,65 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 定义销售穿行 doc_type。
-- [ ] 定义销售字段 Schema。
-- [ ] 扩展分类逻辑。
-- [ ] 扩展字段抽取。
-- [ ] 扩展销售业务归集。
-- [ ] 实现销售穿行规则。
-- [ ] 生成销售控制表。
+- [x] 定义销售穿行 doc_type。
+- [x] 定义销售字段 Schema。
+- [x] 扩展分类逻辑。
+- [x] 扩展字段抽取。
+- [x] 扩展销售业务归集。
+- [x] 实现销售穿行规则。
+- [x] 生成销售控制表。
 
 ### 前端任务
 
-- [ ] Task Center 支持 sales 场景。
-- [ ] Workbench 支持销售字段展示。
-- [ ] Report Center 支持销售控制表。
-- [ ] Review Center 复用销售异常。
+- [x] Task Center 支持 sales 场景。
+- [x] Workbench 支持销售字段展示。
+- [x] Report Center 支持销售控制表。
+- [x] Review Center 复用销售异常。
 
 ### 数据库 / Migration 任务
 
-- [ ] 优先复用现有表。
-- [ ] 如必须新增字段，先在 tracker 中补充并评审。
-- [ ] control_table_rows 支持 sales scenario。
+- [x] 优先复用现有表。
+- [x] 如必须新增字段，先在 tracker 中补充并评审。
+- [x] control_table_rows 支持 sales scenario。
 
 ### API 任务
 
-- [ ] 复用 task/document/extraction/linkage/audit/report API。
-- [ ] 增加 sales scenario 参数校验。
-- [ ] 增加销售规则结果筛选。
+- [x] 复用 task/document/extraction/linkage/audit/report API。
+- [x] 增加 sales scenario 参数校验。
+- [x] 增加销售规则结果筛选。
 
 ### 测试任务
 
-- [ ] 销售样例分类测试。
-- [ ] 销售字段抽取测试。
-- [ ] 销售时间顺序规则测试。
-- [ ] 销售控制表导出测试。
+- [x] 销售样例分类测试。
+- [x] 销售字段抽取测试。
+- [x] 销售时间顺序规则测试。
+- [x] 销售控制表导出测试。
 
 ### 验收标准
 
-- [ ] 至少一组销售穿行样例端到端跑通。
-- [ ] 销售异常能进入 Review Center。
-- [ ] 销售报告可导出。
-- [ ] 不影响采购 MVP。
+- [x] 至少一组销售穿行样例端到端跑通。
+- [x] 销售异常能进入 Review Center。
+- [x] 销售报告可导出。
+- [x] 不影响采购 MVP。
 
 ### 交付物
 
-- [ ] 销售 Schema。
-- [ ] 销售规则。
-- [ ] 销售控制表。
-- [ ] 销售样例数据。
+- [x] 销售 Schema。
+- [x] 销售规则。
+- [x] 销售控制表。
+- [x] 销售样例数据。
 
 ### 风险点
 
-- [ ] 一合同多订单、多发货、多开票导致复杂度上升。
-- [ ] 收入确认规则需要业务政策支持。
-- [ ] 客户名称和付款方不一致导致误报。
+- [x] 一合同多订单、多发货、多开票导致复杂度上升。
+- [x] 收入确认规则需要业务政策支持。
+- [x] 客户名称和付款方不一致导致误报。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做完整收入准则判断。
-- [ ] 不做跨期收入复杂审计模型。
-- [ ] 不影响采购穿行规则。
+- [x] 不做完整收入准则判断。
+- [x] 不做跨期收入复杂审计模型。
+- [x] 不影响采购穿行规则。
 
 ## Phase 16: 函证模块扩展
 
@@ -1710,7 +1714,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [x] Phase 12 Rule Center 规则版本化与参数配置完成。
 - [x] Phase 13 Agent Workflow 状态机与工具调用完成。
 - [x] Phase 14 Bad Case Center 与 Evaluation Center 完成。
-- [ ] Phase 15 销售穿行扩展完成。
+- [x] Phase 15 销售穿行扩展完成。
 - [ ] Phase 16 函证模块扩展完成。
 - [ ] Phase 17 访谈模块扩展完成。
 - [ ] Phase 18 合同审核模块扩展完成。
@@ -1718,7 +1722,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [x] RAG 输出包含 citation 和 no-answer handling。
 - [ ] Agent 不绕过 Rule Engine。
 - [ ] Evaluation Center 可运行回归评测。
-- [ ] 扩展场景不破坏采购穿行 MVP。
+- [x] 扩展场景不破坏采购穿行 MVP。
 
 ## Final Project Acceptance Checklist
 

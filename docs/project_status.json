@@ -1173,7 +1173,7 @@
       "phase_id": 15,
       "name": "销售穿行扩展",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         10
       ],
@@ -1188,46 +1188,46 @@
           "id": "P15-BE-001",
           "title": "定义销售 doc_type、Schema、归集和规则",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented sales doc types, field schemas, classification keywords, extraction support, linkage bridge, and SALES_MISSING/TIME/AMOUNT/NAME/QTY rules while preserving procurement rules.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P15-FE-001",
           "title": "支持 sales 场景字段、规则、复核和报告展示",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Task Center can create sales tasks and upload sales doc types; existing Workbench/Review handle sales fields and results; Report Center previews sales control rows.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P15-DB-001",
           "title": "复用现有表并支持 sales scenario",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Reused audit_tasks, documents, extracted_fields, document_relations, audit_rules, audit_results, review_comments, reports, and control_table_rows; no sales_* tables or migration were added.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P15-API-001",
           "title": "复用现有 API 并增加 sales 参数校验",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Reused task/document/classify/extract/link/audit/review/report APIs with sales scenario and doc_type validation; report API emits sales_control_table for sales tasks.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P15-TEST-001",
           "title": "添加销售分类、抽取、规则和导出测试",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added sales classification, extraction, linkage, audit, review queue, and xlsx export tests; full backend pytest passed and procurement tests still pass.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -1236,9 +1236,9 @@
         "销售报告可导出",
         "不影响采购 MVP"
       ],
-      "notes": "",
+      "notes": "Phase 15 completed sales walkthrough extension by reusing existing generic tables and APIs. Implemented sales scenario validation, sales doc types, scenario-aware extraction schemas, sales classification, linkage, deterministic SALES_* rules, Sales Control Table xlsx export, frontend sales task/upload/report support, synthetic sales sample data, and sales API tests. No sales-specific tables, confirmations, interviews, contract review, RBAC, complex revenue recognition, forecasting, or Phase 16+ features were implemented.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 16,

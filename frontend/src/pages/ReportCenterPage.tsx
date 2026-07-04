@@ -10,13 +10,28 @@ import {
 import type { PageProps } from "../routes";
 import type { AuditTask, ReportRecord } from "../types/api";
 
-const previewColumns = [
+const procurementPreviewColumns = [
   "business_key",
   "supplier_name",
   "contract_no",
   "contract_amount",
   "invoice_amount",
   "payment_amount",
+  "amount_check",
+  "overall_status",
+  "reviewer_comment",
+];
+const salesPreviewColumns = [
+  "business_key",
+  "customer_name",
+  "contract_no",
+  "order_no",
+  "delivery_no",
+  "invoice_no",
+  "receipt_no",
+  "contract_amount",
+  "invoice_amount",
+  "receipt_amount",
   "amount_check",
   "overall_status",
   "reviewer_comment",
@@ -100,6 +115,8 @@ export function ReportCenterPage(_props: PageProps) {
 
   const latestReport = reports[0] ?? null;
   const previewRows = controlTablePreview(latestReport);
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId);
+  const previewColumns = selectedTask?.scenario === "sales" ? salesPreviewColumns : procurementPreviewColumns;
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>

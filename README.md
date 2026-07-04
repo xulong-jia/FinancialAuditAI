@@ -1,6 +1,6 @@
 # FinancialAuditAI
 
-FinancialAuditAI is an MVP financial document review platform for a procurement walkthrough audit demo. It covers the vertical slice from task creation to document parsing, classification, extraction, linkage, deterministic rule checks, human review, and xlsx report export.
+FinancialAuditAI is a financial document review platform that started with a procurement walkthrough MVP and now includes a sales walkthrough extension. It covers the slice from task creation to document parsing, classification, extraction, linkage, deterministic rule checks, human review, quality evaluation, and xlsx report export.
 
 This MVP is for learning, portfolio, and local demonstration only. It does not provide audit, legal, investment, or compliance advice.
 
@@ -43,10 +43,19 @@ Post-MVP Phase 14 implemented:
 - Evaluation results store dataset name, model/prompt/rule version metadata, metrics, failed cases, and limitations.
 - Failed evaluation samples are converted into Bad Cases; metrics are synthetic quality checks, not production performance claims.
 
+Post-MVP Phase 15 implemented:
+
+- Sales walkthrough extension using the existing OCR, classification, extraction, linkage, Rule Engine, Review Center, Report Center, RAG, Agent, and Evaluation foundations.
+- Sales document types: `sales_contract`, `sales_order`, `delivery_order`, `logistics_receipt`, `sales_invoice`, `receipt_voucher`, and shared `accounting_voucher`.
+- Sales rules: `SALES_MISSING_001`, `SALES_TIME_001`, `SALES_AMOUNT_001`, `SALES_NAME_001`, and `SALES_QTY_001`.
+- Sales xlsx export with Summary, Sales Control Table, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
+- Sales linkage uses explicit document references first and low-confidence customer bridging only when needed; low-confidence relationships remain reviewable.
+
 Not implemented:
 
 - Full RBAC, Dashboard, PDF reports.
-- Sales walkthrough, confirmations, interviews, contract review, or other Post-MVP scenarios.
+- Confirmations, interviews, contract review, or other remaining Post-MVP scenarios.
+- Complex revenue recognition, sales forecasting, cash-flow forecasting, or customer credit assessment.
 
 ## Local Setup
 
@@ -130,8 +139,8 @@ python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.js
 ## Demo Path
 
 1. Open Task Center.
-2. Create a procurement task.
-3. Upload the six supported procurement documents.
+2. Create a procurement or sales task.
+3. Upload the supported documents for that scenario.
 4. Run OCR, classification, extraction, linkage, and audit rules.
 5. Open Audit Workbench to inspect documents, fields, rule results, and evidence.
 6. Open Review Center to correct low-confidence or missing fields and confirm or dismiss exceptions.
@@ -147,7 +156,7 @@ alembic upgrade head
 python ../scripts/seed_demo_data.py
 ```
 
-The seed script uses only synthetic data from `samples/procurement/demo_seed.json`.
+The seed script uses only synthetic procurement data from `samples/procurement/demo_seed.json`. Phase 15 sales sample metadata lives in `samples/sales/demo_seed.json`; it is also synthetic and does not include real documents.
 
 ## Data And Safety
 

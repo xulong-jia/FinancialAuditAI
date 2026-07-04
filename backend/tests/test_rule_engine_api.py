@@ -244,7 +244,9 @@ def test_audit_api_runs_all_rules_and_persists_results() -> None:
 
     rules_response = client.get("/api/v1/rules")
     assert rules_response.status_code == 200
-    assert {rule["rule_code"] for rule in rules_response.json()} == set(results)
+    rule_codes = {rule["rule_code"] for rule in rules_response.json()}
+    assert set(results).issubset(rule_codes)
+    assert "SALES_AMOUNT_001" in rule_codes
 
 
 def test_missing_required_field_needs_review_and_never_passes() -> None:

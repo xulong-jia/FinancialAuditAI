@@ -53,6 +53,34 @@ CONTROL_COLUMNS = [
     "evidence_refs",
     "reviewer_comment",
 ]
+SALES_CONTROL_COLUMNS = [
+    "task_no",
+    "business_key",
+    "customer_name",
+    "contract_no",
+    "order_no",
+    "delivery_no",
+    "invoice_no",
+    "receipt_no",
+    "signing_date",
+    "order_date",
+    "delivery_date",
+    "signed_date",
+    "invoice_date",
+    "receipt_date",
+    "item_summary",
+    "contract_amount",
+    "invoice_amount",
+    "receipt_amount",
+    "time_check",
+    "quantity_check",
+    "amount_check",
+    "name_check",
+    "missing_field_check",
+    "overall_status",
+    "evidence_refs",
+    "reviewer_comment",
+]
 
 RULE_CHECK_COLUMNS = {
     "PROC_TIME_001": "time_check",
@@ -61,6 +89,11 @@ RULE_CHECK_COLUMNS = {
     "PROC_NAME_001": "name_check",
     "PROC_TAX_001": "tax_check",
     "PROC_MISSING_001": "missing_field_check",
+    "SALES_TIME_001": "time_check",
+    "SALES_QTY_001": "quantity_check",
+    "SALES_AMOUNT_001": "amount_check",
+    "SALES_NAME_001": "name_check",
+    "SALES_MISSING_001": "missing_field_check",
 }
 
 
@@ -107,11 +140,13 @@ def generate_control_table_report(
     file_path = reports_root() / str(task_id) / f"{report_id}.xlsx"
     write_xlsx(file_path, sheets)
 
+    report_type = "sales_control_table" if task.scenario == "sales" else "procurement_control_table"
+    report_title = f"{task.task_no} Sales Control Table" if task.scenario == "sales" else f"{task.task_no} Procurement Control Table"
     report = Report(
         id=report_id,
         task_id=task_id,
-        report_type="procurement_control_table",
-        title=f"{task.task_no} Procurement Control Table",
+        report_type=report_type,
+        title=report_title,
         status="completed",
         file_format="xlsx",
         storage_path=str(file_path.relative_to(project_root())),
@@ -210,31 +245,53 @@ def _build_control_rows(
         if field_comments:
             reviewer_comment = "; ".join(filter(None, [reviewer_comment, field_comments]))
 
-        row = {
+        common = {
             "task_no": task.task_no,
             "business_key": business_key,
-            "supplier_name": _first_text(group_docs, fields_by_document, (("purchase_contract", "supplier_name"), ("invoice", "seller_name"), ("payment_receipt", "payee_name"))),
-            "contract_no": _first_text(group_docs, fields_by_document, (("purchase_contract", "contract_no"),)),
-            "request_date": _first_text(group_docs, fields_by_document, (("purchase_request", "request_date"),)),
-            "signing_date": _first_text(group_docs, fields_by_document, (("purchase_contract", "signing_date"),)),
-            "receipt_date": _first_text(group_docs, fields_by_document, (("warehouse_receipt", "receipt_date"),)),
-            "invoice_date": _first_text(group_docs, fields_by_document, (("invoice", "invoice_date"),)),
-            "voucher_date": _first_text(group_docs, fields_by_document, (("accounting_voucher", "voucher_date"),)),
-            "payment_date": _first_text(group_docs, fields_by_document, (("payment_receipt", "payment_date"),)),
-            "item_summary": _first_text(group_docs, fields_by_document, (("purchase_contract", "item_lines"), ("invoice", "item_lines"))),
-            "contract_amount": _sum_amounts(group_docs, fields_by_document, "purchase_contract", "amount_including_tax"),
-            "invoice_amount": _sum_amounts(group_docs, fields_by_document, "invoice", "amount_including_tax"),
-            "payment_amount": _sum_amounts(group_docs, fields_by_document, "payment_receipt", "amount"),
             "time_check": statuses.get("time_check", "-"),
             "quantity_check": statuses.get("quantity_check", "-"),
             "amount_check": statuses.get("amount_check", "-"),
             "name_check": statuses.get("name_check", "-"),
-            "tax_check": statuses.get("tax_check", "-"),
             "missing_field_check": statuses.get("missing_field_check", "-"),
             "overall_status": _overall_status([result.status for result in group_results]),
             "evidence_refs": _json(evidence_refs),
             "reviewer_comment": reviewer_comment,
         }
+        if task.scenario == "sales":
+            row = common | {
+                "customer_name": _first_text(group_docs, fields_by_document, (("sales_contract", "customer_name"), ("sales_order", "customer_name"), ("sales_invoice", "buyer_name"), ("receipt_voucher", "payer_name"))),
+                "contract_no": _first_text(group_docs, fields_by_document, (("sales_contract", "contract_no"),)),
+                "order_no": _first_text(group_docs, fields_by_document, (("sales_order", "order_no"),)),
+                "delivery_no": _first_text(group_docs, fields_by_document, (("delivery_order", "delivery_no"),)),
+                "invoice_no": _first_text(group_docs, fields_by_document, (("sales_invoice", "invoice_no"),)),
+                "receipt_no": _first_text(group_docs, fields_by_document, (("receipt_voucher", "receipt_no"),)),
+                "signing_date": _first_text(group_docs, fields_by_document, (("sales_contract", "signing_date"),)),
+                "order_date": _first_text(group_docs, fields_by_document, (("sales_order", "order_date"),)),
+                "delivery_date": _first_text(group_docs, fields_by_document, (("delivery_order", "delivery_date"),)),
+                "signed_date": _first_text(group_docs, fields_by_document, (("logistics_receipt", "signed_date"),)),
+                "invoice_date": _first_text(group_docs, fields_by_document, (("sales_invoice", "invoice_date"),)),
+                "receipt_date": _first_text(group_docs, fields_by_document, (("receipt_voucher", "receipt_date"),)),
+                "item_summary": _first_text(group_docs, fields_by_document, (("sales_contract", "item_lines"), ("sales_invoice", "item_lines"))),
+                "contract_amount": _sum_amounts(group_docs, fields_by_document, "sales_contract", "amount_including_tax"),
+                "invoice_amount": _sum_amounts(group_docs, fields_by_document, "sales_invoice", "amount_including_tax"),
+                "receipt_amount": _sum_amounts(group_docs, fields_by_document, "receipt_voucher", "amount"),
+            }
+        else:
+            row = common | {
+                "supplier_name": _first_text(group_docs, fields_by_document, (("purchase_contract", "supplier_name"), ("invoice", "seller_name"), ("payment_receipt", "payee_name"))),
+                "contract_no": _first_text(group_docs, fields_by_document, (("purchase_contract", "contract_no"),)),
+                "request_date": _first_text(group_docs, fields_by_document, (("purchase_request", "request_date"),)),
+                "signing_date": _first_text(group_docs, fields_by_document, (("purchase_contract", "signing_date"),)),
+                "receipt_date": _first_text(group_docs, fields_by_document, (("warehouse_receipt", "receipt_date"),)),
+                "invoice_date": _first_text(group_docs, fields_by_document, (("invoice", "invoice_date"),)),
+                "voucher_date": _first_text(group_docs, fields_by_document, (("accounting_voucher", "voucher_date"),)),
+                "payment_date": _first_text(group_docs, fields_by_document, (("payment_receipt", "payment_date"),)),
+                "item_summary": _first_text(group_docs, fields_by_document, (("purchase_contract", "item_lines"), ("invoice", "item_lines"))),
+                "contract_amount": _sum_amounts(group_docs, fields_by_document, "purchase_contract", "amount_including_tax"),
+                "invoice_amount": _sum_amounts(group_docs, fields_by_document, "invoice", "amount_including_tax"),
+                "payment_amount": _sum_amounts(group_docs, fields_by_document, "payment_receipt", "amount"),
+                "tax_check": statuses.get("tax_check", "-"),
+            }
         rows.append(row)
     return rows
 
@@ -249,9 +306,11 @@ def _sheets(
     control_rows: list[dict],
     summary: dict,
 ) -> dict[str, list[list[object | None]]]:
+    control_columns = SALES_CONTROL_COLUMNS if task.scenario == "sales" else CONTROL_COLUMNS
+    control_sheet_name = "Sales Control Table" if task.scenario == "sales" else "Procurement Control Table"
     return {
         "Summary": _summary_rows(summary),
-        "Procurement Control Table": [CONTROL_COLUMNS] + [[row[column] for column in CONTROL_COLUMNS] for row in control_rows],
+        control_sheet_name: [control_columns] + [[row[column] for column in control_columns] for row in control_rows],
         "Exceptions": _exception_rows(results),
         "Evidence Index": _evidence_rows(documents, fields),
         "Field Corrections": _correction_rows(comments),
@@ -280,7 +339,7 @@ def _summary(
         "need_review_count": counts.get("need_review", 0),
         "generated_at": generated_at.isoformat(),
         "data_source": "FinancialAuditAI extracted_fields, audit_results, review_comments",
-        "usage_boundary": "MVP procurement walkthrough review support; not a legal, audit, or investment conclusion.",
+        "usage_boundary": f"{task.scenario} walkthrough review support; not a legal, audit, or investment conclusion.",
         "control_table_preview": control_rows[:20],
     }
 
@@ -365,8 +424,8 @@ def _rule_rows(rules: list[AuditRule], results: list[AuditResult]) -> list[list[
         rows.append([
             rule.rule_code,
             rule.name,
-            "procurement",
-            "procurement_mvp",
+            rule.category,
+            f"{rule.category}_walkthrough",
             severity_by_rule.get(rule.rule_code, ""),
             rule.version,
             rule.enabled,

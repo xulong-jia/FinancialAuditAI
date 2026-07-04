@@ -16,6 +16,8 @@ Responses use JSON unless the endpoint is a report download. Errors use FastAPI'
 - `GET /tasks/{task_id}`
 - `PATCH /tasks/{task_id}`
 
+Supported task scenarios: `procurement`, `sales`.
+
 ## Documents
 
 - `POST /tasks/{task_id}/documents`
@@ -37,7 +39,7 @@ Supported upload extensions: `pdf`, `png`, `jpg`, `jpeg`, `docx`, `xlsx`.
 - `GET /documents/{document_id}/fields`
 - `GET /tasks/{task_id}/fields`
 
-Supported MVP doc types:
+Supported procurement doc types:
 
 - `purchase_request`
 - `purchase_contract`
@@ -47,10 +49,23 @@ Supported MVP doc types:
 - `payment_receipt`
 - `unknown`
 
-## Procurement Linkage
+Supported sales doc types:
+
+- `sales_contract`
+- `sales_order`
+- `delivery_order`
+- `logistics_receipt`
+- `sales_invoice`
+- `receipt_voucher`
+- `accounting_voucher`
+- `unknown`
+
+## Document Linkage
 
 - `POST /tasks/{task_id}/link-documents`
 - `GET /tasks/{task_id}/document-relations`
+
+Procurement and sales both reuse this API. Sales linkage prioritizes explicit contract/order/delivery/invoice references; low-confidence customer bridges are marked for review.
 
 ## Rule Engine
 
@@ -70,6 +85,14 @@ MVP rule codes:
 - `PROC_NAME_001`
 - `PROC_QTY_001`
 - `PROC_TAX_001`
+
+Sales rule codes:
+
+- `SALES_MISSING_001`
+- `SALES_TIME_001`
+- `SALES_AMOUNT_001`
+- `SALES_NAME_001`
+- `SALES_QTY_001`
 
 Rule configuration stays inside the Python rule registry. `POST /rules` only accepts rule codes already present in the registry. `PATCH /rules/{rule_id}` supports enabled status, version, description, and approved parameters such as `tolerance_amount`, `tolerance_ratio`, `allowed_tax_rates`, `supplier_aliases`, `item_mappings`, `prepayment_allowed`, and `date_tolerance_days`. Rule updates write `audit_logs`; audit results include `rule_version`. `POST /rules/{rule_id}/evaluate` is a dry run and does not persist `audit_results`.
 
@@ -92,6 +115,8 @@ Dismiss requires a non-empty `reason`.
 - `GET /reports/{report_id}/download`
 
 Report files are xlsx only in MVP. Generated files are stored under ignored `local_storage/reports`.
+
+Procurement reports include `Procurement Control Table`. Sales reports include `Sales Control Table`. Both keep Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
 
 ## RAG Knowledge Base
 

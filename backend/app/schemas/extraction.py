@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from app.schemas.document import ProcurementDocType
+from app.schemas.document import DocumentDocType
 
 FieldType = Literal["text", "date", "money", "tax_rate", "name", "status", "line_items", "currency"]
 
@@ -116,6 +116,81 @@ class PaymentReceiptExtraction(BaseModel):
     related_contract_no: ExtractedFieldValue
 
 
+class SalesContractExtraction(BaseModel):
+    contract_no: ExtractedFieldValue
+    signing_date: ExtractedFieldValue
+    customer_name: ExtractedFieldValue
+    seller_name: ExtractedFieldValue
+    item_lines: ExtractedFieldValue
+    amount_including_tax: ExtractedFieldValue
+    payment_terms: ExtractedFieldValue
+    delivery_terms: ExtractedFieldValue
+
+
+class SalesOrderExtraction(BaseModel):
+    order_no: ExtractedFieldValue
+    order_date: ExtractedFieldValue
+    customer_name: ExtractedFieldValue
+    related_contract_no: ExtractedFieldValue
+    item_lines: ExtractedFieldValue
+    amount: ExtractedFieldValue
+
+
+class DeliveryOrderExtraction(BaseModel):
+    delivery_no: ExtractedFieldValue
+    delivery_date: ExtractedFieldValue
+    customer_name: ExtractedFieldValue
+    related_order_no: ExtractedFieldValue
+    related_contract_no: ExtractedFieldValue
+    item_lines: ExtractedFieldValue
+    warehouse_name: ExtractedFieldValue
+
+
+class LogisticsReceiptExtraction(BaseModel):
+    logistics_no: ExtractedFieldValue
+    shipment_date: ExtractedFieldValue
+    signed_date: ExtractedFieldValue
+    receiver_name: ExtractedFieldValue
+    customer_name: ExtractedFieldValue
+    related_delivery_no: ExtractedFieldValue
+    item_lines: ExtractedFieldValue
+    signer: ExtractedFieldValue
+
+
+class SalesInvoiceExtraction(BaseModel):
+    invoice_no: ExtractedFieldValue
+    invoice_date: ExtractedFieldValue
+    seller_name: ExtractedFieldValue
+    buyer_name: ExtractedFieldValue
+    item_lines: ExtractedFieldValue
+    amount_excluding_tax: ExtractedFieldValue
+    tax_amount: ExtractedFieldValue
+    amount_including_tax: ExtractedFieldValue
+
+
+class ReceiptVoucherExtraction(BaseModel):
+    receipt_no: ExtractedFieldValue
+    receipt_date: ExtractedFieldValue
+    payer_name: ExtractedFieldValue
+    payee_name: ExtractedFieldValue
+    amount: ExtractedFieldValue
+    currency: ExtractedFieldValue
+    receipt_purpose: ExtractedFieldValue
+    related_contract_no: ExtractedFieldValue
+    bank_serial_no: ExtractedFieldValue
+
+
+class SalesAccountingVoucherExtraction(BaseModel):
+    voucher_no: ExtractedFieldValue
+    voucher_date: ExtractedFieldValue
+    summary: ExtractedFieldValue
+    debit_subject: ExtractedFieldValue
+    credit_subject: ExtractedFieldValue
+    amount: ExtractedFieldValue
+    customer_name: ExtractedFieldValue
+    related_invoice_no: ExtractedFieldValue
+
+
 DOCUMENT_EXTRACTION_SCHEMAS = {
     "purchase_request": PurchaseRequestExtraction,
     "purchase_contract": PurchaseContractExtraction,
@@ -125,13 +200,26 @@ DOCUMENT_EXTRACTION_SCHEMAS = {
     "payment_receipt": PaymentReceiptExtraction,
 }
 
+SALES_DOCUMENT_EXTRACTION_SCHEMAS = {
+    "sales_contract": SalesContractExtraction,
+    "sales_order": SalesOrderExtraction,
+    "delivery_order": DeliveryOrderExtraction,
+    "logistics_receipt": LogisticsReceiptExtraction,
+    "sales_invoice": SalesInvoiceExtraction,
+    "receipt_voucher": ReceiptVoucherExtraction,
+    "accounting_voucher": SalesAccountingVoucherExtraction,
+}
+
 
 def validate_document_extraction(
-    doc_type: ProcurementDocType, fields: list[ExtractedFieldValue]
+    doc_type: DocumentDocType,
+    fields: list[ExtractedFieldValue],
+    scenario: str = "procurement",
 ) -> None:
     payload = {field.field_name: field for field in fields}
+    schemas = SALES_DOCUMENT_EXTRACTION_SCHEMAS if scenario == "sales" else DOCUMENT_EXTRACTION_SCHEMAS
     try:
-        DOCUMENT_EXTRACTION_SCHEMAS[doc_type].model_validate(payload)
+        schemas[doc_type].model_validate(payload)
     except KeyError as exc:
         raise ValueError(f"Unsupported document type for extraction: {doc_type}") from exc
     except ValidationError:

@@ -23,15 +23,15 @@ import type {
   AuditResult,
   ClassificationDocType,
   CreateTaskPayload,
+  DocumentDocType,
   DocumentPage,
   DocumentRecord,
   DocumentRelation,
   ExtractedField,
-  ProcurementDocType,
 } from "../types/api";
 import type { PageProps } from "../routes";
 
-const docTypes: { label: string; value: ProcurementDocType }[] = [
+const procurementDocTypes: { label: string; value: DocumentDocType }[] = [
   { label: "采购申请单", value: "purchase_request" },
   { label: "采购合同", value: "purchase_contract" },
   { label: "入库单", value: "warehouse_receipt" },
@@ -39,9 +39,19 @@ const docTypes: { label: string; value: ProcurementDocType }[] = [
   { label: "记账凭证", value: "accounting_voucher" },
   { label: "付款回单", value: "payment_receipt" },
 ];
+const salesDocTypes: { label: string; value: DocumentDocType }[] = [
+  { label: "销售合同", value: "sales_contract" },
+  { label: "销售订单", value: "sales_order" },
+  { label: "出库单", value: "delivery_order" },
+  { label: "物流 / 签收单", value: "logistics_receipt" },
+  { label: "销售发票", value: "sales_invoice" },
+  { label: "收款凭证", value: "receipt_voucher" },
+  { label: "记账凭证", value: "accounting_voucher" },
+];
 
 const classificationDocTypes: { label: string; value: ClassificationDocType }[] = [
-  ...docTypes,
+  ...procurementDocTypes,
+  ...salesDocTypes.filter((option) => option.value !== "accounting_voucher"),
   { label: "未知 / 需要复核", value: "unknown" },
 ];
 
@@ -59,7 +69,7 @@ function formatEvidence(value: Record<string, unknown>) {
 
 export function TaskCenterPage({ onNavigate }: PageProps) {
   const [form] = Form.useForm<CreateTaskPayload>();
-  const [uploadForm] = Form.useForm<{ doc_type_hint: ProcurementDocType }>();
+  const [uploadForm] = Form.useForm<{ doc_type_hint: DocumentDocType }>();
   const [manualForm] = Form.useForm<{ doc_type: ClassificationDocType }>();
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
@@ -146,7 +156,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
   async function handleCreateTask(values: CreateTaskPayload) {
     setLoading(true);
     try {
-      const task = await createTask({ ...values, scenario: "procurement" });
+      const task = await createTask({ ...values, scenario: values.scenario ?? "procurement" });
       form.resetFields();
       await refreshTasks();
       setSelectedTaskId(task.id);
@@ -158,7 +168,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
     }
   }
 
-  async function handleUpload(values: { doc_type_hint: ProcurementDocType }) {
+  async function handleUpload(values: { doc_type_hint: DocumentDocType }) {
     const originFile = fileList[0]?.originFileObj;
     if (!selectedTaskId || !originFile) {
       message.warning("Select a task and file first");
@@ -315,6 +325,8 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
   }
 
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId) ?? null;
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
+  const uploadDocTypes = selectedTask?.scenario === "sales" ? salesDocTypes : procurementDocTypes;
   const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
   const documentNameById = Object.fromEntries(
     documents.map((document) => [document.id, document.original_filename]),
@@ -324,7 +336,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <Card>
         <Typography.Title level={3}>Task Center</Typography.Title>
-        <Form layout="inline" form={form} onFinish={handleCreateTask}>
+        <Form layout="inline" form={form} onFinish={handleCreateTask} initialValues={{ scenario: "procurement" }}>
           <Form.Item name="name" rules={[{ required: true, message: "Task name is required" }]}>
             <Input placeholder="Task name" />
           </Form.Item>
@@ -336,6 +348,15 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
           </Form.Item>
           <Form.Item name="fiscal_year">
             <InputNumber placeholder="Fiscal year" min={1900} max={2100} />
+          </Form.Item>
+          <Form.Item name="scenario">
+            <Select
+              style={{ width: 150 }}
+              options={[
+                { label: "Procurement", value: "procurement" },
+                { label: "Sales", value: "sales" },
+              ]}
+            />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading}>
@@ -377,7 +398,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
             name="doc_type_hint"
             rules={[{ required: true, message: "Document type is required" }]}
           >
-            <Select style={{ width: 220 }} placeholder="Document type" options={docTypes} />
+            <Select style={{ width: 220 }} placeholder="Document type" options={uploadDocTypes} />
           </Form.Item>
           <Form.Item>
             <Upload

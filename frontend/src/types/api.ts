@@ -8,7 +8,17 @@ export type ProcurementDocType =
   | "accounting_voucher"
   | "payment_receipt";
 
-export type ClassificationDocType = ProcurementDocType | "unknown";
+export type SalesDocType =
+  | "sales_contract"
+  | "sales_order"
+  | "delivery_order"
+  | "logistics_receipt"
+  | "sales_invoice"
+  | "receipt_voucher"
+  | "accounting_voucher";
+
+export type DocumentDocType = ProcurementDocType | SalesDocType;
+export type ClassificationDocType = DocumentDocType | "unknown";
 
 export type AlternativeDocType = {
   doc_type: ClassificationDocType;
@@ -56,7 +66,7 @@ export type AuditTask = {
   id: string;
   task_no: string;
   name: string;
-  scenario: "procurement";
+  scenario: "procurement" | "sales";
   project_name: string | null;
   company_name: string | null;
   fiscal_year: number | null;
@@ -298,7 +308,7 @@ export type DocumentUpdatePayload = {
 
 export type CreateTaskPayload = {
   name: string;
-  scenario: "procurement";
+  scenario: "procurement" | "sales";
   project_name?: string;
   company_name?: string;
   fiscal_year?: number;

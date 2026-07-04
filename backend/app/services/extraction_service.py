@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.extracted_field import ExtractedField
-from app.schemas.document import ProcurementDocType
+from app.schemas.document import DocumentDocType
 from app.schemas.extraction import ExtractedFieldValue, FieldType, validate_document_extraction
 
 
@@ -132,6 +132,105 @@ SCHEMA_SPECS: dict[str, tuple[FieldSpec, ...]] = {
     ),
 }
 
+SALES_SCHEMA_SPECS: dict[str, tuple[FieldSpec, ...]] = {
+    "sales_contract": (
+        FieldSpec("contract_no", "Contract No", "text", ("contract no", "contract_no", "合同编号")),
+        FieldSpec("signing_date", "Signing Date", "date", ("signing date", "签署日期")),
+        FieldSpec("customer_name", "Customer Name", "name", ("customer name", "customer", "客户名称")),
+        FieldSpec("seller_name", "Seller Name", "name", ("seller name", "seller", "销售方")),
+        FieldSpec("item_lines", "Item Lines", "line_items", ("item", "line item", "明细")),
+        FieldSpec(
+            "amount_including_tax",
+            "Amount Including Tax",
+            "money",
+            ("amount including tax", "total with tax", "含税金额", "价税合计"),
+        ),
+        FieldSpec("payment_terms", "Payment Terms", "text", ("payment terms", "付款条款"), False),
+        FieldSpec("delivery_terms", "Delivery Terms", "text", ("delivery terms", "交付条款"), False),
+    ),
+    "sales_order": (
+        FieldSpec("order_no", "Order No", "text", ("order no", "order_no", "订单编号")),
+        FieldSpec("order_date", "Order Date", "date", ("order date", "订单日期")),
+        FieldSpec("customer_name", "Customer Name", "name", ("customer name", "customer", "客户名称")),
+        FieldSpec(
+            "related_contract_no",
+            "Related Contract No",
+            "text",
+            ("related contract no", "contract no", "关联合同"),
+            False,
+        ),
+        FieldSpec("item_lines", "Item Lines", "line_items", ("item", "line item", "明细")),
+        FieldSpec("amount", "Amount", "money", ("amount", "订单金额", "金额")),
+    ),
+    "delivery_order": (
+        FieldSpec("delivery_no", "Delivery No", "text", ("delivery no", "delivery_no", "出库单号")),
+        FieldSpec("delivery_date", "Delivery Date", "date", ("delivery date", "出库日期")),
+        FieldSpec("customer_name", "Customer Name", "name", ("customer name", "customer", "客户名称")),
+        FieldSpec("related_order_no", "Related Order No", "text", ("related order no", "order no", "关联订单"), False),
+        FieldSpec(
+            "related_contract_no",
+            "Related Contract No",
+            "text",
+            ("related contract no", "contract no", "关联合同"),
+            False,
+        ),
+        FieldSpec("item_lines", "Item Lines", "line_items", ("item", "line item", "明细")),
+        FieldSpec("warehouse_name", "Warehouse Name", "text", ("warehouse name", "warehouse", "仓库"), False),
+    ),
+    "logistics_receipt": (
+        FieldSpec("logistics_no", "Logistics No", "text", ("logistics no", "logistics_no", "物流单号")),
+        FieldSpec("shipment_date", "Shipment Date", "date", ("shipment date", "发货日期")),
+        FieldSpec("signed_date", "Signed Date", "date", ("signed date", "签收日期")),
+        FieldSpec("receiver_name", "Receiver Name", "name", ("receiver name", "receiver", "收货方")),
+        FieldSpec("customer_name", "Customer Name", "name", ("customer name", "customer", "客户名称"), False),
+        FieldSpec(
+            "related_delivery_no",
+            "Related Delivery No",
+            "text",
+            ("related delivery no", "delivery no", "关联出库单"),
+            False,
+        ),
+        FieldSpec("item_lines", "Item Lines", "line_items", ("item", "line item", "明细")),
+        FieldSpec("signer", "Signer", "name", ("signer", "签收人"), False),
+    ),
+    "sales_invoice": (
+        FieldSpec("invoice_no", "Invoice No", "text", ("invoice no", "invoice number", "发票号码")),
+        FieldSpec("invoice_date", "Invoice Date", "date", ("invoice date", "issue date", "开票日期")),
+        FieldSpec("seller_name", "Seller Name", "name", ("seller name", "seller", "销售方")),
+        FieldSpec("buyer_name", "Buyer Name", "name", ("buyer name", "buyer", "购买方")),
+        FieldSpec("item_lines", "Item Lines", "line_items", ("item", "line item", "明细")),
+        FieldSpec("amount_excluding_tax", "Amount Excluding Tax", "money", ("amount excluding tax", "subtotal", "不含税金额")),
+        FieldSpec("tax_amount", "Tax Amount", "money", ("tax amount", "税额")),
+        FieldSpec("amount_including_tax", "Amount Including Tax", "money", ("amount including tax", "total with tax", "价税合计")),
+    ),
+    "receipt_voucher": (
+        FieldSpec("receipt_no", "Receipt No", "text", ("receipt no", "receipt_no", "收款编号")),
+        FieldSpec("receipt_date", "Receipt Date", "date", ("receipt date", "收款日期")),
+        FieldSpec("payer_name", "Payer Name", "name", ("payer name", "payer", "付款方")),
+        FieldSpec("payee_name", "Payee Name", "name", ("payee name", "payee", "收款方")),
+        FieldSpec("amount", "Amount", "money", ("amount", "收款金额", "金额")),
+        FieldSpec("currency", "Currency", "currency", ("currency", "币种")),
+        FieldSpec("receipt_purpose", "Receipt Purpose", "text", ("receipt purpose", "用途"), False),
+        FieldSpec("related_contract_no", "Related Contract No", "text", ("related contract no", "contract no", "关联合同"), False),
+        FieldSpec("bank_serial_no", "Bank Serial No", "text", ("bank serial no", "serial no", "银行流水号"), False),
+    ),
+    "accounting_voucher": (
+        FieldSpec("voucher_no", "Voucher No", "text", ("voucher no", "凭证号")),
+        FieldSpec("voucher_date", "Voucher Date", "date", ("voucher date", "凭证日期")),
+        FieldSpec("summary", "Summary", "text", ("summary", "摘要")),
+        FieldSpec("debit_subject", "Debit Subject", "text", ("debit subject", "借方科目")),
+        FieldSpec("credit_subject", "Credit Subject", "text", ("credit subject", "贷方科目")),
+        FieldSpec("amount", "Amount", "money", ("amount", "金额")),
+        FieldSpec("customer_name", "Customer Name", "name", ("customer name", "customer", "客户名称"), False),
+        FieldSpec("related_invoice_no", "Related Invoice No", "text", ("related invoice no", "invoice no", "关联发票"), False),
+    ),
+}
+
+
+def schema_specs_for(scenario: str, doc_type: str) -> tuple[FieldSpec, ...]:
+    specs = SALES_SCHEMA_SPECS if scenario == "sales" else SCHEMA_SPECS
+    return specs.get(doc_type, ())
+
 
 def extract_document(db: Session, document_id: UUID) -> list[ExtractedField]:
     document = db.get(Document, document_id)
@@ -141,23 +240,25 @@ def extract_document(db: Session, document_id: UUID) -> list[ExtractedField]:
         raise HTTPException(status_code=400, detail="Document must be classified before extraction")
     if document.ocr_status != "completed":
         raise HTTPException(status_code=400, detail="Document OCR must complete before extraction")
-    if document.doc_type not in SCHEMA_SPECS:
+    scenario = document.task.scenario if document.task else "procurement"
+    specs = schema_specs_for(scenario, document.doc_type)
+    if not specs:
         raise HTTPException(status_code=400, detail="Document type is not supported for extraction")
 
     pages = _list_pages(db, document_id)
     if not pages:
         raise HTTPException(status_code=400, detail="Document pages are required before extraction")
 
-    values = [_extract_field(spec, pages) for spec in SCHEMA_SPECS[document.doc_type]]
+    values = [_extract_field(spec, pages) for spec in specs]
     try:
-        validate_document_extraction(cast(ProcurementDocType, document.doc_type), values)
+        validate_document_extraction(cast(DocumentDocType, document.doc_type), values, scenario)
     except ValidationError as exc:
         document.extraction_status = "failed"
         db.commit()
         raise HTTPException(status_code=500, detail="Extraction schema validation failed") from exc
 
     db.query(ExtractedField).filter(ExtractedField.document_id == document_id).delete()
-    for spec, value in zip(SCHEMA_SPECS[document.doc_type], values, strict=True):
+    for spec, value in zip(specs, values, strict=True):
         db.add(_to_model(document, spec, value))
     document.extraction_status = "completed"
     db.commit()

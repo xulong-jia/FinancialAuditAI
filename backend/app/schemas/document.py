@@ -13,8 +13,18 @@ ProcurementDocType = Literal[
     "accounting_voucher",
     "payment_receipt",
 ]
+SalesDocType = Literal[
+    "sales_contract",
+    "sales_order",
+    "delivery_order",
+    "logistics_receipt",
+    "sales_invoice",
+    "receipt_voucher",
+    "accounting_voucher",
+]
+DocumentDocType = ProcurementDocType | SalesDocType
 UnknownDocType = Literal["unknown"]
-ClassificationDocType = ProcurementDocType | UnknownDocType
+ClassificationDocType = DocumentDocType | UnknownDocType
 
 
 class AlternativeDocType(BaseModel):

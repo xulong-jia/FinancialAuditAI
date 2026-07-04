@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session
 from app.models.audit_log import AuditLog
 from app.models.audit_result import AuditResult
 from app.models.audit_rule import AuditRule
+from app.models.audit_task import AuditTask
 from app.models.document import Document
 from app.models.extracted_field import ExtractedField
-from app.services.extraction_service import SCHEMA_SPECS
+from app.services.extraction_service import schema_specs_for
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class RuleResult:
 @dataclass
 class RuleContext:
     task_id: UUID
+    scenario: str
     business_key: str
     documents: list[Document]
     fields: dict[UUID, dict[str, ExtractedField]]
@@ -57,6 +59,11 @@ DEFAULT_RULES = {
     "PROC_NAME_001": ("主体名称一致性检查", {"mismatch_status": "warning", "supplier_aliases": {}}),
     "PROC_QTY_001": ("数量一致性检查", {"tolerance_amount": 0.0001, "item_mappings": {}}),
     "PROC_TAX_001": ("税率与税额基础校验", {"tolerance_amount": 1.0, "allowed_tax_rates": []}),
+    "SALES_MISSING_001": ("销售必填字段缺失检查", {}),
+    "SALES_TIME_001": ("销售时间顺序检查", {"date_tolerance_days": 0}),
+    "SALES_AMOUNT_001": ("销售金额一致性检查", {"tolerance_amount": 1.0, "tolerance_ratio": 0.0}),
+    "SALES_NAME_001": ("销售客户名称一致性检查", {"mismatch_status": "warning", "supplier_aliases": {}}),
+    "SALES_QTY_001": ("销售数量一致性检查", {"tolerance_amount": 0.0001, "item_mappings": {}}),
 }
 ALLOWED_PARAMETER_KEYS = {
     "tolerance",
@@ -72,10 +79,17 @@ ALLOWED_PARAMETER_KEYS = {
 
 
 def run_audit(db: Session, task_id: UUID) -> list[AuditResult]:
+    task = db.get(AuditTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
     rules = list_rules(db)
-    enabled_rules = [rule for rule in rules if rule.enabled and rule.rule_code in RULE_REGISTRY]
+    enabled_rules = [
+        rule
+        for rule in rules
+        if rule.enabled and rule.rule_code in RULE_REGISTRY and _rule_matches_scenario(rule.rule_code, task.scenario)
+    ]
     if not enabled_rules:
-        raise HTTPException(status_code=400, detail="No enabled procurement rules are available")
+        raise HTTPException(status_code=400, detail="No enabled rules are available for task scenario")
 
     documents = _list_documents(db, task_id)
     groups = _business_groups(documents)
@@ -89,6 +103,7 @@ def run_audit(db: Session, task_id: UUID) -> list[AuditResult]:
         for rule in enabled_rules:
             context = RuleContext(
                 task_id=task_id,
+                scenario=task.scenario,
                 business_key=business_key,
                 documents=group_documents,
                 fields=fields,
@@ -120,19 +135,19 @@ def get_audit_result(db: Session, result_id: UUID) -> AuditResult:
 
 def list_rules(db: Session) -> list[AuditRule]:
     existing = list(db.scalars(select(AuditRule).order_by(AuditRule.rule_code.asc())))
-    if existing:
-        return existing
+    existing_codes = {rule.rule_code for rule in existing}
     for code, (name, parameters) in DEFAULT_RULES.items():
-        db.add(
-            AuditRule(
-                rule_code=code,
-                name=name,
-                version="1.0",
-                enabled=True,
-                parameters=parameters,
-                description=name,
+        if code not in existing_codes:
+            db.add(
+                AuditRule(
+                    rule_code=code,
+                    name=name,
+                    version="1.0",
+                    enabled=True,
+                    parameters=parameters,
+                    description=name,
+                )
             )
-        )
     db.commit()
     return list(db.scalars(select(AuditRule).order_by(AuditRule.rule_code.asc())))
 
@@ -209,6 +224,11 @@ def evaluate_rule(db: Session, rule_id: UUID, task_id: UUID, parameters: dict | 
         raise HTTPException(status_code=404, detail="Rule not found")
     if rule.rule_code not in RULE_REGISTRY:
         raise HTTPException(status_code=400, detail="Rule code is not in Python registry")
+    task = db.get(AuditTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not _rule_matches_scenario(rule.rule_code, task.scenario):
+        raise HTTPException(status_code=400, detail="Rule code is not allowed for task scenario")
     if parameters is not None:
         _validate_parameters(parameters)
 
@@ -223,6 +243,7 @@ def evaluate_rule(db: Session, rule_id: UUID, task_id: UUID, parameters: dict | 
         _evaluation_read(rule, RULE_REGISTRY[rule.rule_code](
             RuleContext(
                 task_id=task_id,
+                scenario=task.scenario,
                 business_key=business_key,
                 documents=group_documents,
                 fields=fields,
@@ -237,7 +258,7 @@ def rule_missing_required(context: RuleContext) -> RuleResult:
     missing: list[EvidenceRef] = []
     present: list[EvidenceRef] = []
     for document in context.documents:
-        specs = SCHEMA_SPECS.get(document.doc_type or "", ())
+        specs = schema_specs_for(context.scenario, document.doc_type or "")
         document_fields = context.fields.get(document.id, {})
         if not specs:
             missing.append(_missing_ref(document, "__schema__"))
@@ -625,6 +646,257 @@ def rule_tax(context: RuleContext) -> RuleResult:
     )
 
 
+def rule_sales_missing_required(context: RuleContext) -> RuleResult:
+    base = rule_missing_required(context)
+    return RuleResult(
+        rule_code="SALES_MISSING_001",
+        business_key=context.business_key,
+        status=base.status,
+        severity=base.severity,
+        message=base.message.replace("procurement", "sales"),
+        expected_value=base.expected_value,
+        actual_value=base.actual_value,
+        evidence=base.evidence,
+    )
+
+
+def rule_sales_time_order(context: RuleContext) -> RuleResult:
+    sequence = (
+        ("sales_contract", "signing_date"),
+        ("sales_order", "order_date"),
+        ("delivery_order", "delivery_date"),
+        ("logistics_receipt", "signed_date"),
+        ("sales_invoice", "invoice_date"),
+    )
+    values: list[tuple[str, date, ExtractedField, Document]] = []
+    missing: list[EvidenceRef] = []
+    for doc_type, field_name in sequence:
+        field, document = _first_field(context, doc_type, field_name)
+        parsed = _date_value(field)
+        if field is None or document is None or parsed is None:
+            missing.append(_missing_ref(document, field_name, field, doc_type))
+        else:
+            values.append((field_name, parsed, field, document))
+
+    if missing:
+        return _result(
+            context,
+            "SALES_TIME_001",
+            "need_review",
+            "medium",
+            "Missing date fields prevent sales time-order check.",
+            {"order": [name for _, name in sequence]},
+            {"missing_fields": [ref.field_name for ref in missing]},
+            missing,
+        )
+
+    tolerance_days = int(context.parameters.get("date_tolerance_days", 0) or 0)
+    inversions = [
+        {"previous": values[index - 1][0], "next": values[index][0]}
+        for index in range(1, len(values))
+        if values[index - 1][1] > values[index][1] + timedelta(days=tolerance_days)
+    ]
+    evidence = [_evidence_ref(document, field) for _, _, field, document in values]
+    if inversions:
+        return _result(
+            context,
+            "SALES_TIME_001",
+            "fail",
+            "high",
+            "Sales document dates are out of order.",
+            {"order": [name for _, name in sequence]},
+            {"inversions": inversions},
+            evidence,
+        )
+    return _result(
+        context,
+        "SALES_TIME_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Sales document dates are in order.",
+        {"order": [name for _, name in sequence]},
+        {"dates": {name: value.isoformat() for name, value, _, _ in values}},
+        evidence,
+    )
+
+
+def rule_sales_amount(context: RuleContext) -> RuleResult:
+    contract_amount = _single_amount(context, "sales_contract", "amount_including_tax")
+    invoice_amounts = _amounts(context, "sales_invoice", "amount_including_tax")
+    receipt_amounts = _amounts(context, "receipt_voucher", "amount")
+    missing = _missing_amount_refs(
+        [
+            ("sales_contract", "amount_including_tax", contract_amount),
+            ("sales_invoice", "amount_including_tax", invoice_amounts),
+            ("receipt_voucher", "amount", receipt_amounts),
+        ]
+    )
+    if missing:
+        return _result(
+            context,
+            "SALES_AMOUNT_001",
+            "need_review",
+            "medium",
+            "Missing amount fields prevent sales amount consistency check.",
+            {"amounts": "contract, invoice, receipt"},
+            {"missing_fields": [ref.field_name for ref in missing]},
+            missing,
+        )
+
+    tolerance = _tolerance_amount(context.parameters, TOLERANCE)
+    tolerance_ratio = float(context.parameters.get("tolerance_ratio", 0) or 0)
+    contract_total = contract_amount[0][0]
+    invoice_total = sum(amount for amount, _, _ in invoice_amounts)
+    receipt_total = sum(amount for amount, _, _ in receipt_amounts)
+    allowed_overage = tolerance + contract_total * tolerance_ratio
+    failures = {}
+    if invoice_total - contract_total > allowed_overage:
+        failures["invoice_total"] = invoice_total
+    if receipt_total - contract_total > allowed_overage:
+        failures["receipt_total"] = receipt_total
+
+    evidence = _amount_evidence(contract_amount + invoice_amounts + receipt_amounts)
+    if failures:
+        return _result(
+            context,
+            "SALES_AMOUNT_001",
+            "fail",
+            "high",
+            "Sales invoice or receipt amount exceeds contract amount.",
+            {"contract_amount": contract_total, "tolerance": tolerance, "tolerance_ratio": tolerance_ratio},
+            {"invoice_total": invoice_total, "receipt_total": receipt_total, "failures": failures},
+            evidence,
+        )
+    return _result(
+        context,
+        "SALES_AMOUNT_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Sales invoice and receipt amounts are within contract amount.",
+        {"contract_amount": contract_total, "tolerance": tolerance, "tolerance_ratio": tolerance_ratio},
+        {"invoice_total": invoice_total, "receipt_total": receipt_total},
+        evidence,
+    )
+
+
+def rule_sales_name(context: RuleContext) -> RuleResult:
+    checks = (
+        ("sales_contract", "customer_name"),
+        ("sales_order", "customer_name"),
+        ("delivery_order", "customer_name"),
+        ("sales_invoice", "buyer_name"),
+        ("receipt_voucher", "payer_name"),
+    )
+    values: list[tuple[str, str, ExtractedField, Document]] = []
+    missing: list[EvidenceRef] = []
+    for doc_type, field_name in checks:
+        field, document = _first_field(context, doc_type, field_name)
+        value = _text_value(field)
+        if field is None or document is None or not value:
+            missing.append(_missing_ref(document, field_name, field, doc_type))
+        else:
+            values.append((field_name, value, field, document))
+    logistics_field, logistics_doc = _first_field(context, "logistics_receipt", "customer_name")
+    logistics_value = _text_value(logistics_field)
+    if logistics_field is not None and logistics_doc is not None and logistics_value:
+        values.append(("customer_name", logistics_value, logistics_field, logistics_doc))
+
+    if missing:
+        return _result(
+            context,
+            "SALES_NAME_001",
+            "need_review",
+            "medium",
+            "Missing customer fields prevent sales name consistency check.",
+            {"customer_names": "consistent"},
+            {"missing_fields": [ref.field_name for ref in missing]},
+            missing,
+        )
+
+    normalized = {_normalize_name(value, context.parameters.get("supplier_aliases")) for _, value, _, _ in values}
+    evidence = [_evidence_ref(document, field) for _, _, field, document in values]
+    if len(normalized) > 1:
+        status = str(context.parameters.get("mismatch_status", "warning"))
+        return _result(
+            context,
+            "SALES_NAME_001",
+            "fail" if status == "fail" else "warning",
+            "high" if status == "fail" else "medium",
+            "Sales customer names are inconsistent.",
+            {"normalized_name_count": 1},
+            {"names": [value for _, value, _, _ in values]},
+            evidence,
+        )
+    return _result(
+        context,
+        "SALES_NAME_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Sales customer names are consistent.",
+        {"normalized_name_count": 1},
+        {"names": [value for _, value, _, _ in values]},
+        evidence,
+    )
+
+
+def rule_sales_qty(context: RuleContext) -> RuleResult:
+    quantities = []
+    missing: list[EvidenceRef] = []
+    for doc_type in ("sales_contract", "sales_order", "delivery_order", "logistics_receipt", "sales_invoice"):
+        field, document = _first_field(context, doc_type, "item_lines")
+        quantity_map = _quantity_map(field, context.parameters.get("item_mappings"))
+        if field is None or document is None or quantity_map is None:
+            missing.append(_missing_ref(document, "item_lines.quantity", field, doc_type))
+        else:
+            quantities.append((doc_type, quantity_map, field, document))
+    if missing:
+        return _result(
+            context,
+            "SALES_QTY_001",
+            "need_review",
+            "medium",
+            "Missing line item quantities prevent sales quantity check.",
+            {"quantity": "contract = order = delivery = logistics = invoice"},
+            {"missing_fields": [ref.field_name for ref in missing]},
+            missing,
+        )
+
+    tolerance = _tolerance_amount(context.parameters, 0.0001)
+    evidence = [_evidence_ref(document, field) for _, _, field, document in quantities]
+    item_quantities = {doc_type: quantity_map for doc_type, quantity_map, _, _ in quantities}
+    values = {doc_type: sum(quantity_map.values()) for doc_type, quantity_map, _, _ in quantities}
+    item_keys = {item_key for quantity_map in item_quantities.values() for item_key in quantity_map}
+    quantity_failures = {
+        item_key: {doc_type: quantity_map.get(item_key) for doc_type, quantity_map in item_quantities.items()}
+        for item_key in item_keys
+        if None in {quantity_map.get(item_key) for quantity_map in item_quantities.values()}
+        or max(quantity_map.get(item_key, 0.0) for quantity_map in item_quantities.values())
+        - min(quantity_map.get(item_key, 0.0) for quantity_map in item_quantities.values())
+        > tolerance
+    }
+    if quantity_failures:
+        return _result(
+            context,
+            "SALES_QTY_001",
+            "fail",
+            "high",
+            "Sales document quantities do not match.",
+            {"quantity": "contract = order = delivery = logistics = invoice", "tolerance": tolerance},
+            values | {"item_quantities": item_quantities, "failures": quantity_failures},
+            evidence,
+        )
+    return _result(
+        context,
+        "SALES_QTY_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Sales document quantities match.",
+        {"quantity": "contract = order = delivery = logistics = invoice", "tolerance": tolerance},
+        values | {"item_quantities": item_quantities},
+        evidence,
+    )
+
+
 RULE_REGISTRY: dict[str, Callable[[RuleContext], RuleResult]] = {
     "PROC_MISSING_001": rule_missing_required,
     "PROC_TIME_001": rule_time_order,
@@ -632,6 +904,11 @@ RULE_REGISTRY: dict[str, Callable[[RuleContext], RuleResult]] = {
     "PROC_NAME_001": rule_name,
     "PROC_QTY_001": rule_qty,
     "PROC_TAX_001": rule_tax,
+    "SALES_MISSING_001": rule_sales_missing_required,
+    "SALES_TIME_001": rule_sales_time_order,
+    "SALES_AMOUNT_001": rule_sales_amount,
+    "SALES_NAME_001": rule_sales_name,
+    "SALES_QTY_001": rule_sales_qty,
 }
 
 
@@ -924,6 +1201,12 @@ def _allowed_tax_rates(parameters: dict) -> set[float]:
 def _rule_parameters(rule: AuditRule) -> dict:
     defaults = DEFAULT_RULES.get(rule.rule_code, ("", {}))[1]
     return defaults | (rule.parameters or {})
+
+
+def _rule_matches_scenario(rule_code: str, scenario: str) -> bool:
+    if scenario == "sales":
+        return rule_code.startswith("SALES_")
+    return rule_code.startswith("PROC_")
 
 
 def _validate_parameters(parameters: dict) -> None:

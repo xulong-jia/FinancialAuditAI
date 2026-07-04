@@ -76,12 +76,13 @@ def get_result(db: Session, result_id: UUID) -> EvaluationResult:
 
 def _evaluate_classification() -> tuple[int, dict, list[dict]]:
     samples = [
-        ("contract.pdf", "purchase contract\ncontract no: C-1\nsupplier: Demo Co", "purchase_contract"),
-        ("invoice.pdf", "invoice\ninvoice number: I-1\nseller: Demo Co\ntax amount: 10", "invoice"),
+        ("contract.pdf", "purchase contract\ncontract no: C-1\nsupplier: Demo Co", "purchase_contract", "procurement"),
+        ("invoice.pdf", "invoice\ninvoice number: I-1\nseller: Demo Co\ntax amount: 10", "invoice", "procurement"),
+        ("sales-order.pdf", "sales order\norder no: SO-1\ncustomer: Demo Co", "sales_order", "sales"),
     ]
     failed = []
-    for filename, text, expected in samples:
-        ranked = classification_service._rank_document_types(filename, text)
+    for filename, text, expected, scenario in samples:
+        ranked = classification_service._rank_document_types(filename, text, scenario)
         actual = ranked[0].doc_type if ranked else "unknown"
         if actual != expected:
             failed.append(_failed_case("classification", filename, {"doc_type": actual}, {"doc_type": expected}))

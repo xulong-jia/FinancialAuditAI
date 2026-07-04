@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.audit_task import AuditTask
 from app.models.document import Document
-from app.schemas.document import ProcurementDocType
+from app.schemas.document import DocumentDocType
 
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "docx", "xlsx"}
 ALLOWED_CONTENT_TYPES = {
@@ -26,6 +26,25 @@ ALLOWED_CONTENT_TYPES = {
     },
 }
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024
+DOC_TYPES_BY_SCENARIO = {
+    "procurement": {
+        "purchase_request",
+        "purchase_contract",
+        "warehouse_receipt",
+        "invoice",
+        "accounting_voucher",
+        "payment_receipt",
+    },
+    "sales": {
+        "sales_contract",
+        "sales_order",
+        "delivery_order",
+        "logistics_receipt",
+        "sales_invoice",
+        "receipt_voucher",
+        "accounting_voucher",
+    },
+}
 
 
 def uploads_root() -> Path:
@@ -53,12 +72,14 @@ async def save_document(
     db: Session,
     task_id: UUID,
     file: UploadFile,
-    doc_type_hint: ProcurementDocType | None = None,
+    doc_type_hint: DocumentDocType | None = None,
     actor_name: str | None = None,
 ) -> Document:
     task = db.get(AuditTask, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    if doc_type_hint and doc_type_hint not in DOC_TYPES_BY_SCENARIO.get(task.scenario, set()):
+        raise HTTPException(status_code=400, detail="Document type is not allowed for task scenario")
 
     filename = Path(file.filename or "").name
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""

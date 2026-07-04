@@ -95,6 +95,93 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
         "流水号",
         "支付",
     ),
+    "sales_contract": (
+        "sales contract",
+        "contract no",
+        "customer",
+        "seller",
+        "delivery terms",
+        "销售合同",
+        "客户",
+        "销售方",
+        "交付条款",
+    ),
+    "sales_order": (
+        "sales order",
+        "order no",
+        "order date",
+        "customer",
+        "related contract",
+        "销售订单",
+        "订单编号",
+        "客户",
+    ),
+    "delivery_order": (
+        "delivery order",
+        "delivery no",
+        "delivery date",
+        "warehouse",
+        "related order",
+        "出库单",
+        "出库日期",
+        "仓库",
+    ),
+    "logistics_receipt": (
+        "logistics receipt",
+        "logistics no",
+        "shipment date",
+        "signed date",
+        "receiver",
+        "signer",
+        "物流签收",
+        "签收日期",
+        "收货方",
+    ),
+    "sales_invoice": (
+        "sales invoice",
+        "invoice no",
+        "invoice date",
+        "seller name",
+        "buyer name",
+        "tax amount",
+        "total with tax",
+        "销售发票",
+        "发票号码",
+        "购买方",
+        "销售方",
+    ),
+    "receipt_voucher": (
+        "receipt voucher",
+        "receipt no",
+        "receipt date",
+        "payer",
+        "payee",
+        "receipt purpose",
+        "bank serial",
+        "收款凭证",
+        "收款日期",
+        "付款方",
+        "收款方",
+    ),
+}
+DOC_TYPES_BY_SCENARIO = {
+    "procurement": {
+        "purchase_request",
+        "purchase_contract",
+        "warehouse_receipt",
+        "invoice",
+        "accounting_voucher",
+        "payment_receipt",
+    },
+    "sales": {
+        "sales_contract",
+        "sales_order",
+        "delivery_order",
+        "logistics_receipt",
+        "sales_invoice",
+        "receipt_voucher",
+        "accounting_voucher",
+    },
 }
 
 
@@ -123,7 +210,8 @@ def classify_document(db: Session, document_id: UUID) -> ClassificationRead:
         raise HTTPException(status_code=400, detail="Document pages are required before classification")
 
     text = "\n".join(page.raw_text for page in pages).strip()
-    scores = _rank_document_types(document.original_filename, text)
+    scenario = document.task.scenario if document.task else "procurement"
+    scores = _rank_document_types(document.original_filename, text, scenario)
     if not text:
         result_doc_type = "unknown"
         confidence = 0.0
@@ -133,10 +221,10 @@ def classify_document(db: Session, document_id: UUID) -> ClassificationRead:
         result_doc_type = "unknown"
         confidence = best.confidence if best else 0.0
         reason = (
-            f"Low confidence classification; best guess is {best.doc_type} "
-            f"from keywords {', '.join(best.matched_keywords)}."
+                f"Low confidence classification; best guess is {best.doc_type} "
+                f"from keywords {', '.join(best.matched_keywords)}."
             if best
-            else "No procurement classification keywords were found."
+            else f"No {scenario} classification keywords were found."
         )
     else:
         best = scores[0]
@@ -196,6 +284,10 @@ def update_document_classification(
             "alternative_types": document.alternative_types or [],
         }
 
+    scenario = document.task.scenario if document.task else "procurement"
+    if payload.doc_type != "unknown" and payload.doc_type not in DOC_TYPES_BY_SCENARIO.get(scenario, set()):
+        raise HTTPException(status_code=400, detail="Document type is not allowed for task scenario")
+
     document.doc_type = payload.doc_type
     document.review_status = "need_review" if payload.doc_type == "unknown" else "pending"
     db.commit()
@@ -203,12 +295,15 @@ def update_document_classification(
     return document
 
 
-def _rank_document_types(filename: str, text: str) -> list[ClassificationScore]:
+def _rank_document_types(filename: str, text: str, scenario: str = "procurement") -> list[ClassificationScore]:
     filename_text = _normalize(filename)
     body_text = _normalize(text)
     scores: list[ClassificationScore] = []
+    allowed_doc_types = DOC_TYPES_BY_SCENARIO.get(scenario, DOC_TYPES_BY_SCENARIO["procurement"])
 
     for doc_type, keywords in KEYWORDS.items():
+        if doc_type not in allowed_doc_types:
+            continue
         matched: list[str] = []
         score = 0.0
         for keyword in keywords:

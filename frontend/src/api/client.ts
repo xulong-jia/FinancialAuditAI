@@ -17,6 +17,7 @@ import type {
   ClassificationResult,
   CreateTaskPayload,
   DocumentPage,
+  DocumentDocType,
   DocumentRecord,
   DocumentUpdatePayload,
   DocumentRelation,
@@ -27,7 +28,6 @@ import type {
   EvaluationRunPayload,
   FieldCorrectionPayload,
   LinkDocumentsResult,
-  ProcurementDocType,
   ReviewActionPayload,
   ReviewComment,
   ReviewCommentPayload,
@@ -178,7 +178,7 @@ export function reportDownloadUrl(reportId: string): string {
 export async function uploadDocument(
   taskId: string,
   file: File,
-  docTypeHint: ProcurementDocType,
+  docTypeHint: DocumentDocType,
 ): Promise<DocumentRecord> {
   const form = new FormData();
   form.append("file", file);

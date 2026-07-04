@@ -11,7 +11,7 @@ from app.schemas.document import (
     DocumentPageRead,
     DocumentRead,
     DocumentUpdate,
-    ProcurementDocType,
+    DocumentDocType,
 )
 from app.schemas.extraction import ExtractedFieldRead
 from app.schemas.linkage import DocumentRelationRead, LinkDocumentsResult
@@ -32,7 +32,7 @@ router = APIRouter(tags=["documents"])
 async def upload_document(
     task_id: UUID,
     file: Annotated[UploadFile, File()],
-    doc_type_hint: Annotated[ProcurementDocType | None, Form()] = None,
+    doc_type_hint: Annotated[DocumentDocType | None, Form()] = None,
     actor_name: Annotated[str | None, Form(max_length=120)] = None,
     db: Session = Depends(get_db),
 ):

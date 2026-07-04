@@ -1,0 +1,104 @@
+{
+  "task": {
+    "name": "Phase 15 Demo Sales Walkthrough",
+    "scenario": "sales",
+    "project_name": "Synthetic Sales Demo",
+    "company_name": "Demo Seller Co",
+    "fiscal_year": 2026,
+    "actor_name": "demo_seed"
+  },
+  "business_key": "CONTRACT-SC-DEMO-001",
+  "documents": [
+    {
+      "original_filename": "demo_sales_contract.pdf",
+      "doc_type": "sales_contract",
+      "fields": {
+        "contract_no": "SC-DEMO-001",
+        "signing_date": "2026-01-01",
+        "customer_name": "Demo Customer Co",
+        "seller_name": "Demo Seller Co",
+        "item_lines": "Item: Demo Goods; Quantity: 10; Unit: pcs",
+        "amount_including_tax": "1000.00"
+      }
+    },
+    {
+      "original_filename": "demo_sales_order.pdf",
+      "doc_type": "sales_order",
+      "fields": {
+        "order_no": "SO-DEMO-001",
+        "order_date": "2026-01-02",
+        "customer_name": "Demo Customer Co",
+        "related_contract_no": "SC-DEMO-001",
+        "item_lines": "Item: Demo Goods; Quantity: 10; Unit: pcs",
+        "amount": "1000.00"
+      }
+    },
+    {
+      "original_filename": "demo_delivery_order.pdf",
+      "doc_type": "delivery_order",
+      "fields": {
+        "delivery_no": "DO-DEMO-001",
+        "delivery_date": "2026-01-05",
+        "customer_name": "Demo Customer Co",
+        "related_order_no": "SO-DEMO-001",
+        "related_contract_no": "SC-DEMO-001",
+        "item_lines": "Item: Demo Goods; Quantity: 10; Unit: pcs"
+      }
+    },
+    {
+      "original_filename": "demo_logistics_receipt.pdf",
+      "doc_type": "logistics_receipt",
+      "fields": {
+        "logistics_no": "LG-DEMO-001",
+        "shipment_date": "2026-01-05",
+        "signed_date": "2026-01-06",
+        "receiver_name": "Demo Customer Co",
+        "customer_name": "Demo Customer Co",
+        "related_delivery_no": "DO-DEMO-001",
+        "item_lines": "Item: Demo Goods; Quantity: 10; Unit: pcs"
+      }
+    },
+    {
+      "original_filename": "demo_sales_invoice.pdf",
+      "doc_type": "sales_invoice",
+      "fields": {
+        "invoice_no": "SINV-DEMO-001",
+        "invoice_date": "2026-01-10",
+        "seller_name": "Demo Seller Co",
+        "buyer_name": "Demo Customer Co",
+        "item_lines": "Item: Demo Goods; Quantity: 10; Unit: pcs",
+        "amount_excluding_tax": "909.09",
+        "tax_amount": "90.91",
+        "amount_including_tax": "1000.00"
+      }
+    },
+    {
+      "original_filename": "demo_receipt_voucher.pdf",
+      "doc_type": "receipt_voucher",
+      "fields": {
+        "receipt_no": "RV-DEMO-001",
+        "receipt_date": "2026-01-15",
+        "payer_name": "Demo Customer Co",
+        "payee_name": "Demo Seller Co",
+        "amount": "1000.00",
+        "currency": "CNY",
+        "receipt_purpose": "Receipt for contract SC-DEMO-001",
+        "related_contract_no": "SC-DEMO-001"
+      }
+    },
+    {
+      "original_filename": "demo_sales_voucher.pdf",
+      "doc_type": "accounting_voucher",
+      "fields": {
+        "voucher_no": "SV-DEMO-001",
+        "voucher_date": "2026-01-20",
+        "summary": "Sales invoice SINV-DEMO-001",
+        "debit_subject": "Accounts Receivable",
+        "credit_subject": "Revenue",
+        "amount": "1000.00",
+        "customer_name": "Demo Customer Co",
+        "related_invoice_no": "SINV-DEMO-001"
+      }
+    }
+  ]
+}

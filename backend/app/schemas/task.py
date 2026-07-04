@@ -6,11 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 TaskStatus = Literal["draft", "uploaded", "failed"]
+Scenario = Literal["procurement", "sales"]
 
 
 class TaskCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    scenario: Literal["procurement"] = "procurement"
+    scenario: Scenario = "procurement"
     project_name: str | None = Field(default=None, max_length=255)
     company_name: str | None = Field(default=None, max_length=255)
     fiscal_year: int | None = Field(default=None, ge=1900, le=2100)

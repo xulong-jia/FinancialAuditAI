@@ -2,6 +2,8 @@ const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 import type {
   AuditTask,
+  AuditResult,
+  AuditRule,
   ClassificationResult,
   CreateTaskPayload,
   DocumentPage,
@@ -51,6 +53,18 @@ export function linkDocuments(taskId: string): Promise<LinkDocumentsResult> {
 
 export function listDocumentRelations(taskId: string): Promise<DocumentRelation[]> {
   return getJson<DocumentRelation[]>(`/api/v1/tasks/${taskId}/document-relations`);
+}
+
+export function runAudit(taskId: string): Promise<AuditResult[]> {
+  return sendJson<AuditResult[]>(`/api/v1/tasks/${taskId}/audit`, "POST", {});
+}
+
+export function listAuditResults(taskId: string): Promise<AuditResult[]> {
+  return getJson<AuditResult[]>(`/api/v1/tasks/${taskId}/audit-results`);
+}
+
+export function listRules(): Promise<AuditRule[]> {
+  return getJson<AuditRule[]>("/api/v1/rules");
 }
 
 export function runOcr(documentId: string): Promise<DocumentRecord> {

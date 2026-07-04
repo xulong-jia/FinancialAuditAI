@@ -115,6 +115,38 @@ export type LinkDocumentsResult = {
   relations: DocumentRelation[];
 };
 
+export type AuditRule = {
+  id: string;
+  rule_code: string;
+  name: string;
+  version: string;
+  enabled: boolean;
+  parameters: Record<string, unknown>;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AuditResult = {
+  id: string;
+  task_id: string;
+  rule_id: string | null;
+  rule_code: string;
+  business_key: string;
+  status: string;
+  severity: string;
+  message: string;
+  expected_value: Record<string, unknown> | null;
+  actual_value: Record<string, unknown> | null;
+  evidence: Record<string, unknown>;
+  rag_citations: Record<string, unknown>[] | null;
+  review_status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type DocumentUpdatePayload = {
   doc_type: ClassificationDocType;
   actor_name?: string;

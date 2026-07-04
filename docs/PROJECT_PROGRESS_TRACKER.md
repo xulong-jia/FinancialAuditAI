@@ -33,7 +33,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 3 | 文档分类 | MVP | DONE | 六类采购文件 doc_type、置信度、分类理由 |
 | Phase 4 | 字段抽取与 Schema 校验 | MVP | DONE | 六类采购字段、line_items、Pydantic 校验 |
 | Phase 5 | 采购业务归集 | MVP | DONE | business_key、document_relations |
-| Phase 6 | Rule Engine MVP | MVP | TODO | Python rule registry、六条采购规则、audit_results |
+| Phase 6 | Rule Engine MVP | MVP | DONE | Python rule registry、六条采购规则、audit_results |
 | Phase 7 | Audit Workbench 前端工作台 | MVP | TODO | 三栏审核工作台 |
 | Phase 8 | Review Center 基础复核闭环 | MVP | TODO | 字段修正、异常确认、驳回、重跑规则 |
 | Phase 9 | Report Center 控制表与异常清单导出 | MVP | TODO | xlsx 控制表、异常清单、证据索引 |
@@ -516,7 +516,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：Rule Engine MVP
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 6 完成确定性 `RuleEngineService`、`RuleContext`、`RuleResult`、`EvidenceRef`、Python rule registry、六条采购 MVP 规则、`audit_rules` / `audit_results` migration 和六条规则初始化、audit/rules API、Task Center 规则结果只读展示、规则 pass/non-pass/缺字段/evidence/多发票多付款/低置信度 warning 测试。未实现 Phase 7 Audit Workbench、Phase 8 Review Center、Phase 12 Rule Center、RAG、Agent 或 LLM pass/fail 判断。
 
 ### 阶段目标
 
@@ -524,55 +528,55 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `RuleEngineService`。
-- [ ] 定义 `RuleContext`。
-- [ ] 定义 `RuleResult`。
-- [ ] 实现规则注册表。
-- [ ] 实现 `PROC_MISSING_001`。
-- [ ] 实现 `PROC_TIME_001`。
-- [ ] 实现 `PROC_AMOUNT_001`。
-- [ ] 实现 `PROC_NAME_001`。
-- [ ] 实现 `PROC_QTY_001`。
-- [ ] 实现 `PROC_TAX_001`。
-- [ ] 规则结果写入 `audit_results`。
+- [x] 实现 `RuleEngineService`。
+- [x] 定义 `RuleContext`。
+- [x] 定义 `RuleResult`。
+- [x] 实现规则注册表。
+- [x] 实现 `PROC_MISSING_001`。
+- [x] 实现 `PROC_TIME_001`。
+- [x] 实现 `PROC_AMOUNT_001`。
+- [x] 实现 `PROC_NAME_001`。
+- [x] 实现 `PROC_QTY_001`。
+- [x] 实现 `PROC_TAX_001`。
+- [x] 规则结果写入 `audit_results`。
 
 ### 前端任务
 
-- [ ] 展示规则结果表。
-- [ ] 展示 rule_code、status、severity、message。
-- [ ] 展示 expected_value、actual_value。
-- [ ] 展示 evidence。
-- [ ] 标记需要人工复核的规则结果。
+- [x] 展示规则结果表。
+- [x] 展示 rule_code、status、severity、message。
+- [x] 展示 expected_value、actual_value。
+- [x] 展示 evidence。
+- [x] 标记需要人工复核的规则结果。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `audit_rules` 表。
-- [ ] 创建 `audit_results` 表。
-- [ ] 初始化六条采购规则数据。
-- [ ] 支持规则启用状态、版本、参数。
+- [x] 创建 `audit_rules` 表。
+- [x] 创建 `audit_results` 表。
+- [x] 初始化六条采购规则数据。
+- [x] 支持规则启用状态、版本、参数。
 
 ### API 任务
 
-- [ ] `POST /api/v1/tasks/{task_id}/audit`。
-- [ ] `GET /api/v1/tasks/{task_id}/audit-results`。
-- [ ] `GET /api/v1/audit-results/{result_id}`。
-- [ ] `GET /api/v1/rules`。
+- [x] `POST /api/v1/tasks/{task_id}/audit`。
+- [x] `GET /api/v1/tasks/{task_id}/audit-results`。
+- [x] `GET /api/v1/audit-results/{result_id}`。
+- [x] `GET /api/v1/rules`。
 
 ### 测试任务
 
-- [ ] 每条规则至少一个 pass 样例。
-- [ ] 每条规则至少一个 fail 或 need_review 样例。
-- [ ] 缺字段不得 pass 测试。
-- [ ] 规则结果 evidence 非空测试。
-- [ ] 一合同多发票/付款基础金额测试。
+- [x] 每条规则至少一个 pass 样例。
+- [x] 每条规则至少一个 fail 或 need_review 样例。
+- [x] 缺字段不得 pass 测试。
+- [x] 规则结果 evidence 非空测试。
+- [x] 一合同多发票/付款基础金额测试。
 
 ### 验收标准
 
-- [ ] 六条 MVP 规则可执行。
-- [ ] 规则输出包含 rule_code、status、severity、message、expected_value、actual_value、evidence。
-- [ ] 缺字段输出 need_review。
-- [ ] 高风险 fail 进入 Review Center。
-- [ ] 规则单测可运行。
+- [x] 六条 MVP 规则可执行。
+- [x] 规则输出包含 rule_code、status、severity、message、expected_value、actual_value、evidence。
+- [x] 缺字段输出 need_review。
+- [x] 高风险 fail 进入 Review Center。
+- [x] 规则单测可运行。
 
 ### MVP 规则边界补充
 
@@ -583,22 +587,22 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 交付物
 
-- [ ] Python rule registry。
-- [ ] Procurement rules。
-- [ ] Rule Engine API。
-- [ ] 规则结果 UI。
+- [x] Python rule registry。
+- [x] Procurement rules。
+- [x] Rule Engine API。
+- [x] 规则结果 UI。
 
 ### 风险点
 
-- [ ] 规则误报或漏报。
-- [ ] 缺字段被错误当成通过。
-- [ ] 多品种和多付款聚合不准确。
+- [x] 规则误报或漏报。
+- [x] 缺字段被错误当成通过。
+- [x] 多品种和多付款聚合不准确。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做复杂 DSL。
-- [ ] 不做 Rule Center 可视化配置。
-- [ ] 不让 LLM 直接判断 pass/fail。
+- [x] 不做复杂 DSL。
+- [x] 不做 Rule Center 可视化配置。
+- [x] 不让 LLM 直接判断 pass/fail。
 
 ## Phase 7: Audit Workbench 前端工作台
 

@@ -491,7 +491,7 @@
       "phase_id": 6,
       "name": "Rule Engine MVP",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         5
       ],
@@ -507,55 +507,55 @@
           "id": "P6-BE-001",
           "title": "实现 RuleContext、RuleResult 和 rule registry",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented RuleEngineService with RuleContext, RuleResult, EvidenceRef, and deterministic Python rule registry.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P6-BE-002",
           "title": "实现六条采购 MVP 规则",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented PROC_MISSING_001, PROC_TIME_001, PROC_AMOUNT_001, PROC_NAME_001, PROC_QTY_001, and PROC_TAX_001 without LLM pass/fail judgment.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P6-FE-001",
           "title": "展示规则结果、expected、actual 和 evidence",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Task Center now runs audit rules and shows read-only rule_code, status, severity, message, expected_value, actual_value, evidence, and review marker.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P6-DB-001",
           "title": "创建 audit_rules 和 audit_results 表",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added audit_rules and audit_results tables, six seed rules, enabled/version/parameters support, and nullable reviewed_by.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P6-API-001",
           "title": "实现 audit、audit-results 和 rules API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented POST /api/v1/tasks/{task_id}/audit, GET /api/v1/tasks/{task_id}/audit-results, GET /api/v1/audit-results/{result_id}, and GET /api/v1/rules.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P6-TEST-001",
           "title": "为每条规则添加 pass、fail、need_review 测试",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added rule engine API tests covering six-rule pass, non-pass/need_review, missing fields not passing, evidence, many invoices/payments, low-confidence warning, rules API, result list, and result detail.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -565,9 +565,9 @@
         "高风险 fail 进入 Review Center",
         "规则单测可运行"
       ],
-      "notes": "",
+      "notes": "Phase 6 completed: implemented deterministic RuleEngineService, RuleContext, RuleResult, EvidenceRef, Python rule registry, six procurement MVP rules, audit_rules/audit_results migration with six seeded rules, audit/rules APIs, Task Center read-only rule results, and tests for pass/non-pass, missing fields, evidence, many invoices/payments, and low-confidence warning. Phase 7 Audit Workbench, Phase 8 Review Center, Phase 12 Rule Center, RAG, Agent, and LLM pass/fail judgment were not implemented.",
       "blocked_reason": "",
-      "updated_at": null,
+      "updated_at": "2026-07-04",
       "scope_notes": [
         "MVP 中 PROC_QTY_001 只覆盖基础 line_items 数量一致性",
         "MVP 中 PROC_TAX_001 只覆盖基础税率、税额、含税/不含税口径校验",

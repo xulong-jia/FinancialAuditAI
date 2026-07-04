@@ -9,15 +9,18 @@ import {
   listDocumentPages,
   listDocumentFields,
   linkDocuments,
+  listAuditResults,
   listDocumentRelations,
   listDocuments,
   listTasks,
+  runAudit,
   runOcr,
   updateDocument,
   uploadDocument,
 } from "../api/client";
 import type {
   AuditTask,
+  AuditResult,
   ClassificationDocType,
   CreateTaskPayload,
   DocumentPage,
@@ -60,6 +63,7 @@ export function TaskCenterPage() {
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [relations, setRelations] = useState<DocumentRelation[]>([]);
+  const [auditResults, setAuditResults] = useState<AuditResult[]>([]);
   const [pages, setPages] = useState<DocumentPage[]>([]);
   const [fields, setFields] = useState<ExtractedField[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -89,6 +93,11 @@ export function TaskCenterPage() {
     setRelations(nextRelations);
   }
 
+  async function refreshAuditResults(taskId: string) {
+    const nextResults = await listAuditResults(taskId);
+    setAuditResults(nextResults);
+  }
+
   useEffect(() => {
     void refreshTasks().catch(() => message.error("Failed to load tasks"));
   }, []);
@@ -97,9 +106,11 @@ export function TaskCenterPage() {
     if (selectedTaskId) {
       void refreshDocuments(selectedTaskId).catch(() => message.error("Failed to load documents"));
       void refreshRelations(selectedTaskId).catch(() => message.error("Failed to load document relations"));
+      void refreshAuditResults(selectedTaskId).catch(() => message.error("Failed to load audit results"));
     } else {
       setDocuments([]);
       setRelations([]);
+      setAuditResults([]);
       setSelectedDocumentId(null);
     }
   }, [selectedTaskId]);
@@ -244,6 +255,24 @@ export function TaskCenterPage() {
       }
     } catch {
       message.error("Failed to link documents");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRunAudit() {
+    if (!selectedTaskId) {
+      message.warning("Select a task first");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const results = await runAudit(selectedTaskId);
+      setAuditResults(results);
+      message.success("Audit rules completed");
+    } catch {
+      message.error("Failed to run audit rules");
     } finally {
       setLoading(false);
     }
@@ -465,6 +494,72 @@ export function TaskCenterPage() {
               title: "Target",
               dataIndex: "target_document_id",
               render: (value: string) => documentNameById[value] ?? value,
+            },
+            {
+              title: "Evidence",
+              dataIndex: "evidence",
+              render: (value: Record<string, unknown>) => (
+                <Typography.Text ellipsis={{ tooltip: formatEvidence(value) }} style={{ maxWidth: 320 }}>
+                  {formatEvidence(value)}
+                </Typography.Text>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      <Card title="Audit Results">
+        <Space style={{ marginBottom: 16 }}>
+          <Button type="primary" loading={loading} disabled={!selectedTaskId} onClick={() => void handleRunAudit()}>
+            Run Audit
+          </Button>
+        </Space>
+        <Table<AuditResult>
+          rowKey="id"
+          dataSource={auditResults}
+          pagination={false}
+          columns={[
+            { title: "Business Key", dataIndex: "business_key" },
+            { title: "Rule", dataIndex: "rule_code" },
+            {
+              title: "Status",
+              dataIndex: "status",
+              render: (value: string, record) => (
+                <Space>
+                  <Tag color={value === "pass" ? "green" : value === "fail" ? "red" : "gold"}>
+                    {value}
+                  </Tag>
+                  {record.review_status === "pending" ? <Tag color="orange">Needs Review</Tag> : null}
+                </Space>
+              ),
+            },
+            { title: "Severity", dataIndex: "severity" },
+            {
+              title: "Message",
+              dataIndex: "message",
+              render: (value: string) => (
+                <Typography.Text ellipsis={{ tooltip: value }} style={{ maxWidth: 280 }}>
+                  {value}
+                </Typography.Text>
+              ),
+            },
+            {
+              title: "Expected",
+              dataIndex: "expected_value",
+              render: (value: Record<string, unknown> | null) => (
+                <Typography.Text ellipsis={{ tooltip: formatNormalized(value) }} style={{ maxWidth: 220 }}>
+                  {formatNormalized(value)}
+                </Typography.Text>
+              ),
+            },
+            {
+              title: "Actual",
+              dataIndex: "actual_value",
+              render: (value: Record<string, unknown> | null) => (
+                <Typography.Text ellipsis={{ tooltip: formatNormalized(value) }} style={{ maxWidth: 220 }}>
+                  {formatNormalized(value)}
+                </Typography.Text>
+              ),
             },
             {
               title: "Evidence",

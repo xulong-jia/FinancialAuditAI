@@ -579,7 +579,7 @@
       "phase_id": 7,
       "name": "Audit Workbench 前端工作台",
       "category": "MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         6
       ],
@@ -595,46 +595,46 @@
           "id": "P7-BE-001",
           "title": "提供工作台聚合数据查询",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Reused existing read APIs for documents, pages, task fields, and audit results; no new mutable backend workflow was introduced.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P7-FE-001",
           "title": "实现左文档、中证据、右字段和规则的三栏工作台",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented AuditWorkbenchPage with left document list, middle OCR text viewer, right field table and rule result table, empty/loading/error states, and Task Center entry.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P7-DB-001",
           "title": "校验证据定位字段满足工作台展示",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Verified existing documents.business_key, extracted_fields.source_page/source_text, and audit_results.evidence are sufficient for Phase 7 evidence navigation; no migration added.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P7-API-001",
           "title": "复用或实现 workbench 聚合 API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added frontend client wrapper for GET /api/v1/tasks/{task_id}/fields and reused existing pages/audit-results/documents endpoints; no /workbench endpoint was needed.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P7-TEST-001",
           "title": "验证异常点击能定位证据片段",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Validated with backend pytest, frontend production build, docker compose config, and JSON validation; evidence jumps are implemented through field source refs and rule evidence refs.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -643,9 +643,9 @@
         "不依赖完整 bbox 高亮也能完成复核",
         "页面能支撑 MVP 演示"
       ],
-      "notes": "",
+      "notes": "Phase 7 completed a read-only Audit Workbench using existing Phase 1-6 APIs: task documents, document pages, task fields, and audit results. Implemented three-column document/OCR/fields-and-rules UI, field source_text navigation, rule evidence navigation via matched extracted_fields, Task Center entry, and a read-only ReviewDrawer placeholder. No new database table, schema migration, rule logic, Review Center action, field correction, exception confirmation/rejection, or rule rerun was added.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 8,

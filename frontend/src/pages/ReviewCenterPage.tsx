@@ -1,6 +1,8 @@
 import { Card, Empty, Typography } from "antd";
 
-export function ReviewCenterPage() {
+import type { PageProps } from "../routes";
+
+export function ReviewCenterPage(_props: PageProps) {
   return (
     <Card>
       <Typography.Title level={3}>Review Center</Typography.Title>

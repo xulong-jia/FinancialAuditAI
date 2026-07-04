@@ -29,6 +29,7 @@ import type {
   ExtractedField,
   ProcurementDocType,
 } from "../types/api";
+import type { PageProps } from "../routes";
 
 const docTypes: { label: string; value: ProcurementDocType }[] = [
   { label: "采购申请单", value: "purchase_request" },
@@ -56,7 +57,7 @@ function formatEvidence(value: Record<string, unknown>) {
   return JSON.stringify(value);
 }
 
-export function TaskCenterPage() {
+export function TaskCenterPage({ onNavigate }: PageProps) {
   const [form] = Form.useForm<CreateTaskPayload>();
   const [uploadForm] = Form.useForm<{ doc_type_hint: ProcurementDocType }>();
   const [manualForm] = Form.useForm<{ doc_type: ClassificationDocType }>();
@@ -299,6 +300,13 @@ export function TaskCenterPage() {
     }
   }
 
+  function openAuditWorkbench() {
+    if (selectedTaskId) {
+      window.sessionStorage.setItem("audit_workbench_task_id", selectedTaskId);
+    }
+    onNavigate("audit-workbench");
+  }
+
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId) ?? null;
   const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
   const documentNameById = Object.fromEntries(
@@ -326,6 +334,9 @@ export function TaskCenterPage() {
             <Button type="primary" htmlType="submit" loading={loading}>
               Create
             </Button>
+          </Form.Item>
+          <Form.Item>
+            <Button onClick={openAuditWorkbench}>Open Audit Workbench</Button>
           </Form.Item>
         </Form>
       </Card>

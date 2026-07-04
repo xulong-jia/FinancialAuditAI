@@ -1,9 +1,23 @@
+import type { ReactElement } from "react";
+
 import { AuditWorkbenchPage } from "../pages/AuditWorkbenchPage";
 import { ReportCenterPage } from "../pages/ReportCenterPage";
 import { ReviewCenterPage } from "../pages/ReviewCenterPage";
 import { TaskCenterPage } from "../pages/TaskCenterPage";
 
-export const routes = [
+export type PageKey = "task-center" | "audit-workbench" | "review-center" | "report-center";
+
+export type PageProps = {
+  onNavigate: (key: PageKey) => void;
+};
+
+type AppRoute = {
+  key: PageKey;
+  label: string;
+  Component: (props: PageProps) => ReactElement;
+};
+
+export const routes: AppRoute[] = [
   { key: "task-center", label: "Task Center", Component: TaskCenterPage },
   { key: "audit-workbench", label: "Audit Workbench", Component: AuditWorkbenchPage },
   { key: "review-center", label: "Review Center", Component: ReviewCenterPage },

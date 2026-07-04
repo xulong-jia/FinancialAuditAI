@@ -34,7 +34,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 4 | 字段抽取与 Schema 校验 | MVP | DONE | 六类采购字段、line_items、Pydantic 校验 |
 | Phase 5 | 采购业务归集 | MVP | DONE | business_key、document_relations |
 | Phase 6 | Rule Engine MVP | MVP | DONE | Python rule registry、六条采购规则、audit_results |
-| Phase 7 | Audit Workbench 前端工作台 | MVP | TODO | 三栏审核工作台 |
+| Phase 7 | Audit Workbench 前端工作台 | MVP | DONE | 三栏审核工作台 |
 | Phase 8 | Review Center 基础复核闭环 | MVP | TODO | 字段修正、异常确认、驳回、重跑规则 |
 | Phase 9 | Report Center 控制表与异常清单导出 | MVP | TODO | xlsx 控制表、异常清单、证据索引 |
 | Phase 10 | MVP 测试、演示数据、README 和 Docker 交付 | MVP | TODO | 可演示 MVP、测试、README、Docker |
@@ -608,7 +608,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：Audit Workbench 前端工作台
 - 是否属于 MVP：是
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 7 完成只读 Audit Workbench 三栏工作台，复用现有任务文档、页级 OCR、任务字段和审计结果 API；实现左侧文档状态列表、中间 OCR 页级文本与证据片段、右侧字段表和规则结果表、字段 source_text 跳转、规则 evidence 到字段来源页映射、ReviewDrawer 只读占位入口、Task Center 进入工作台入口。未新增数据库表、未新增规则、未实现 Phase 8 Review Center 操作、字段修正、异常确认/驳回或规则重跑。
 
 ### 阶段目标
 
@@ -616,66 +620,66 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 提供工作台所需聚合数据接口或组合查询。
-- [ ] 确保文档、页、字段、规则结果可按 task_id 查询。
-- [ ] 提供证据引用跳转所需数据。
+- [x] 提供工作台所需聚合数据接口或组合查询。
+- [x] 确保文档、页、字段、规则结果可按 task_id 查询。
+- [x] 提供证据引用跳转所需数据。
 
 ### 前端任务
 
-- [ ] 实现 `AuditWorkbenchPage`。
-- [ ] 实现左侧 DocumentList。
-- [ ] 实现中间 DocumentViewer / OCRTextViewer。
-- [ ] 实现右侧 FieldTable。
-- [ ] 实现右侧 RuleResultTable。
-- [ ] 实现 ReviewDrawer 入口。
-- [ ] 支持从规则 evidence 定位到文档页和来源文本。
+- [x] 实现 `AuditWorkbenchPage`。
+- [x] 实现左侧 DocumentList。
+- [x] 实现中间 DocumentViewer / OCRTextViewer。
+- [x] 实现右侧 FieldTable。
+- [x] 实现右侧 RuleResultTable。
+- [x] 实现 ReviewDrawer 入口。
+- [x] 支持从规则 evidence 定位到文档页和来源文本。
 
 ### 数据库 / Migration 任务
 
-- [ ] 不新增表。
-- [ ] 校验现有字段足够支撑证据定位。
+- [x] 不新增表。
+- [x] 校验现有字段足够支撑证据定位。
 
 ### API 任务
 
-- [ ] `GET /api/v1/tasks/{task_id}/workbench` 或复用已有 API。
-- [ ] `GET /api/v1/documents/{document_id}/pages`。
-- [ ] `GET /api/v1/tasks/{task_id}/fields`。
-- [ ] `GET /api/v1/tasks/{task_id}/audit-results`。
+- [x] `GET /api/v1/tasks/{task_id}/workbench` 或复用已有 API。
+- [x] `GET /api/v1/documents/{document_id}/pages`。
+- [x] `GET /api/v1/tasks/{task_id}/fields`。
+- [x] `GET /api/v1/tasks/{task_id}/audit-results`。
 
 ### 测试任务
 
-- [ ] 手工验证三栏布局。
-- [ ] 测试规则结果点击后能定位证据。
-- [ ] 测试字段缺失和异常状态展示。
-- [ ] 测试空任务和无文档状态。
+- [x] 手工验证三栏布局。
+- [x] 测试规则结果点击后能定位证据。
+- [x] 测试字段缺失和异常状态展示。
+- [x] 测试空任务和无文档状态。
 
 ### 验收标准
 
-- [ ] 用户可在一个页面查看文档、字段、规则结果。
-- [ ] 异常可以定位到来源文档和页级文本。
-- [ ] 页面不依赖完整 bbox 高亮也能完成复核。
-- [ ] 页面能支撑 MVP 演示。
+- [x] 用户可在一个页面查看文档、字段、规则结果。
+- [x] 异常可以定位到来源文档和页级文本。
+- [x] 页面不依赖完整 bbox 高亮也能完成复核。
+- [x] 页面能支撑 MVP 演示。
 
 ### 交付物
 
-- [ ] Audit Workbench 页面。
-- [ ] DocumentViewer。
-- [ ] FieldTable。
-- [ ] RuleResultTable。
-- [ ] Evidence 跳转能力。
+- [x] Audit Workbench 页面。
+- [x] DocumentViewer。
+- [x] FieldTable。
+- [x] RuleResultTable。
+- [x] Evidence 跳转能力。
 
 ### 风险点
 
-- [ ] 过早追求复杂 UI。
-- [ ] bbox 高亮消耗过多时间。
-- [ ] 前端状态管理过度复杂。
+- [x] 过早追求复杂 UI。
+- [x] bbox 高亮消耗过多时间。
+- [x] 前端状态管理过度复杂。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做复杂 bbox 高亮。
-- [ ] 不做 RAG citation 面板。
-- [ ] 不做 Agent timeline。
-- [ ] 不做多场景工作台。
+- [x] 不做复杂 bbox 高亮。
+- [x] 不做 RAG citation 面板。
+- [x] 不做 Agent timeline。
+- [x] 不做多场景工作台。
 
 ## Phase 8: Review Center 基础复核闭环
 
@@ -1648,7 +1652,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [ ] Phase 4 字段抽取与 Schema 校验完成。
 - [ ] Phase 5 采购业务归集完成。
 - [ ] Phase 6 Rule Engine MVP 完成。
-- [ ] Phase 7 Audit Workbench 前端工作台完成。
+- [x] Phase 7 Audit Workbench 前端工作台完成。
 - [ ] Phase 8 Review Center 基础复核闭环完成。
 - [ ] Phase 9 Report Center 控制表与异常清单导出完成。
 - [ ] Phase 10 MVP 测试、演示数据、README 和 Docker 交付完成。

@@ -87,6 +87,10 @@ export function listDocumentFields(documentId: string): Promise<ExtractedField[]
   return getJson<ExtractedField[]>(`/api/v1/documents/${documentId}/fields`);
 }
 
+export function listTaskFields(taskId: string): Promise<ExtractedField[]> {
+  return getJson<ExtractedField[]>(`/api/v1/tasks/${taskId}/fields`);
+}
+
 export function listDocumentPages(documentId: string): Promise<DocumentPage[]> {
   return getJson<DocumentPage[]>(`/api/v1/documents/${documentId}/pages`);
 }

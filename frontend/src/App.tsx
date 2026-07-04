@@ -2,12 +2,14 @@ import { Layout, Menu, Typography } from "antd";
 import { useState } from "react";
 
 import { routes } from "./routes";
+import type { PageKey } from "./routes";
 
 const { Header, Content, Sider } = Layout;
 
 export default function App() {
-  const [activeKey, setActiveKey] = useState(routes[0].key);
+  const [activeKey, setActiveKey] = useState<PageKey>(routes[0].key);
   const activeRoute = routes.find((route) => route.key === activeKey) ?? routes[0];
+  const ActiveComponent = activeRoute.Component;
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
@@ -22,12 +24,12 @@ export default function App() {
             mode="inline"
             selectedKeys={[activeKey]}
             items={routes.map((route) => ({ key: route.key, label: route.label }))}
-            onClick={({ key }) => setActiveKey(key)}
+            onClick={({ key }) => setActiveKey(key as PageKey)}
             style={{ height: "100%", borderRight: 0 }}
           />
         </Sider>
         <Content style={{ padding: 24 }}>
-          <activeRoute.Component />
+          <ActiveComponent onNavigate={setActiveKey} />
         </Content>
       </Layout>
     </Layout>

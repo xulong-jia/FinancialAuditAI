@@ -67,6 +67,11 @@ docker compose up --build
 ```
 
 The backend service installs dependencies and starts `uvicorn`. The frontend service installs dependencies and starts Vite.
+For a fresh Docker database, run migrations after the backend container starts:
+
+```bash
+docker compose exec backend alembic upgrade head
+```
 
 ## Tests
 

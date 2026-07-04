@@ -1683,7 +1683,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ## Post-MVP Expansion Checklist
 
-- [ ] Phase 10 已标记 DONE。
+- [x] Phase 10 已标记 DONE。
 - [ ] Phase 11 RAG 四库扩展完成。
 - [ ] Phase 12 Rule Center 规则版本化与参数配置完成。
 - [ ] Phase 13 Agent Workflow 状态机与工具调用完成。

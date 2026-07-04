@@ -165,6 +165,41 @@ export type AuditRuleEvaluateResult = {
   evidence: Record<string, unknown>;
 };
 
+export type AgentRun = {
+  id: string;
+  task_id: string;
+  workflow_name: string;
+  status: string;
+  current_state: string;
+  input_refs: Record<string, unknown>;
+  output_refs: Record<string, unknown>;
+  error: Record<string, unknown> | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgentStep = {
+  id: string;
+  run_id: string;
+  step_name: string;
+  step_order: number;
+  tool_name: string;
+  status: string;
+  input_payload: Record<string, unknown>;
+  output_payload: Record<string, unknown>;
+  error: Record<string, unknown> | null;
+  duration_ms: number | null;
+  created_at: string;
+};
+
+export type AgentRunCreatePayload = {
+  task_id: string;
+  workflow_name?: string;
+  input_refs?: Record<string, unknown>;
+};
+
 export type AuditResult = {
   id: string;
   task_id: string;

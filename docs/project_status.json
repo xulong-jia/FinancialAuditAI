@@ -1024,7 +1024,7 @@
       "phase_id": 13,
       "name": "Agent Workflow 状态机与工具调用",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         10,
         6,
@@ -1043,46 +1043,46 @@
           "id": "P13-BE-001",
           "title": "实现 AgentService、状态机、工具白名单和重试",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented AgentService as a fixed procurement state machine with a strict tool whitelist, agent run creation, step recording, failed-step retry, and human review routing. The agent calls existing services and does not perform free chat, autonomous planning, or direct pass/fail judgment.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P13-FE-001",
           "title": "实现 AgentStateTimeline 和失败重试入口",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented AgentStateTimeline in Audit Workbench with run status, current state, step list, input/output references, duration, errors, and failed-step retry action.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P13-DB-001",
           "title": "创建 agent_runs 和 agent_steps 表",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added agent_runs and agent_steps tables through migration 0012_agent_workflow, storing state, status, input/output reference payloads, errors, duration, and timestamps.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P13-API-001",
           "title": "实现 agent runs、steps 和 retry API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented POST /api/v1/agents/runs, GET /api/v1/agents/runs/{run_id}, GET /api/v1/agents/runs/{run_id}/steps, and POST /api/v1/agents/runs/{run_id}/retry.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         },
         {
           "id": "P13-TEST-001",
           "title": "测试状态合法性、重试、人工复核路由和 Rule Engine 约束",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added agent workflow API tests covering legal state transitions, run and step records, failed-step retry, high-risk review routing, Rule Engine enforcement, no auto-confirm, no-citation handling, and reference-style payloads without raw sensitive text.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-04"
         }
       ],
       "acceptance_criteria": [
@@ -1093,9 +1093,9 @@
         "Agent 不能绕过 Rule Engine 直接生成 pass/fail",
         "Agent 不能在无 citation 时生成依据性结论"
       ],
-      "notes": "",
+      "notes": "Phase 13 completed controlled Agent Workflow: agent_runs and agent_steps persistence, fixed state machine, whitelisted tool calls, retry, human review routing, RAG no-answer handling, AgentStateTimeline, and API tests. The agent does not bypass Rule Engine, auto-confirm high-risk exceptions, generate citation-free evidence conclusions, expose full raw text in step payloads, or implement Phase 14 Bad Case/Evaluation, RBAC, sales, confirmation, interview, contract review, free chat, or autonomous planning.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-04"
     },
     {
       "phase_id": 14,

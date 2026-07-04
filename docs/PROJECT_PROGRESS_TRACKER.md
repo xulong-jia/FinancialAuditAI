@@ -39,8 +39,8 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 9 | Report Center 控制表与异常清单导出 | MVP | DONE | xlsx 控制表、异常清单、证据索引 |
 | Phase 10 | MVP 测试、演示数据、README 和 Docker 交付 | MVP | DONE | 可复现 MVP、测试、README、Docker、demo seed |
 | Phase 11 | RAG 四库扩展 | Post-MVP | DONE | regulation / inquiry_case / prospectus / workpaper 检索、citation、no-answer |
-| Phase 12 | Rule Center 规则版本化与参数配置 | Post-MVP | TODO | 规则版本、启用状态、参数配置 |
-| Phase 13 | Agent Workflow 状态机与工具调用 | Post-MVP | TODO | agent_runs、agent_steps、状态机、重试 |
+| Phase 12 | Rule Center 规则版本化与参数配置 | Post-MVP | DONE | 规则版本、启用状态、参数配置 |
+| Phase 13 | Agent Workflow 状态机与工具调用 | Post-MVP | DONE | agent_runs、agent_steps、状态机、重试 |
 | Phase 14 | Bad Case Center 与 Evaluation Center | Post-MVP | TODO | bad_cases、evaluation_results、回归评测 |
 | Phase 15 | 销售穿行扩展 | Post-MVP | TODO | 销售穿行 Schema、规则、控制表 |
 | Phase 16 | 函证模块扩展 | Post-MVP | TODO | 函证字段抽取、差异比对、复核 |
@@ -1088,7 +1088,11 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：Agent Workflow 状态机与工具调用
 - 是否属于 MVP：否
-- Status: TODO
+- Status: DONE
+
+### Notes
+
+- 2026-07-04: Phase 13 完成受控 Agent Workflow。已实现 `AgentService`、固定状态机、工具白名单、agent run 创建、agent step 记录、失败步骤 retry、人工复核路由、`agent_runs` / `agent_steps` migration、Agent API 和 Audit Workbench 中的 `AgentStateTimeline`。Agent 调用既有 OCR、分类、抽取、归集、Rule Engine、RAG evidence retrieval、Review routing 和 ReportService；不绕过 Rule Engine 写 pass/fail，不自动确认高风险异常，无 citation 时只记录 evidence insufficient，不保存完整敏感原文，不实现自由聊天、自主规划、Bad Case Center、Evaluation Center、RBAC 或 Phase 14 功能。
 
 ### 阶段目标
 
@@ -1096,68 +1100,68 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 实现 `AgentService`。
-- [ ] 定义状态机。
-- [ ] 定义工具白名单。
-- [ ] 实现 agent run 创建。
-- [ ] 实现 agent step 记录。
-- [ ] 实现失败步骤重试。
-- [ ] 实现人工复核路由。
+- [x] 实现 `AgentService`。
+- [x] 定义状态机。
+- [x] 定义工具白名单。
+- [x] 实现 agent run 创建。
+- [x] 实现 agent step 记录。
+- [x] 实现失败步骤重试。
+- [x] 实现人工复核路由。
 
 ### 前端任务
 
-- [ ] 实现 AgentStateTimeline。
-- [ ] 展示 agent run 状态。
-- [ ] 展示步骤输入引用和输出引用。
-- [ ] 提供失败步骤重试入口。
+- [x] 实现 AgentStateTimeline。
+- [x] 展示 agent run 状态。
+- [x] 展示步骤输入引用和输出引用。
+- [x] 提供失败步骤重试入口。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `agent_runs` 表。
-- [ ] 创建 `agent_steps` 表。
-- [ ] 保存状态、输入引用、输出引用、错误、耗时。
+- [x] 创建 `agent_runs` 表。
+- [x] 创建 `agent_steps` 表。
+- [x] 保存状态、输入引用、输出引用、错误、耗时。
 
 ### API 任务
 
-- [ ] `POST /api/v1/agents/runs`。
-- [ ] `GET /api/v1/agents/runs/{run_id}`。
-- [ ] `GET /api/v1/agents/runs/{run_id}/steps`。
-- [ ] `POST /api/v1/agents/runs/{run_id}/retry`。
+- [x] `POST /api/v1/agents/runs`。
+- [x] `GET /api/v1/agents/runs/{run_id}`。
+- [x] `GET /api/v1/agents/runs/{run_id}/steps`。
+- [x] `POST /api/v1/agents/runs/{run_id}/retry`。
 
 ### 测试任务
 
-- [ ] 状态转移合法性测试。
-- [ ] 失败步骤重试测试。
-- [ ] 高风险异常进入人工复核测试。
-- [ ] Agent 不绕过 Rule Engine 测试。
+- [x] 状态转移合法性测试。
+- [x] 失败步骤重试测试。
+- [x] 高风险异常进入人工复核测试。
+- [x] Agent 不绕过 Rule Engine 测试。
 
 ### 验收标准
 
-- [ ] Agent 可从上传推进到报告生成。
-- [ ] 每一步有状态、输入引用、输出引用和耗时。
-- [ ] 失败步骤可重试。
-- [ ] Agent 不能自动确认高风险异常。
-- [ ] Agent 不能绕过 Rule Engine 直接生成 pass/fail。
-- [ ] Agent 不能在无 citation 时生成依据性结论。
+- [x] Agent 可从上传推进到报告生成。
+- [x] 每一步有状态、输入引用、输出引用和耗时。
+- [x] 失败步骤可重试。
+- [x] Agent 不能自动确认高风险异常。
+- [x] Agent 不能绕过 Rule Engine 直接生成 pass/fail。
+- [x] Agent 不能在无 citation 时生成依据性结论。
 
 ### 交付物
 
-- [ ] AgentService。
-- [ ] agent_runs / agent_steps migration。
-- [ ] AgentStateTimeline。
-- [ ] Agent API。
+- [x] AgentService。
+- [x] agent_runs / agent_steps migration。
+- [x] AgentStateTimeline。
+- [x] Agent API。
 
 ### 风险点
 
-- [ ] Agent 状态混乱。
-- [ ] Agent 重复执行造成结果不一致。
-- [ ] 工具调用日志泄露敏感原文。
+- [x] Agent 状态混乱。
+- [x] Agent 重复执行造成结果不一致。
+- [x] 工具调用日志泄露敏感原文。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] Agent 不能绕过 Rule Engine。
-- [ ] Agent 不能自动确认高风险异常。
-- [ ] Agent 不能生成无证据审核结论。
+- [x] Agent 不能绕过 Rule Engine。
+- [x] Agent 不能自动确认高风险异常。
+- [x] Agent 不能生成无证据审核结论。
 
 ## Phase 14: Bad Case Center 与 Evaluation Center
 
@@ -1695,7 +1699,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [x] Phase 10 已标记 DONE。
 - [x] Phase 11 RAG 四库扩展完成。
 - [x] Phase 12 Rule Center 规则版本化与参数配置完成。
-- [ ] Phase 13 Agent Workflow 状态机与工具调用完成。
+- [x] Phase 13 Agent Workflow 状态机与工具调用完成。
 - [ ] Phase 14 Bad Case Center 与 Evaluation Center 完成。
 - [ ] Phase 15 销售穿行扩展完成。
 - [ ] Phase 16 函证模块扩展完成。

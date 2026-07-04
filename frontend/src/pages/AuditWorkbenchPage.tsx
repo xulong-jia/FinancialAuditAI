@@ -12,6 +12,7 @@ import {
   rerunAuditResult,
   updateField,
 } from "../api/client";
+import { AgentStateTimeline } from "../components/AgentStateTimeline";
 import type { PageProps } from "../routes";
 import type { AuditResult, AuditTask, DocumentPage, DocumentRecord, ExtractedField } from "../types/api";
 
@@ -386,14 +387,16 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
           <Empty description="No tasks" />
         </Card>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "300px minmax(360px, 1fr) minmax(420px, 520px)",
-            gap: 16,
-            alignItems: "start",
-          }}
-        >
+        <>
+          <AgentStateTimeline taskId={selectedTaskId} />
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "300px minmax(360px, 1fr) minmax(420px, 520px)",
+              gap: 16,
+              alignItems: "start",
+            }}
+          >
           <Card title="Documents" loading={loadingTaskData}>
             {documents.length === 0 ? (
               <Empty description="No documents" />
@@ -662,7 +665,8 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
               />
             </Card>
           </Space>
-        </div>
+          </div>
+        </>
       )}
 
       <Drawer

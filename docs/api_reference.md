@@ -110,9 +110,19 @@ Supported knowledge bases:
 
 RAG query responses include `answer`, `citations`, and `limitations`. If evidence is insufficient, the API returns `status: "no_answer"` and no fabricated citation. RAG citations are evidence only and do not replace Rule Engine results or human review.
 
+## Agent Workflow
+
+- `POST /agents/runs`
+- `GET /agents/runs/{run_id}`
+- `GET /agents/runs/{run_id}/steps`
+- `POST /agents/runs/{run_id}/retry`
+
+Agent workflow is a fixed state machine with whitelisted tool calls only. It records `agent_runs` and `agent_steps` with input references, output references, status, duration, and errors. It calls the existing OCR, classification, extraction, linkage, Rule Engine, RAG retrieval, review routing, and report generation services. Agent workflow does not provide free chat, autonomous planning, RBAC, Evaluation Center, Bad Case Center, or final audit conclusions. It does not write Rule Engine pass/fail decisions directly and does not auto-confirm high-risk exceptions.
+
 ## Security Notes
 
 - MVP does not implement login, RBAC, user roles, or production authorization.
 - User fields such as `actor_name`, `reviewed_by`, `corrected_by`, and `generated_by` are nullable strings.
 - Do not use this API with real confidential documents.
 - Workpaper content must stay isolated from public RAG knowledge bases.
+- Agent step payloads should contain references and summaries, not complete sensitive original text.

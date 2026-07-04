@@ -29,9 +29,16 @@ Post-MVP Phase 12 implemented:
 - Rule enable/disable, version tracking, approved parameter editing, dry-run rule evaluation, and audit log records for rule changes.
 - Rule Engine remains Python registry based; no DSL, user-provided expressions, or LLM pass/fail judgment is implemented.
 
+Post-MVP Phase 13 implemented:
+
+- Agent Workflow as a fixed state machine with whitelisted tool calls.
+- `agent_runs` and `agent_steps` capture status, state, input/output references, duration, and errors.
+- Audit Workbench includes AgentStateTimeline with run status, step details, and failed-step retry.
+- Agent calls existing services and does not bypass Rule Engine, auto-confirm high-risk exceptions, or generate final audit conclusions.
+
 Not implemented:
 
-- Agent Workflow, Evaluation Center, full RBAC, Dashboard, PDF reports.
+- Evaluation Center, Bad Case Center, full RBAC, Dashboard, PDF reports.
 - Sales walkthrough, confirmations, interviews, contract review, or other Post-MVP scenarios.
 
 ## Local Setup

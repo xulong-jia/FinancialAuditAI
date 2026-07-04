@@ -1,6 +1,9 @@
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 import type {
+  AgentRun,
+  AgentRunCreatePayload,
+  AgentStep,
   AuditTask,
   AuditResult,
   AuditRule,
@@ -227,4 +230,20 @@ export function indexRagDocument(documentId: string): Promise<RagIndexResult> {
 
 export function queryRag(payload: RagQueryPayload): Promise<RagQueryResponse> {
   return sendJson<RagQueryResponse>("/api/v1/rag/query", "POST", payload);
+}
+
+export function createAgentRun(payload: AgentRunCreatePayload): Promise<AgentRun> {
+  return sendJson<AgentRun>("/api/v1/agents/runs", "POST", payload);
+}
+
+export function getAgentRun(runId: string): Promise<AgentRun> {
+  return getJson<AgentRun>(`/api/v1/agents/runs/${runId}`);
+}
+
+export function listAgentSteps(runId: string): Promise<AgentStep[]> {
+  return getJson<AgentStep[]>(`/api/v1/agents/runs/${runId}/steps`);
+}
+
+export function retryAgentRun(runId: string): Promise<AgentRun> {
+  return sendJson<AgentRun>(`/api/v1/agents/runs/${runId}/retry`, "POST", {});
 }

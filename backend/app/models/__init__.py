@@ -1,3 +1,5 @@
+from app.models.agent_run import AgentRun
+from app.models.agent_step import AgentStep
 from app.models.audit_task import AuditTask
 from app.models.audit_log import AuditLog
 from app.models.audit_rule import AuditRule
@@ -15,6 +17,8 @@ from app.models.review_comment import ReviewComment
 
 __all__ = [
     "AuditTask",
+    "AgentRun",
+    "AgentStep",
     "AuditLog",
     "AuditRule",
     "AuditResult",

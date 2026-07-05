@@ -50,6 +50,18 @@ const confirmationPreviewColumns = [
   "overall_status",
   "reviewer_comment",
 ];
+const interviewPreviewColumns = [
+  "business_key",
+  "interviewee_name",
+  "interview_date",
+  "topics",
+  "key_answers",
+  "mentioned_amounts",
+  "mentioned_counterparties",
+  "signature_check",
+  "overall_status",
+  "reviewer_comment",
+];
 
 function statusColor(status: string) {
   if (status === "completed" || status === "pass") {
@@ -135,7 +147,9 @@ export function ReportCenterPage(_props: PageProps) {
       ? salesPreviewColumns
       : selectedTask?.scenario === "confirmation"
         ? confirmationPreviewColumns
-        : procurementPreviewColumns;
+        : selectedTask?.scenario === "interview"
+          ? interviewPreviewColumns
+          : procurementPreviewColumns;
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>

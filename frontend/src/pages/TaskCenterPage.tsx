@@ -54,11 +54,18 @@ const confirmationDocTypes: { label: string; value: DocumentDocType }[] = [
   { label: "函证回函", value: "confirmation_reply" },
   { label: "函证差异调节", value: "confirmation_adjustment" },
 ];
+const interviewDocTypes: { label: string; value: DocumentDocType }[] = [
+  { label: "访谈记录", value: "interview_record" },
+  { label: "访谈提纲", value: "interview_outline" },
+  { label: "访谈签字页", value: "interview_signature_page" },
+  { label: "访谈转写文本", value: "interview_transcript" },
+];
 
 const classificationDocTypes: { label: string; value: ClassificationDocType }[] = [
   ...procurementDocTypes,
   ...salesDocTypes.filter((option) => option.value !== "accounting_voucher"),
   ...confirmationDocTypes,
+  ...interviewDocTypes,
   { label: "未知 / 需要复核", value: "unknown" },
 ];
 
@@ -338,7 +345,9 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
       ? salesDocTypes
       : selectedTask?.scenario === "confirmation"
         ? confirmationDocTypes
-        : procurementDocTypes;
+        : selectedTask?.scenario === "interview"
+          ? interviewDocTypes
+          : procurementDocTypes;
   const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
   const documentNameById = Object.fromEntries(
     documents.map((document) => [document.id, document.original_filename]),
@@ -368,6 +377,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
                 { label: "Procurement", value: "procurement" },
                 { label: "Sales", value: "sales" },
                 { label: "Confirmation", value: "confirmation" },
+                { label: "Interview", value: "interview" },
               ]}
             />
           </Form.Item>

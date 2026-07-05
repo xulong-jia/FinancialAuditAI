@@ -266,11 +266,53 @@ CONFIRMATION_SCHEMA_SPECS: dict[str, tuple[FieldSpec, ...]] = {
     ),
 }
 
+INTERVIEW_SCHEMA_SPECS: dict[str, tuple[FieldSpec, ...]] = {
+    "interview_record": (
+        FieldSpec("interview_date", "Interview Date", "date", ("interview date", "访谈日期")),
+        FieldSpec("interviewee_name", "Interviewee Name", "name", ("interviewee name", "interviewee", "被访谈人")),
+        FieldSpec("interviewee_title", "Interviewee Title", "text", ("interviewee title", "title", "职务")),
+        FieldSpec("company_name", "Company Name", "name", ("company name", "company", "单位")),
+        FieldSpec("interviewer", "Interviewer", "name", ("interviewer", "访谈人")),
+        FieldSpec("location", "Location", "text", ("location", "地点"), False),
+        FieldSpec("topics", "Topics", "text", ("topics", "topic", "访谈主题")),
+        FieldSpec("key_answers", "Key Answers", "text", ("key answers", "key answer", "关键回答")),
+        FieldSpec("mentioned_amounts", "Mentioned Amounts", "money", ("mentioned amounts", "mentioned amount", "提及金额")),
+        FieldSpec("mentioned_counterparties", "Mentioned Counterparties", "name", ("mentioned counterparties", "mentioned counterparty", "提及交易对手")),
+        FieldSpec("signature_detected", "Signature Detected", "status", ("signature detected", "signature", "签字"), False),
+        FieldSpec("related_contract_no", "Related Contract No", "text", ("related contract no", "contract no", "关联合同"), False),
+        FieldSpec("related_invoice_no", "Related Invoice No", "text", ("related invoice no", "invoice no", "关联发票"), False),
+        FieldSpec("source_paragraphs", "Source Paragraphs", "text", ("source paragraphs", "source paragraph", "来源段落"), False),
+        FieldSpec("transcript_summary", "Transcript Summary", "text", ("transcript summary", "转写摘要"), False),
+        FieldSpec("risk_points", "Risk Points", "text", ("risk points", "risk point", "风险点"), False),
+    ),
+    "interview_outline": (
+        FieldSpec("topics", "Topics", "text", ("topics", "topic", "访谈主题")),
+        FieldSpec("interviewer", "Interviewer", "name", ("interviewer", "访谈人"), False),
+        FieldSpec("source_paragraphs", "Source Paragraphs", "text", ("source paragraphs", "source paragraph", "来源段落"), False),
+    ),
+    "interview_signature_page": (
+        FieldSpec("interviewee_name", "Interviewee Name", "name", ("interviewee name", "interviewee", "被访谈人")),
+        FieldSpec("signature_detected", "Signature Detected", "status", ("signature detected", "signature", "签字")),
+        FieldSpec("interview_date", "Interview Date", "date", ("interview date", "访谈日期"), False),
+    ),
+    "interview_transcript": (
+        FieldSpec("interview_date", "Interview Date", "date", ("interview date", "访谈日期")),
+        FieldSpec("interviewee_name", "Interviewee Name", "name", ("interviewee name", "interviewee", "被访谈人")),
+        FieldSpec("topics", "Topics", "text", ("topics", "topic", "访谈主题")),
+        FieldSpec("key_answers", "Key Answers", "text", ("key answers", "key answer", "关键回答")),
+        FieldSpec("mentioned_amounts", "Mentioned Amounts", "money", ("mentioned amounts", "mentioned amount", "提及金额")),
+        FieldSpec("mentioned_counterparties", "Mentioned Counterparties", "name", ("mentioned counterparties", "mentioned counterparty", "提及交易对手")),
+        FieldSpec("transcript_summary", "Transcript Summary", "text", ("transcript summary", "转写摘要"), False),
+        FieldSpec("source_paragraphs", "Source Paragraphs", "text", ("source paragraphs", "source paragraph", "来源段落"), False),
+    ),
+}
+
 
 def schema_specs_for(scenario: str, doc_type: str) -> tuple[FieldSpec, ...]:
     specs = {
         "sales": SALES_SCHEMA_SPECS,
         "confirmation": CONFIRMATION_SCHEMA_SPECS,
+        "interview": INTERVIEW_SCHEMA_SPECS,
     }.get(scenario, SCHEMA_SPECS)
     return specs.get(doc_type, ())
 

@@ -112,7 +112,18 @@ def _explicit_groups(
         related_order_no = _field_value(doc_fields.get("related_order_no"))
         delivery_no = _field_value(doc_fields.get("delivery_no"))
         confirmation_no = _field_value(doc_fields.get("confirmation_no"))
+        interviewee_name = _field_value(doc_fields.get("interviewee_name"))
 
+        if interviewee_name and (document.doc_type or "").startswith("interview_"):
+            _add_to_group(
+                by_key,
+                f"INTERVIEW-{_token(interviewee_name)}",
+                document,
+                0.88,
+                "same_interviewee",
+                "explicit_interviewee_name",
+                doc_fields["interviewee_name"],
+            )
         if confirmation_no:
             _add_to_group(
                 by_key,
@@ -299,6 +310,9 @@ def _fallback_groups(
                 "buyer_name",
                 "payer_name",
                 "counterparty_name",
+                "interviewee_name",
+                "company_name",
+                "mentioned_counterparties",
             ),
         )
         amount = _first_field(
@@ -311,6 +325,7 @@ def _fallback_groups(
                 "book_amount",
                 "confirmed_amount",
                 "difference_amount",
+                "mentioned_amounts",
             ),
         )
         document_date = _first_field(
@@ -327,6 +342,7 @@ def _fallback_groups(
                 "signed_date",
                 "sent_date",
                 "replied_date",
+                "interview_date",
             ),
         )
         supplier_value = _field_value(supplier)
@@ -412,6 +428,10 @@ def _anchor_document(documents: list[Document]) -> Document:
         "confirmation_request": 1,
         "confirmation_reply": 2,
         "confirmation_adjustment": 3,
+        "interview_record": 0,
+        "interview_transcript": 1,
+        "interview_signature_page": 2,
+        "interview_outline": 3,
     }
     return sorted(documents, key=lambda document: priority.get(document.doc_type or "", 99))[0]
 

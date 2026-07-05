@@ -48,6 +48,8 @@ class RuleContext:
     documents: list[Document]
     fields: dict[UUID, dict[str, ExtractedField]]
     parameters: dict
+    period_start: date | None = None
+    period_end: date | None = None
 
 
 RuleFunc = Callable[[RuleContext], RuleResult]
@@ -69,6 +71,11 @@ DEFAULT_RULES = {
     "CONF_AMOUNT_001": ("函证金额与差异调节检查", {"tolerance_amount": 1.0}),
     "CONF_NAME_001": ("函证被函证方名称一致性检查", {"mismatch_status": "warning", "supplier_aliases": {}}),
     "CONF_SEAL_SIGN_001": ("函证公章签字风险提示", {}),
+    "INTERVIEW_MISSING_001": ("访谈核心字段缺失检查", {}),
+    "INTERVIEW_DATE_001": ("访谈日期范围检查", {}),
+    "INTERVIEW_SIGNATURE_001": ("访谈签字检查", {}),
+    "INTERVIEW_AMOUNT_001": ("访谈提及金额差异提示", {"tolerance_amount": 1.0, "tolerance_ratio": 0.0}),
+    "INTERVIEW_COUNTERPARTY_001": ("访谈提及主体匹配提示", {"supplier_aliases": {}}),
 }
 ALLOWED_PARAMETER_KEYS = {
     "tolerance",
@@ -113,6 +120,8 @@ def run_audit(db: Session, task_id: UUID) -> list[AuditResult]:
                 documents=group_documents,
                 fields=fields,
                 parameters=_rule_parameters(rule),
+                period_start=task.period_start,
+                period_end=task.period_end,
             )
             result = RULE_REGISTRY[rule.rule_code](context)
             db.add(_to_model(task_id, rule, result))
@@ -253,6 +262,8 @@ def evaluate_rule(db: Session, rule_id: UUID, task_id: UUID, parameters: dict | 
                 documents=group_documents,
                 fields=fields,
                 parameters=merged_parameters,
+                period_start=task.period_start,
+                period_end=task.period_end,
             )
         ))
         for business_key, group_documents in groups.items()
@@ -1144,6 +1155,243 @@ def rule_confirmation_seal_sign(context: RuleContext) -> RuleResult:
     )
 
 
+INTERVIEW_DOC_TYPES = ("interview_record", "interview_outline", "interview_signature_page", "interview_transcript")
+
+
+def rule_interview_missing_required(context: RuleContext) -> RuleResult:
+    base = rule_missing_required(context)
+    return RuleResult(
+        rule_code="INTERVIEW_MISSING_001",
+        business_key=context.business_key,
+        status=base.status,
+        severity=base.severity,
+        message=base.message.replace("procurement", "interview"),
+        expected_value=base.expected_value,
+        actual_value=base.actual_value,
+        evidence=base.evidence,
+    )
+
+
+def rule_interview_date(context: RuleContext) -> RuleResult:
+    field, document = _first_interview_field(context, ("interview_date",))
+    interview_date = _date_value(field)
+    if field is None or document is None or interview_date is None:
+        return _result(
+            context,
+            "INTERVIEW_DATE_001",
+            "need_review",
+            "medium",
+            "Missing interview_date prevents interview period check.",
+            {
+                "period_start": context.period_start.isoformat() if context.period_start else None,
+                "period_end": context.period_end.isoformat() if context.period_end else None,
+            },
+            {"interview_date": None},
+            [_missing_ref(document, "interview_date", field, "interview_record")],
+        )
+    evidence = [_evidence_ref(document, field)]
+    if context.period_start is None or context.period_end is None:
+        return _result(
+            context,
+            "INTERVIEW_DATE_001",
+            "need_review",
+            "medium",
+            "Task period is missing; interview date needs manual review.",
+            {"period_start": None, "period_end": None},
+            {"interview_date": interview_date.isoformat()},
+            evidence,
+        )
+    if interview_date < context.period_start or interview_date > context.period_end:
+        return _result(
+            context,
+            "INTERVIEW_DATE_001",
+            "warning",
+            "medium",
+            "Interview date is outside the task period.",
+            {"period_start": context.period_start.isoformat(), "period_end": context.period_end.isoformat()},
+            {"interview_date": interview_date.isoformat()},
+            evidence,
+        )
+    return _result(
+        context,
+        "INTERVIEW_DATE_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Interview date is within the task period.",
+        {"period_start": context.period_start.isoformat(), "period_end": context.period_end.isoformat()},
+        {"interview_date": interview_date.isoformat()},
+        evidence,
+    )
+
+
+def rule_interview_signature(context: RuleContext) -> RuleResult:
+    field, document = _first_field_from(
+        context,
+        (("interview_signature_page", "signature_detected"), ("interview_record", "signature_detected")),
+    )
+    value = (_text_value(field) or "").casefold()
+    evidence = [_evidence_ref(document, field)] if field is not None and document is not None else [
+        _missing_ref(document, "signature_detected", field, "interview_signature_page")
+    ]
+    if value in {"yes", "true", "signed", "detected", "present", "有", "是"}:
+        return _result(
+            context,
+            "INTERVIEW_SIGNATURE_001",
+            _pass_or_warning(evidence),
+            _severity_for_pass(evidence),
+            "Interview signature evidence is present; authenticity is not judged.",
+            {"signature_detected": True},
+            {"signature_detected": value},
+            evidence,
+        )
+    return _result(
+        context,
+        "INTERVIEW_SIGNATURE_001",
+        "need_review",
+        "medium",
+        "Interview signature is missing or marked absent; authenticity is not judged.",
+        {"signature_detected": True},
+        {"signature_detected": value or None},
+        evidence,
+    )
+
+
+def rule_interview_amount(context: RuleContext) -> RuleResult:
+    mentioned = _amount_fields_by_name(context, {"mentioned_amounts"})
+    references = _amount_fields_by_name(
+        context,
+        {
+            "amount_including_tax",
+            "amount",
+            "total_estimated_amount",
+            "amount_excluding_tax",
+            "book_amount",
+            "confirmed_amount",
+            "contract_amount",
+            "invoice_amount",
+            "payment_amount",
+        },
+    )
+    if not mentioned:
+        return _result(
+            context,
+            "INTERVIEW_AMOUNT_001",
+            "need_review",
+            "medium",
+            "Missing mentioned_amounts prevents interview amount cross-check.",
+            {"mentioned_amounts": "present"},
+            {"mentioned_amounts": None},
+            [_missing_ref(None, "mentioned_amounts", doc_type="interview_record")],
+        )
+    evidence = _amount_evidence(mentioned + references)
+    if not references:
+        return _result(
+            context,
+            "INTERVIEW_AMOUNT_001",
+            "need_review",
+            "medium",
+            "No task amount evidence is available for interview amount cross-check.",
+            {"reference_amount": "available"},
+            {"mentioned_amounts": [amount for amount, _, _ in mentioned]},
+            evidence,
+        )
+
+    tolerance = _tolerance_amount(context.parameters, TOLERANCE)
+    tolerance_ratio = float(context.parameters.get("tolerance_ratio", 0) or 0)
+    mismatches = []
+    for amount, field, _ in mentioned:
+        closest = min((abs(amount - ref_amount), ref_amount) for ref_amount, _, _ in references)
+        allowed = tolerance + abs(closest[1]) * tolerance_ratio
+        if closest[0] > allowed:
+            mismatches.append({"field_name": field.field_name, "mentioned_amount": amount, "closest_reference": closest[1]})
+    if mismatches:
+        return _result(
+            context,
+            "INTERVIEW_AMOUNT_001",
+            "warning",
+            "medium",
+            "Interview mentioned amount differs from available task amount evidence; manual interpretation is required.",
+            {"tolerance": tolerance, "tolerance_ratio": tolerance_ratio},
+            {"mismatches": mismatches},
+            evidence,
+        )
+    return _result(
+        context,
+        "INTERVIEW_AMOUNT_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Interview mentioned amount is close to available task amount evidence.",
+        {"tolerance": tolerance, "tolerance_ratio": tolerance_ratio},
+        {"mentioned_amounts": [amount for amount, _, _ in mentioned]},
+        evidence,
+    )
+
+
+def rule_interview_counterparty(context: RuleContext) -> RuleResult:
+    mentioned = _text_fields_by_name(context, {"mentioned_counterparties"})
+    references = _text_fields_by_name(
+        context,
+        {
+            "supplier_name",
+            "seller_name",
+            "payee_name",
+            "customer_name",
+            "buyer_name",
+            "payer_name",
+            "counterparty_name",
+            "company_name",
+        },
+    )
+    if not mentioned:
+        return _result(
+            context,
+            "INTERVIEW_COUNTERPARTY_001",
+            "need_review",
+            "medium",
+            "Missing mentioned_counterparties prevents interview counterparty check.",
+            {"mentioned_counterparties": "present"},
+            {"mentioned_counterparties": None},
+            [_missing_ref(None, "mentioned_counterparties", doc_type="interview_record")],
+        )
+    evidence = [_evidence_ref(document, field) for _, field, document in mentioned + references]
+    if not references:
+        return _result(
+            context,
+            "INTERVIEW_COUNTERPARTY_001",
+            "need_review",
+            "medium",
+            "No task counterparty evidence is available for interview counterparty check.",
+            {"reference_counterparty": "available"},
+            {"mentioned_counterparties": [value for value, _, _ in mentioned]},
+            evidence,
+        )
+
+    aliases = context.parameters.get("supplier_aliases")
+    reference_names = {_normalize_name(value, aliases) for value, _, _ in references}
+    unmatched = [value for value, _, _ in mentioned if _normalize_name(value, aliases) not in reference_names]
+    if unmatched:
+        return _result(
+            context,
+            "INTERVIEW_COUNTERPARTY_001",
+            "warning",
+            "medium",
+            "Interview mentioned counterparty is not matched to available task party evidence.",
+            {"matched_to_existing_party": True},
+            {"unmatched": unmatched},
+            evidence,
+        )
+    return _result(
+        context,
+        "INTERVIEW_COUNTERPARTY_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Interview mentioned counterparties match available task party evidence.",
+        {"matched_to_existing_party": True},
+        {"mentioned_counterparties": [value for value, _, _ in mentioned]},
+        evidence,
+    )
+
+
 RULE_REGISTRY: dict[str, Callable[[RuleContext], RuleResult]] = {
     "PROC_MISSING_001": rule_missing_required,
     "PROC_TIME_001": rule_time_order,
@@ -1161,6 +1409,11 @@ RULE_REGISTRY: dict[str, Callable[[RuleContext], RuleResult]] = {
     "CONF_AMOUNT_001": rule_confirmation_amount,
     "CONF_NAME_001": rule_confirmation_name,
     "CONF_SEAL_SIGN_001": rule_confirmation_seal_sign,
+    "INTERVIEW_MISSING_001": rule_interview_missing_required,
+    "INTERVIEW_DATE_001": rule_interview_date,
+    "INTERVIEW_SIGNATURE_001": rule_interview_signature,
+    "INTERVIEW_AMOUNT_001": rule_interview_amount,
+    "INTERVIEW_COUNTERPARTY_001": rule_interview_counterparty,
 }
 
 
@@ -1251,6 +1504,45 @@ def _amounts_from(
     values: list[tuple[float, ExtractedField, Document]] = []
     for doc_type, field_name in lookups:
         values.extend(_amounts(context, doc_type, field_name))
+    return values
+
+
+def _first_interview_field(
+    context: RuleContext, field_names: tuple[str, ...]
+) -> tuple[ExtractedField | None, Document | None]:
+    for document in context.documents:
+        if document.doc_type not in INTERVIEW_DOC_TYPES:
+            continue
+        for field_name in field_names:
+            field = context.fields.get(document.id, {}).get(field_name)
+            if field is not None and not _is_missing(field):
+                return field, document
+    return None, None
+
+
+def _amount_fields_by_name(
+    context: RuleContext, field_names: set[str]
+) -> list[tuple[float, ExtractedField, Document]]:
+    values = []
+    for document in context.documents:
+        for field_name in field_names:
+            field = context.fields.get(document.id, {}).get(field_name)
+            amount = _amount_value(field)
+            if field is not None and amount is not None:
+                values.append((amount, field, document))
+    return values
+
+
+def _text_fields_by_name(
+    context: RuleContext, field_names: set[str]
+) -> list[tuple[str, ExtractedField, Document]]:
+    values = []
+    for document in context.documents:
+        for field_name in field_names:
+            field = context.fields.get(document.id, {}).get(field_name)
+            value = _text_value(field)
+            if field is not None and value:
+                values.append((value, field, document))
     return values
 
 
@@ -1481,6 +1773,8 @@ def _rule_matches_scenario(rule_code: str, scenario: str) -> bool:
         return rule_code.startswith("SALES_")
     if scenario == "confirmation":
         return rule_code.startswith("CONF_")
+    if scenario == "interview":
+        return rule_code.startswith("INTERVIEW_")
     return rule_code.startswith("PROC_")
 
 

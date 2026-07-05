@@ -231,6 +231,48 @@ class ConfirmationAdjustmentExtraction(BaseModel):
     adjustment_items: ExtractedFieldValue
 
 
+class InterviewRecordExtraction(BaseModel):
+    interview_date: ExtractedFieldValue
+    interviewee_name: ExtractedFieldValue
+    interviewee_title: ExtractedFieldValue
+    company_name: ExtractedFieldValue
+    interviewer: ExtractedFieldValue
+    location: ExtractedFieldValue
+    topics: ExtractedFieldValue
+    key_answers: ExtractedFieldValue
+    mentioned_amounts: ExtractedFieldValue
+    mentioned_counterparties: ExtractedFieldValue
+    signature_detected: ExtractedFieldValue
+    related_contract_no: ExtractedFieldValue
+    related_invoice_no: ExtractedFieldValue
+    source_paragraphs: ExtractedFieldValue
+    transcript_summary: ExtractedFieldValue
+    risk_points: ExtractedFieldValue
+
+
+class InterviewOutlineExtraction(BaseModel):
+    topics: ExtractedFieldValue
+    interviewer: ExtractedFieldValue
+    source_paragraphs: ExtractedFieldValue
+
+
+class InterviewSignaturePageExtraction(BaseModel):
+    interviewee_name: ExtractedFieldValue
+    signature_detected: ExtractedFieldValue
+    interview_date: ExtractedFieldValue
+
+
+class InterviewTranscriptExtraction(BaseModel):
+    interview_date: ExtractedFieldValue
+    interviewee_name: ExtractedFieldValue
+    topics: ExtractedFieldValue
+    key_answers: ExtractedFieldValue
+    mentioned_amounts: ExtractedFieldValue
+    mentioned_counterparties: ExtractedFieldValue
+    transcript_summary: ExtractedFieldValue
+    source_paragraphs: ExtractedFieldValue
+
+
 DOCUMENT_EXTRACTION_SCHEMAS = {
     "purchase_request": PurchaseRequestExtraction,
     "purchase_contract": PurchaseContractExtraction,
@@ -257,6 +299,13 @@ CONFIRMATION_DOCUMENT_EXTRACTION_SCHEMAS = {
     "confirmation_adjustment": ConfirmationAdjustmentExtraction,
 }
 
+INTERVIEW_DOCUMENT_EXTRACTION_SCHEMAS = {
+    "interview_record": InterviewRecordExtraction,
+    "interview_outline": InterviewOutlineExtraction,
+    "interview_signature_page": InterviewSignaturePageExtraction,
+    "interview_transcript": InterviewTranscriptExtraction,
+}
+
 
 def validate_document_extraction(
     doc_type: DocumentDocType,
@@ -267,6 +316,7 @@ def validate_document_extraction(
     schemas = {
         "sales": SALES_DOCUMENT_EXTRACTION_SCHEMAS,
         "confirmation": CONFIRMATION_DOCUMENT_EXTRACTION_SCHEMAS,
+        "interview": INTERVIEW_DOCUMENT_EXTRACTION_SCHEMAS,
     }.get(scenario, DOCUMENT_EXTRACTION_SCHEMAS)
     try:
         schemas[doc_type].model_validate(payload)

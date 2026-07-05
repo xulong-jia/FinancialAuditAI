@@ -44,7 +44,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 14 | Bad Case Center 与 Evaluation Center | Post-MVP | DONE | bad_cases、evaluation_results、回归评测 |
 | Phase 15 | 销售穿行扩展 | Post-MVP | DONE | 销售穿行 Schema、规则、控制表 |
 | Phase 16 | 函证模块扩展 | Post-MVP | DONE | 函证字段抽取、差异比对、复核 |
-| Phase 17 | 访谈模块扩展 | Post-MVP | TODO | 访谈字段、关键回答、底稿交叉验证 |
+| Phase 17 | 访谈模块扩展 | Post-MVP | DONE | 访谈字段、关键回答、底稿交叉验证 |
 | Phase 18 | 合同审核模块扩展 | Post-MVP | TODO | 合同条款抽取、风险提示、证据索引 |
 | Phase 19 | RBAC、审计、安全、工程化完善 | Post-MVP | TODO | 用户角色权限、安全、审计、异步工程化 |
 | Phase 20 | 最终验收、文档整理、作品集展示材料 | Post-MVP | TODO | 最终验收清单、文档、截图、展示材料 |
@@ -1401,7 +1401,12 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：访谈模块扩展
 - 是否属于 MVP：否
-- Status: TODO
+- Status: DONE
+- Updated At: 2026-07-05
+
+### Notes
+
+- 2026-07-05: Phase 17 完成 interview 场景横向扩展。复用现有 task/document/OCR/classification/extraction/linkage/audit/review/report/evaluation 基础框架，新增访谈 doc_type、访谈字段 Schema、分类关键词、interviewee_name 归集、五条 INTERVIEW_* 规则、Interview Evidence xlsx 导出、Task Center interview 创建/上传、Report Center interview 预览、synthetic interview sample data 和后端访谈端到端测试。未新增 interview_* 专用表，未实现语音识别、录音上传处理、自动事实裁决、签字真伪鉴定、身份证件识别、外部公开资料核验、合同审核、RBAC 或新 Agent/RAG 能力。
 
 ### 阶段目标
 
@@ -1409,60 +1414,60 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 定义 interview_record doc_type。
-- [ ] 定义访谈字段 Schema。
-- [ ] 抽取被访谈人、职务、单位、日期、主题、关键回答。
-- [ ] 抽取提及金额和提及交易对手。
-- [ ] 实现缺签字、日期异常、底稿差异规则。
+- [x] 定义 interview_record doc_type。
+- [x] 定义访谈字段 Schema。
+- [x] 抽取被访谈人、职务、单位、日期、主题、关键回答。
+- [x] 抽取提及金额和提及交易对手。
+- [x] 实现缺签字、日期异常、底稿差异规则。
 
 ### 前端任务
 
-- [ ] Task Center 支持 interview 场景。
-- [ ] Workbench 支持访谈长文本查看。
-- [ ] 展示关键回答和来源片段。
-- [ ] Review Center 支持访谈差异复核。
+- [x] Task Center 支持 interview 场景。
+- [x] Workbench 支持访谈长文本查看。
+- [x] 展示关键回答和来源片段。
+- [x] Review Center 支持访谈差异复核。
 
 ### 数据库 / Migration 任务
 
-- [ ] 优先复用现有字段和规则结果表。
-- [ ] 如长文本摘要需要版本记录，先补充 tracker。
+- [x] 优先复用现有字段和规则结果表。
+- [x] 如长文本摘要需要版本记录，先补充 tracker。
 
 ### API 任务
 
-- [ ] 复用 OCR/抽取/audit/review API。
-- [ ] 增加访谈场景参数校验。
+- [x] 复用 OCR/抽取/audit/review API。
+- [x] 增加访谈场景参数校验。
 
 ### 测试任务
 
-- [ ] 访谈字段抽取测试。
-- [ ] 关键回答来源证据测试。
-- [ ] 缺签字规则测试。
-- [ ] 提及金额与底稿差异测试。
+- [x] 访谈字段抽取测试。
+- [x] 关键回答来源证据测试。
+- [x] 缺签字规则测试。
+- [x] 提及金额与底稿差异测试。
 
 ### 验收标准
 
-- [ ] 能抽取访谈核心字段。
-- [ ] 能识别提及金额、主体、关键回答。
-- [ ] 缺签字、日期异常和底稿差异进入 Review Center。
+- [x] 能抽取访谈核心字段。
+- [x] 能识别提及金额、主体、关键回答。
+- [x] 缺签字、日期异常和底稿差异进入 Review Center。
 
 ### 交付物
 
-- [ ] 访谈 Schema。
-- [ ] 访谈规则。
-- [ ] 访谈样例数据。
-- [ ] 访谈复核视图。
+- [x] 访谈 Schema。
+- [x] 访谈规则。
+- [x] 访谈样例数据。
+- [x] 访谈复核视图。
 
 ### 风险点
 
-- [ ] 长文本摘要遗漏关键事实。
-- [ ] 口语化内容结构化困难。
-- [ ] 与底稿差异需要人工解释。
+- [x] 长文本摘要遗漏关键事实。
+- [x] 口语化内容结构化困难。
+- [x] 与底稿差异需要人工解释。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做语音识别系统。
-- [ ] 不做自动事实裁决。
-- [ ] 不生成无证据访谈结论。
+- [x] 不做语音识别系统。
+- [x] 不做自动事实裁决。
+- [x] 不生成无证据访谈结论。
 
 ## Phase 18: 合同审核模块扩展
 
@@ -1721,7 +1726,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [x] Phase 14 Bad Case Center 与 Evaluation Center 完成。
 - [x] Phase 15 销售穿行扩展完成。
 - [x] Phase 16 函证模块扩展完成。
-- [ ] Phase 17 访谈模块扩展完成。
+- [x] Phase 17 访谈模块扩展完成。
 - [ ] Phase 18 合同审核模块扩展完成。
 - [ ] Phase 19 RBAC、审计、安全、工程化完善完成。
 - [x] RAG 输出包含 citation 和 no-answer handling。

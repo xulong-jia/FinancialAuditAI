@@ -101,6 +101,26 @@ CONFIRMATION_CONTROL_COLUMNS = [
     "evidence_refs",
     "reviewer_comment",
 ]
+INTERVIEW_CONTROL_COLUMNS = [
+    "task_no",
+    "business_key",
+    "interview_date",
+    "interviewee_name",
+    "interviewee_title",
+    "company_name",
+    "topics",
+    "key_answers",
+    "mentioned_amounts",
+    "mentioned_counterparties",
+    "signature_check",
+    "date_check",
+    "amount_check",
+    "counterparty_check",
+    "missing_field_check",
+    "overall_status",
+    "evidence_refs",
+    "reviewer_comment",
+]
 
 RULE_CHECK_COLUMNS = {
     "PROC_TIME_001": "time_check",
@@ -119,6 +139,11 @@ RULE_CHECK_COLUMNS = {
     "CONF_NAME_001": "name_check",
     "CONF_SEAL_SIGN_001": "seal_sign_check",
     "CONF_MISSING_001": "missing_field_check",
+    "INTERVIEW_DATE_001": "date_check",
+    "INTERVIEW_SIGNATURE_001": "signature_check",
+    "INTERVIEW_AMOUNT_001": "amount_check",
+    "INTERVIEW_COUNTERPARTY_001": "counterparty_check",
+    "INTERVIEW_MISSING_001": "missing_field_check",
 }
 
 
@@ -171,6 +196,9 @@ def generate_control_table_report(
     elif task.scenario == "confirmation":
         report_type = "confirmation_exception_report"
         report_title = f"{task.task_no} Confirmation Exception Report"
+    elif task.scenario == "interview":
+        report_type = "interview_evidence_report"
+        report_title = f"{task.task_no} Interview Evidence Report"
     else:
         report_type = "procurement_control_table"
         report_title = f"{task.task_no} Procurement Control Table"
@@ -286,6 +314,8 @@ def _build_control_rows(
             "amount_check": statuses.get("amount_check", "-"),
             "name_check": statuses.get("name_check", "-"),
             "seal_sign_check": statuses.get("seal_sign_check", "-"),
+            "signature_check": statuses.get("signature_check", "-"),
+            "counterparty_check": statuses.get("counterparty_check", "-"),
             "missing_field_check": statuses.get("missing_field_check", "-"),
             "overall_status": _overall_status([result.status for result in group_results]),
             "evidence_refs": _json(evidence_refs),
@@ -320,6 +350,17 @@ def _build_control_rows(
                 "confirmed_amount": _sum_amounts_for(group_docs, fields_by_document, (("confirmation_reply", "confirmed_amount"), ("confirmation", "confirmed_amount"))),
                 "difference_amount": _sum_amounts_for(group_docs, fields_by_document, (("confirmation_adjustment", "difference_amount"), ("confirmation", "difference_amount"))),
                 "exception_reason": _first_text(group_docs, fields_by_document, (("confirmation_adjustment", "exception_reason"), ("confirmation", "exception_reason"))),
+            }
+        elif task.scenario == "interview":
+            row = common | {
+                "interview_date": _first_text(group_docs, fields_by_document, (("interview_record", "interview_date"), ("interview_transcript", "interview_date"), ("interview_signature_page", "interview_date"))),
+                "interviewee_name": _first_text(group_docs, fields_by_document, (("interview_record", "interviewee_name"), ("interview_transcript", "interviewee_name"), ("interview_signature_page", "interviewee_name"))),
+                "interviewee_title": _first_text(group_docs, fields_by_document, (("interview_record", "interviewee_title"),)),
+                "company_name": _first_text(group_docs, fields_by_document, (("interview_record", "company_name"),)),
+                "topics": _first_text(group_docs, fields_by_document, (("interview_record", "topics"), ("interview_outline", "topics"), ("interview_transcript", "topics"))),
+                "key_answers": _first_text(group_docs, fields_by_document, (("interview_record", "key_answers"), ("interview_transcript", "key_answers"))),
+                "mentioned_amounts": _sum_amounts_for(group_docs, fields_by_document, (("interview_record", "mentioned_amounts"), ("interview_transcript", "mentioned_amounts"))),
+                "mentioned_counterparties": _first_text(group_docs, fields_by_document, (("interview_record", "mentioned_counterparties"), ("interview_transcript", "mentioned_counterparties"))),
             }
         else:
             row = common | {
@@ -357,6 +398,9 @@ def _sheets(
     elif task.scenario == "confirmation":
         control_columns = CONFIRMATION_CONTROL_COLUMNS
         control_sheet_name = "Confirmation Results"
+    elif task.scenario == "interview":
+        control_columns = INTERVIEW_CONTROL_COLUMNS
+        control_sheet_name = "Interview Evidence"
     else:
         control_columns = CONTROL_COLUMNS
         control_sheet_name = "Procurement Control Table"

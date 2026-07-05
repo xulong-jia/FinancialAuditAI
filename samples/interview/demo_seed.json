@@ -1,0 +1,40 @@
+{
+  "task": {
+    "name": "Phase 17 Demo Interview Walkthrough",
+    "scenario": "interview",
+    "project_name": "Synthetic Interview Demo",
+    "company_name": "Demo Audit Client Co",
+    "fiscal_year": 2026,
+    "period_start": "2026-01-01",
+    "period_end": "2026-01-31",
+    "actor_name": "demo_seed"
+  },
+  "business_key": "INTERVIEW-DEMO-MANAGER",
+  "documents": [
+    {
+      "original_filename": "demo_interview_record.pdf",
+      "doc_type": "interview_record",
+      "fields": {
+        "interview_date": "2026-01-20",
+        "interviewee_name": "Demo Manager",
+        "interviewee_title": "Finance Manager",
+        "company_name": "Demo Audit Client Co",
+        "interviewer": "Audit Staff",
+        "topics": "Revenue and receivables",
+        "key_answers": "Synthetic answer about a receivable balance.",
+        "mentioned_amounts": "1000.00",
+        "mentioned_counterparties": "Demo Customer Co",
+        "signature_detected": "yes"
+      }
+    },
+    {
+      "original_filename": "demo_interview_signature_page.pdf",
+      "doc_type": "interview_signature_page",
+      "fields": {
+        "interviewee_name": "Demo Manager",
+        "signature_detected": "yes",
+        "interview_date": "2026-01-20"
+      }
+    }
+  ]
+}

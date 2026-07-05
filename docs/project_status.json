@@ -1,6 +1,6 @@
 {
   "project": "FinancialAuditAI",
-  "last_updated": "2026-07-04",
+  "last_updated": "2026-07-05",
   "status_values": [
     "TODO",
     "IN_PROGRESS",
@@ -1315,7 +1315,7 @@
       "phase_id": 17,
       "name": "访谈模块扩展",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         10
       ],
@@ -1330,46 +1330,46 @@
           "id": "P17-BE-001",
           "title": "定义访谈 Schema、关键回答抽取和差异规则",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added interview schema specs, extraction validation, classification keywords, interviewee_name linkage, and five deterministic INTERVIEW_* rules with evidence and review routing.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P17-FE-001",
           "title": "支持访谈长文本、关键回答和复核展示",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Task Center supports interview task creation and interview document upload types; existing Workbench/Review Center render interview fields and rule results; Report Center previews interview reports.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P17-DB-001",
           "title": "优先复用现有表支持访谈场景",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Reused audit_tasks.scenario, documents.doc_type/business_key, extracted_fields, audit_rules, audit_results, review_comments, reports, and control_table_rows; no interview-specific tables were created.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P17-API-001",
           "title": "复用 OCR、抽取、规则和复核 API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Reused existing task, document, OCR, classify, extract, linkage, audit, review, and report APIs with interview scenario validation and report output.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P17-TEST-001",
           "title": "添加访谈字段、来源证据、缺签字和差异测试",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added interview API tests covering task creation, classification, extraction source evidence, signature rule, date range rule, amount/counterparty differences, review queue, and report export.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         }
       ],
       "acceptance_criteria": [
@@ -1377,9 +1377,9 @@
         "能识别提及金额、主体、关键回答",
         "缺签字、日期异常和底稿差异进入 Review Center"
       ],
-      "notes": "",
+      "notes": "Phase 17 completed interview walkthrough extension by reusing existing generic tables and APIs. Implemented interview scenario validation, interview doc types, field schemas, classification, extraction, interviewee_name linkage, INTERVIEW_* rules, Review Center queue reuse, interview evidence report export, Evaluation classification sample, frontend task/report support, and synthetic interview sample data. No interview_* dedicated tables, speech recognition, recording upload handling, automatic factual adjudication, signature authenticity judgment, identity document recognition, external fact checking, contract review, RBAC, new Agent, or new RAG capability was added.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-05"
     },
     {
       "phase_id": 18,

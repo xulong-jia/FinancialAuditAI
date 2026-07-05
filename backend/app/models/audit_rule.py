@@ -32,6 +32,8 @@ class AuditRule(Base):
             return "sales"
         if self.rule_code.startswith("CONF_"):
             return "confirmation"
+        if self.rule_code.startswith("INTERVIEW_"):
+            return "interview"
         return "procurement"
 
     @property
@@ -43,5 +45,6 @@ class AuditRule(Base):
             "SALES_QTY_001",
             "CONF_DATE_001",
             "CONF_AMOUNT_001",
+            "INTERVIEW_AMOUNT_001",
         }
         return "high" if self.rule_code in high_rules else "medium"

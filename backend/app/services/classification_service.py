@@ -207,6 +207,45 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
         "差异金额",
         "差异原因",
     ),
+    "interview_record": (
+        "interview record",
+        "interview date",
+        "interviewee",
+        "key answers",
+        "mentioned amounts",
+        "访谈记录",
+        "访谈日期",
+        "被访谈人",
+        "关键回答",
+    ),
+    "interview_outline": (
+        "interview outline",
+        "planned questions",
+        "topics",
+        "interviewer",
+        "访谈提纲",
+        "访谈主题",
+        "拟询问问题",
+    ),
+    "interview_signature_page": (
+        "interview signature page",
+        "signature detected",
+        "signature",
+        "signed by",
+        "interviewee",
+        "签字页",
+        "签名",
+        "签字",
+    ),
+    "interview_transcript": (
+        "interview transcript",
+        "transcript summary",
+        "key answers",
+        "mentioned counterparties",
+        "访谈转写",
+        "转写文本",
+        "访谈纪要",
+    ),
 }
 DOC_TYPES_BY_SCENARIO = {
     "procurement": {
@@ -231,6 +270,12 @@ DOC_TYPES_BY_SCENARIO = {
         "confirmation_request",
         "confirmation_reply",
         "confirmation_adjustment",
+    },
+    "interview": {
+        "interview_record",
+        "interview_outline",
+        "interview_signature_page",
+        "interview_transcript",
     },
 }
 
@@ -364,7 +409,7 @@ def _rank_document_types(filename: str, text: str, scenario: str = "procurement"
             elif normalized in filename_text:
                 score += 0.08
                 matched.append(f"filename:{keyword}")
-        if scenario == "confirmation" and doc_type != "confirmation":
+        if scenario in {"confirmation", "interview"} and doc_type not in {"confirmation", "interview_record"}:
             score += 0.03
 
         if matched:

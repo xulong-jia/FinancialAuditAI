@@ -28,7 +28,13 @@ ConfirmationDocType = Literal[
     "confirmation_reply",
     "confirmation_adjustment",
 ]
-DocumentDocType = ProcurementDocType | SalesDocType | ConfirmationDocType
+InterviewDocType = Literal[
+    "interview_record",
+    "interview_outline",
+    "interview_signature_page",
+    "interview_transcript",
+]
+DocumentDocType = ProcurementDocType | SalesDocType | ConfirmationDocType | InterviewDocType
 UnknownDocType = Literal["unknown"]
 ClassificationDocType = DocumentDocType | UnknownDocType
 

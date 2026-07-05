@@ -50,6 +50,12 @@ DOC_TYPES_BY_SCENARIO = {
         "confirmation_reply",
         "confirmation_adjustment",
     },
+    "interview": {
+        "interview_record",
+        "interview_outline",
+        "interview_signature_page",
+        "interview_transcript",
+    },
 }
 
 

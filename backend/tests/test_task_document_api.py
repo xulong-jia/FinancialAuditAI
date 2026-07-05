@@ -1,5 +1,7 @@
 from hashlib import sha256
+from io import BytesIO
 from pathlib import Path
+from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 
@@ -7,6 +9,32 @@ from app.main import app
 
 
 client = TestClient(app)
+
+
+def make_docx(text: str) -> bytes:
+    buffer = BytesIO()
+    with ZipFile(buffer, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            (
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                f"<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>"
+            ),
+        )
+    return buffer.getvalue()
+
+
+def make_xlsx(text: str) -> bytes:
+    buffer = BytesIO()
+    with ZipFile(buffer, "w") as archive:
+        archive.writestr(
+            "xl/worksheets/sheet1.xml",
+            (
+                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                f'<sheetData><row><c t="inlineStr"><is><t>{text}</t></is></c></row></sheetData></worksheet>'
+            ),
+        )
+    return buffer.getvalue()
 
 
 def create_task() -> dict:
@@ -51,7 +79,7 @@ def test_create_list_get_and_update_task() -> None:
     assert patch_response.json()["name"] == "Updated procurement walkthrough"
 
 
-def test_task_run_contract_advances_without_business_processing() -> None:
+def test_task_run_contract_processes_and_surfaces_failed_documents() -> None:
     task = create_task()
 
     draft_run = client.post(f"/api/v1/tasks/{task['id']}/run")
@@ -67,8 +95,8 @@ def test_task_run_contract_advances_without_business_processing() -> None:
     uploaded_run = client.post(f"/api/v1/tasks/{task['id']}/run")
 
     assert uploaded_run.status_code == 200
-    assert uploaded_run.json()["status"] == "uploaded"
-    assert uploaded_run.json()["next_action"] == "run_ocr"
+    assert uploaded_run.json()["status"] == "failed"
+    assert uploaded_run.json()["next_action"] == "inspect_failed_documents"
 
 
 def test_upload_document_records_hash_and_storage_path() -> None:
@@ -141,31 +169,41 @@ def test_unsupported_file_type_is_rejected_without_document_record() -> None:
     assert list_response.json() == []
 
 
-def test_docx_xlsx_uploads_are_rejected_before_ocr_until_parser_exists() -> None:
+def test_docx_xlsx_uploads_are_supported_and_parseable() -> None:
     task = create_task()
 
     docx_response = client.post(
         f"/api/v1/tasks/{task['id']}/documents",
+        data={"doc_type_hint": "purchase_contract"},
         files={
             "file": (
                 "contract.docx",
-                b"PK\x03\x04minimal docx",
+                make_docx("DOCX contract text"),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
         },
     )
     xlsx_response = client.post(
         f"/api/v1/tasks/{task['id']}/documents",
+        data={"doc_type_hint": "invoice"},
         files={
             "file": (
                 "ledger.xlsx",
-                b"PK\x03\x04minimal xlsx",
+                make_xlsx("XLSX invoice text"),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
         },
     )
 
-    assert docx_response.status_code == 400
-    assert docx_response.json()["detail"] == "Unsupported file extension"
-    assert xlsx_response.status_code == 400
-    assert xlsx_response.json()["detail"] == "Unsupported file extension"
+    assert docx_response.status_code == 200
+    assert docx_response.json()["file_ext"] == "docx"
+    assert xlsx_response.status_code == 200
+    assert xlsx_response.json()["file_ext"] == "xlsx"
+
+    for document, expected_text in ((docx_response.json(), "DOCX contract text"), (xlsx_response.json(), "XLSX invoice text")):
+        ocr_response = client.post(f"/api/v1/documents/{document['id']}/ocr")
+        assert ocr_response.status_code == 200
+        assert ocr_response.json()["ocr_status"] == "completed"
+        pages = client.get(f"/api/v1/documents/{document['id']}/pages").json()
+        assert expected_text in pages[0]["raw_text"]
+        assert pages[0]["image_path"]

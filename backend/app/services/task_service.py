@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.models.audit_result import AuditResult
 from app.models.audit_task import AuditTask
 from app.models.document import Document
+from app.models.extracted_field import ExtractedField
+from app.models.report import Report
 from app.models.user import User
 from app.schemas.task import TaskCreate, TaskUpdate
 from app.services import audit_log_service, auth_service
@@ -111,6 +113,7 @@ def _task_snapshot(task: AuditTask) -> dict:
 def run_task(db: Session, task_id: UUID) -> dict:
     task = get_task(db, task_id)
     previous_status = task.status
+    _run_task_pipeline(db, task)
     status, pending_steps, message = _task_run_state(db, task)
     task.status = status
     db.commit()
@@ -123,6 +126,53 @@ def run_task(db: Session, task_id: UUID) -> dict:
         "pending_steps": pending_steps,
         "message": message,
     }
+
+
+def _run_task_pipeline(db: Session, task: AuditTask) -> None:
+    from app.services import classification_service, extraction_service, linkage_service, ocr_service, report_service, rule_engine_service
+
+    documents = list(db.scalars(select(Document).where(Document.task_id == task.id)))
+    if not documents:
+        return
+
+    for document in documents:
+        if document.ocr_status != "completed":
+            if _has_extracted_fields(db, document.id):
+                document.ocr_status = "completed"
+            else:
+                ocr_service.run_ocr(db, document.id)
+        if document.ocr_status == "failed":
+            return
+        if not document.doc_type or document.doc_type == "unknown":
+            classification_service.classify_document(db, document.id)
+        if document.review_status == "need_review":
+            continue
+        if document.extraction_status != "completed":
+            if _has_extracted_fields(db, document.id):
+                document.extraction_status = "completed"
+            else:
+                extraction_service.extract_document(db, document.id)
+
+    db.flush()
+    documents = list(db.scalars(select(Document).where(Document.task_id == task.id)))
+    if any(document.review_status == "need_review" for document in documents):
+        return
+    if any(document.ocr_status != "completed" or document.extraction_status != "completed" for document in documents):
+        return
+    if any(not document.business_key for document in documents):
+        linkage_service.link_documents(db, task.id)
+    results = list(db.scalars(select(AuditResult).where(AuditResult.task_id == task.id)))
+    if not results:
+        results = rule_engine_service.run_audit(db, task.id)
+    if any(result.review_status == "pending" for result in results):
+        return
+    has_report = db.scalar(select(Report.id).where(Report.task_id == task.id).limit(1))
+    if has_report is None:
+        report_service.generate_control_table_report(db, task.id, generated_by=task.actor_name, file_format="xlsx")
+
+
+def _has_extracted_fields(db: Session, document_id: UUID) -> bool:
+    return db.scalar(select(ExtractedField.id).where(ExtractedField.document_id == document_id).limit(1)) is not None
 
 
 def _task_run_state(db: Session, task: AuditTask) -> tuple[str, list[str], str]:

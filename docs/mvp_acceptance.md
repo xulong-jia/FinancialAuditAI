@@ -2,6 +2,8 @@
 
 Date: 2026-07-04
 
+This is a historical Phase 10 MVP acceptance record. It does not describe the current final implementation after later phases and final gap closure.
+
 ## Scope
 
 FinancialAuditAI MVP covers one vertical procurement walkthrough slice:

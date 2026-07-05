@@ -1,6 +1,6 @@
 # Database Schema
 
-This document summarizes the core tables managed by Alembic migrations `0001` through `0014`.
+This document summarizes the core tables managed by Alembic migrations `0001` through `0021`.
 
 ## MVP Tables
 
@@ -9,7 +9,7 @@ This document summarizes the core tables managed by Alembic migrations `0001` th
 | `audit_tasks` | Audit task container | `id`, `task_no`, `name`, `scenario`, `status`, `company_name`, `fiscal_year`, `actor_name` |
 | `documents` | Uploaded document metadata and processing state | `id`, `task_id`, `original_filename`, `file_hash`, `storage_path`, `doc_type`, `business_key`, `ocr_status`, `extraction_status`, `review_status` |
 | `document_pages` | Page-level OCR/parsed text | `id`, `document_id`, `page_number`, `raw_text`, `ocr_blocks`, `table_blocks`, `warnings` |
-| `extracted_fields` | Structured field extraction output | `id`, `task_id`, `document_id`, `field_name`, `value_text`, `value_normalized`, `confidence`, `source_page`, `source_text`, `is_verified` |
+| `extracted_fields` | Structured field extraction output | `id`, `task_id`, `document_id`, `field_name`, `value_text`, `value_normalized`, `original_value_text`, `original_value_normalized`, `original_confidence`, `confidence`, `source_page`, `source_text`, `source_bbox`, `is_verified`, `corrected_by` |
 | `document_relations` | Business linkage between documents | `id`, `task_id`, `business_key`, `source_document_id`, `target_document_id`, `relation_type`, `confidence`, `evidence` |
 | `audit_rules` | Deterministic rule definitions and parameters | `id`, `rule_code`, `name`, `version`, `enabled`, `parameters`, `category`, `severity` |
 | `audit_results` | Rule execution results | `id`, `task_id`, `rule_id`, `rule_code`, `rule_version`, `business_key`, `status`, `severity`, `expected_value`, `actual_value`, `evidence`, `review_status` |

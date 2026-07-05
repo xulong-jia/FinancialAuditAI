@@ -41,7 +41,7 @@ If no user exists, the seed script prints a local demo admin email and generated
 12. Correct a field or confirm/dismiss an exception.
 13. Rerun rules after correction.
 14. Open Report Center.
-15. Generate and download the xlsx report.
+15. Generate and download an xlsx, csv, pdf, or markdown report.
 
 ## RAG Demo
 

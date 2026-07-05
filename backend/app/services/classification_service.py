@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.schemas.document import ClassificationRead, DocumentUpdate
-from app.services import audit_log_service, llm_provider
+from app.services import audit_log_service, llm_provider, model_invocation_service
 
 LOW_CONFIDENCE_THRESHOLD = 0.6
 CLASSIFICATION_CONTRACT_VERSION = "llm-provider-v1"
@@ -416,6 +416,18 @@ def classify_document(db: Session, document_id: UUID) -> ClassificationRead:
     allowed_doc_types = sorted(DOC_TYPES_BY_SCENARIO.get(scenario, DOC_TYPES_BY_SCENARIO["procurement"]))
     provider = llm_provider.get_llm_provider()
     provider_result = provider.classify_document(document.original_filename, text, scenario, allowed_doc_types)
+    model_invocation_service.add_invocation(
+        db,
+        task_id=document.task_id,
+        document_id=document.id,
+        provider=provider_result.provider_name,
+        model_name=provider_result.provider_name,
+        invocation_type="classification",
+        output_schema="ClassificationRead",
+        status="completed" if provider_result.status == "ok" else "degraded",
+        input_text=text,
+        error={"message": provider_result.error} if provider_result.error else None,
+    )
     provider_meta = llm_provider.provider_info(provider_result)
     llm_classification = _classification_from_llm(provider_result.payload, allowed_doc_types) if provider_result.status == "ok" else None
     if llm_classification is not None:

@@ -87,6 +87,9 @@ export type ExtractedField = {
   unit: string | null;
   currency: string | null;
   confidence: number | null;
+  original_value_text: string | null;
+  original_value_normalized: Record<string, unknown> | null;
+  original_confidence: number | null;
   source_page: number | null;
   source_bbox: number[] | null;
   source_text: string | null;
@@ -525,7 +528,7 @@ export type ReportRecord = {
 
 export type ReportGeneratePayload = {
   generated_by?: string;
-  file_format?: "xlsx" | "csv";
+  file_format?: "xlsx" | "csv" | "pdf" | "markdown";
 };
 
 export type KnowledgeBase = "regulation" | "inquiry_case" | "prospectus" | "workpaper";

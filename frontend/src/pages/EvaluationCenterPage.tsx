@@ -76,7 +76,7 @@ export function EvaluationCenterPage({ currentUser }: PageProps) {
           <Alert
             type="info"
             showIcon
-            message="Metrics use synthetic smoke datasets and are not production quality claims."
+            message="Metrics identify dataset kind and are not production quality claims unless a real evaluation dataset is supplied."
           />
         </Space>
       </Card>
@@ -85,7 +85,7 @@ export function EvaluationCenterPage({ currentUser }: PageProps) {
         <Form<EvaluationFormValues>
           form={form}
           layout="vertical"
-          initialValues={{ eval_type: "rule", dataset_name: "phase14_synthetic" }}
+          initialValues={{ eval_type: "regression", dataset_name: "bad_case_regression" }}
           onFinish={(values) => void handleRun(values)}
         >
           <Space align="start" wrap>

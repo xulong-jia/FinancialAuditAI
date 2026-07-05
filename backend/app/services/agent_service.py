@@ -590,6 +590,7 @@ def _retrieve_evidence(db: Session, results: list[AuditResult]) -> dict:
         knowledge_base="regulation",
         top_k=3,
         metadata_filter={},
+        task_id=results[0].task_id if results else None,
     )
     citations = [
         {

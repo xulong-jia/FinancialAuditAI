@@ -4,6 +4,8 @@ Review date: 2026-07-04
 
 Reviewed commit: `df46bea chore: finalize phase 10 mvp delivery`
 
+This is a historical MVP v1 review report for the Phase 10 commit. It does not describe the current final implementation after later phases and final gap closure.
+
 ## Phase Status
 
 - Phase 0-10: `DONE` in `docs/PROJECT_PROGRESS_TRACKER.md` and `docs/project_status.json`.

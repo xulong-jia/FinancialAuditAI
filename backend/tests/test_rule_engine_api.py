@@ -156,6 +156,8 @@ def build_scenario(
     contract_amount: float = 1000.0,
     invoice_amounts: tuple[float, ...] = (800.0,),
     payment_amounts: tuple[float, ...] = (800.0,),
+    request_quantity: float = 10.0,
+    contract_quantity: float = 10.0,
     receipt_quantities: tuple[float, ...] = (10.0,),
     voucher_amount: float = 800.0,
     invoice_seller: str = "Supplier Co",
@@ -201,7 +203,7 @@ def build_scenario(
     maybe("purchase_request", request, "request_date", lambda: add_date(task["id"], request["id"], "request_date", "2026-01-01"))
     maybe("purchase_request", request, "approval_date", lambda: add_date(task["id"], request["id"], "approval_date", "2026-01-05"))
     maybe("purchase_request", request, "approval_status", lambda: add_field(task["id"], request["id"], "approval_status", "approved"))
-    maybe("purchase_request", request, "item_lines", lambda: add_items(task["id"], request["id"], 10.0))
+    maybe("purchase_request", request, "item_lines", lambda: add_items(task["id"], request["id"], request_quantity))
     maybe("purchase_request", request, "total_estimated_amount", lambda: add_money(task["id"], request["id"], "total_estimated_amount", 1000.0))
 
     contract = docs["purchase_contract"][0]
@@ -209,7 +211,7 @@ def build_scenario(
     maybe("purchase_contract", contract, "signing_date", lambda: add_date(task["id"], contract["id"], "signing_date", "2026-01-10"))
     maybe("purchase_contract", contract, "buyer_name", lambda: add_field(task["id"], contract["id"], "buyer_name", "Buyer Co"))
     maybe("purchase_contract", contract, "supplier_name", lambda: add_field(task["id"], contract["id"], "supplier_name", "Supplier Co"))
-    maybe("purchase_contract", contract, "item_lines", lambda: add_items(task["id"], contract["id"], 10.0))
+    maybe("purchase_contract", contract, "item_lines", lambda: add_items(task["id"], contract["id"], contract_quantity))
     maybe("purchase_contract", contract, "amount_including_tax", lambda: add_money(task["id"], contract["id"], "amount_including_tax", contract_amount))
     add_rate(task["id"], contract["id"], "tax_rate", 0.1)
 
@@ -350,6 +352,7 @@ def test_amount_rule_fails_on_overpayment_and_supports_many_invoices_payments() 
     assert results["PROC_AMOUNT_001"]["status"] == "fail"
     assert results["PROC_AMOUNT_001"]["actual_value"]["invoice_total"] > 1000.0
     assert results["PROC_AMOUNT_001"]["actual_value"]["payment_total"] > 1000.0
+    assert any(ref["source_page"] == 1 for ref in results["PROC_AMOUNT_001"]["evidence"]["refs"])
 
 
 def test_failed_rule_result_binds_real_rag_citation_without_overriding_status() -> None:
@@ -429,6 +432,25 @@ def test_quantity_rule_fails_on_basic_quantity_mismatch() -> None:
     assert results["PROC_QTY_001"]["actual_value"]["invoice"] == 9.0
 
 
+def test_quantity_rule_allows_request_quantity_above_contract() -> None:
+    task, _ = build_scenario(request_quantity=12.0, contract_quantity=10.0, receipt_quantities=(10.0,), invoice_quantity=10.0)
+
+    results = run_audit(task["id"])
+
+    assert results["PROC_QTY_001"]["status"] == "pass"
+    assert results["PROC_QTY_001"]["actual_value"]["purchase_request"] == 12.0
+
+
+def test_quantity_rule_fails_when_request_below_contract() -> None:
+    task, _ = build_scenario(request_quantity=8.0, contract_quantity=10.0)
+
+    results = run_audit(task["id"])
+
+    assert results["PROC_QTY_001"]["status"] == "fail"
+    assert results["PROC_QTY_001"]["actual_value"]["purchase_request"] == 8.0
+    assert results["PROC_QTY_001"]["actual_value"]["failures"]["widget"]["reasons"] == ["request_less_than_contract"]
+
+
 def test_quantity_rule_supports_split_receipts() -> None:
     task, _ = build_scenario(receipt_quantities=(4.0, 6.0))
 
@@ -444,7 +466,7 @@ def test_item_rule_checks_multi_item_keys() -> None:
         {"item_name": "Widget A", "item_key": "widget-a", "quantity": 4.0, "unit": "pcs"},
         {"item_name": "Widget B", "item_key": "widget-b", "quantity": 6.0, "unit": "pcs"},
     ]
-    for doc_type in ("purchase_contract", "warehouse_receipt", "invoice"):
+    for doc_type in ("purchase_request", "purchase_contract", "warehouse_receipt", "invoice"):
         set_items(task["id"], docs[doc_type][0]["id"], items)
 
     results = run_audit(task["id"])

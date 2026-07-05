@@ -142,6 +142,10 @@ def test_agent_state_validity_evaluation() -> None:
 def test_regression_evaluation_uses_open_and_fixed_bad_cases() -> None:
     open_case = create_bad_case("open", in_regression=True)
     fixed_case = create_bad_case("fixed", in_regression=True)
+    client.patch(
+        f"/api/v1/bad-cases/{fixed_case['id']}",
+        json={"validation_result": {"regression_passed": True}},
+    )
     create_bad_case("open", in_regression=False)
 
     result = run_eval("regression")

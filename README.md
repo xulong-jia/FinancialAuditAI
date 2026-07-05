@@ -1,6 +1,6 @@
 # FinancialAuditAI
 
-FinancialAuditAI is a financial document review platform that started with a procurement walkthrough MVP and now includes sales walkthrough, confirmation, interview, and contract review extensions. It covers the slice from task creation to document parsing, classification, extraction, linkage, deterministic rule checks, human review, quality evaluation, and xlsx report export.
+FinancialAuditAI is a financial document review platform that started with a procurement walkthrough MVP and now includes sales walkthrough, confirmation, interview, and contract review extensions. It covers the slice from task creation to document parsing, classification, extraction, linkage, deterministic rule checks, human review, quality evaluation, and control table report export.
 
 This MVP is for learning, portfolio, and local demonstration only. It does not provide audit, legal, investment, or compliance advice.
 
@@ -15,7 +15,7 @@ Implemented:
 - Six procurement document types: purchase request, purchase contract, warehouse receipt, invoice, accounting voucher, payment receipt.
 - Rule-based classification, field extraction, document linkage, and procurement MVP rule engine.
 - Audit Workbench, Review Center, and Report Center.
-- xlsx export with Summary, Procurement Control Table, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
+- Report export in xlsx, csv, pdf, and markdown formats, with xlsx retaining Summary, Control Table, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
 - Local PostgreSQL, FastAPI, React + TypeScript + Ant Design, and Docker Compose.
 
 Post-MVP Phase 11 implemented:
@@ -41,9 +41,9 @@ Post-MVP Phase 13 implemented:
 Post-MVP Phase 14 implemented:
 
 - Bad Case Center for synthetic failed sample tracking, status updates, root cause, and fix plan notes.
-- Evaluation Center for synthetic smoke evaluations across classification, OCR, extraction, rules, RAG, Agent workflow, end-to-end, and regression.
+- Evaluation Center for classification, OCR, extraction, rules, RAG, Agent workflow, end-to-end, and regression checks.
 - Evaluation results store dataset name, model/prompt/rule version metadata, metrics, failed cases, and limitations.
-- Failed evaluation samples are converted into Bad Cases; metrics are synthetic quality checks, not production performance claims.
+- Failed evaluation samples are converted into Bad Cases. Metrics identify dataset kind and are not production performance claims unless backed by a real evaluation dataset.
 
 Post-MVP Phase 15 implemented:
 
@@ -88,7 +88,7 @@ Post-MVP Phase 19 implemented:
 
 Not implemented:
 
-- Dashboard, PDF reports.
+- Production BI dashboards, management analytics, or hosted reporting.
 - Enterprise SSO, third-party OAuth login, multi-tenant billing, complex organization management, or production KMS.
 - Complex revenue recognition, sales forecasting, cash-flow forecasting, or customer credit assessment.
 - External confirmation sending, email delivery, bank interfaces, seal authenticity checks, signature authenticity checks, or final confirmation authenticity judgments.
@@ -182,7 +182,7 @@ python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.js
 4. Run OCR, classification, extraction, linkage, and audit rules.
 5. Open Audit Workbench to inspect documents, fields, rule results, and evidence.
 6. Open Review Center to correct low-confidence or missing fields and confirm or dismiss exceptions.
-7. Open Report Center and generate the xlsx control table report.
+7. Open Report Center and generate an xlsx, csv, pdf, or markdown control table report.
 8. Download the report from report history.
 
 Optional seeded demo:
@@ -202,7 +202,7 @@ The seed script uses only synthetic procurement data from `samples/procurement/d
 
 - Use public, simulated, or desensitized files only.
 - Do not upload real customer, bank, invoice, tax, contract, confirmation, reply, interview, transcript, recording, payroll, or confidential audit data.
-- `.env`, `local_storage/`, uploaded files, generated reports, xlsx exports, virtual environments, `node_modules/`, logs, and secrets must not be committed.
+- `.env`, `local_storage/`, uploaded files, generated reports, report exports, virtual environments, `node_modules/`, logs, and secrets must not be committed.
 - Reports are saved under `local_storage/reports`, which is ignored by Git.
 - Uploaded documents are saved under `local_storage/uploads`, which is ignored by Git.
 - Set `AUTH_SECRET_KEY` in local or deployment environment configuration; do not use a production secret from `.env.example`.

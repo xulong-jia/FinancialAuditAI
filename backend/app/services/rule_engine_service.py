@@ -28,6 +28,7 @@ class EvidenceRef:
     doc_type: str | None
     field_name: str
     value: object
+    source_page: int | None = None
     source_text: str | None = None
     source_bbox: list[float] | None = None
     confidence: float | None = None
@@ -615,7 +616,7 @@ def rule_item(context: RuleContext) -> RuleResult:
     item_sets: dict[str, set[str]] = {}
     evidence: list[EvidenceRef] = []
     missing: list[EvidenceRef] = []
-    for doc_type in ("purchase_contract", "warehouse_receipt", "invoice"):
+    for doc_type in ("purchase_request", "purchase_contract", "warehouse_receipt", "invoice"):
         field_values = _fields(context, doc_type, "item_lines")
         item_keys = _aggregate_item_keys(field_values, context.parameters.get("item_mappings"))
         if not field_values or item_keys is None:
@@ -633,7 +634,7 @@ def rule_item(context: RuleContext) -> RuleResult:
             "need_review",
             "medium",
             "Missing line item names prevent item consistency check.",
-            {"items": "contract = receipt = invoice"},
+            {"items": "request = contract = receipt = invoice"},
             {"missing_fields": [ref.field_name for ref in missing]},
             missing,
         )
@@ -650,8 +651,8 @@ def rule_item(context: RuleContext) -> RuleResult:
             "PROC_ITEM_001",
             "fail",
             "high",
-            "Contract, receipt, and invoice item types do not match.",
-            {"items": "contract = receipt = invoice"},
+            "Request, contract, receipt, and invoice item types do not match.",
+            {"items": "request = contract = receipt = invoice"},
             {"item_sets": {key: sorted(value) for key, value in item_sets.items()}, "failures": failures},
             evidence,
         )
@@ -660,8 +661,8 @@ def rule_item(context: RuleContext) -> RuleResult:
         "PROC_ITEM_001",
         _pass_or_warning(evidence),
         _severity_for_pass(evidence),
-        "Contract, receipt, and invoice item types match.",
-        {"items": "contract = receipt = invoice"},
+        "Request, contract, receipt, and invoice item types match.",
+        {"items": "request = contract = receipt = invoice"},
         {"item_sets": {key: sorted(value) for key, value in item_sets.items()}},
         evidence,
     )
@@ -670,7 +671,7 @@ def rule_item(context: RuleContext) -> RuleResult:
 def rule_qty(context: RuleContext) -> RuleResult:
     quantities: list[tuple[str, dict[str, float], list[tuple[ExtractedField, Document]]]] = []
     missing: list[EvidenceRef] = []
-    for doc_type in ("purchase_contract", "warehouse_receipt", "invoice"):
+    for doc_type in ("purchase_request", "purchase_contract", "warehouse_receipt", "invoice"):
         field_values = _fields(context, doc_type, "item_lines")
         quantity_map = _aggregate_quantity_map(field_values, context.parameters.get("item_mappings"))
         if not field_values or quantity_map is None:
@@ -686,7 +687,7 @@ def rule_qty(context: RuleContext) -> RuleResult:
             "need_review",
             "medium",
             "Missing line item quantities prevent quantity check.",
-            {"quantity": "contract = receipt = invoice"},
+            {"quantity": "request >= contract >= receipt and receipt = invoice"},
             {"missing_fields": [ref.field_name for ref in missing]},
             missing,
         )
@@ -700,15 +701,9 @@ def rule_qty(context: RuleContext) -> RuleResult:
     }
     item_keys = {item_key for quantity_map in item_quantities.values() for item_key in quantity_map}
     quantity_failures = {
-        item_key: {
-            doc_type: quantity_map.get(item_key)
-            for doc_type, quantity_map in item_quantities.items()
-        }
+        item_key: _procurement_quantity_failure(item_quantities, item_key, tolerance)
         for item_key in item_keys
-        if None in {quantity_map.get(item_key) for quantity_map in item_quantities.values()}
-        or max(quantity_map.get(item_key, 0.0) for quantity_map in item_quantities.values())
-        - min(quantity_map.get(item_key, 0.0) for quantity_map in item_quantities.values())
-        > tolerance
+        if _procurement_quantity_failure(item_quantities, item_key, tolerance)
     }
     if quantity_failures:
         return _result(
@@ -716,8 +711,8 @@ def rule_qty(context: RuleContext) -> RuleResult:
             "PROC_QTY_001",
             "fail",
             "high",
-            "Contract, receipt, and invoice quantities do not match.",
-            {"quantity": "contract = receipt = invoice", "tolerance": tolerance},
+            "Procurement quantities do not satisfy request >= contract >= receipt and receipt = invoice.",
+            {"quantity": "request >= contract >= receipt and receipt = invoice", "tolerance": tolerance},
             values | {"item_quantities": item_quantities, "failures": quantity_failures},
             evidence,
         )
@@ -726,8 +721,8 @@ def rule_qty(context: RuleContext) -> RuleResult:
         "PROC_QTY_001",
         _pass_or_warning(evidence),
         _severity_for_pass(evidence),
-        "Contract, receipt, and invoice quantities match.",
-        {"quantity": "contract = receipt = invoice", "tolerance": tolerance},
+        "Procurement quantities satisfy request >= contract >= receipt and receipt = invoice.",
+        {"quantity": "request >= contract >= receipt and receipt = invoice", "tolerance": tolerance},
         values | {"item_quantities": item_quantities},
         evidence,
     )
@@ -2051,6 +2046,7 @@ def _rag_citations_for_result(db: Session, result: AuditResult) -> list[dict] | 
             knowledge_base=knowledge_base,
             top_k=3,
             metadata_filter=metadata_filter,
+            task_id=result.task_id,
         )
         for citation in rag_result["citations"]:
             citations.append(_json_citation(citation))
@@ -2348,6 +2344,28 @@ def _quantity_map(field: ExtractedField | None, item_mappings: object = None) ->
     return dict(totals) or None
 
 
+def _procurement_quantity_failure(
+    item_quantities: dict[str, dict[str, float]],
+    item_key: str,
+    tolerance: float,
+) -> dict | None:
+    values = {doc_type: quantity_map.get(item_key) for doc_type, quantity_map in item_quantities.items()}
+    if None in values.values():
+        return values | {"reason": "missing_item_quantity"}
+    request = values.get("purchase_request") or 0.0
+    contract = values.get("purchase_contract") or 0.0
+    receipt = values.get("warehouse_receipt") or 0.0
+    invoice = values.get("invoice") or 0.0
+    reasons = []
+    if request + tolerance < contract:
+        reasons.append("request_less_than_contract")
+    if contract + tolerance < receipt:
+        reasons.append("contract_less_than_receipt")
+    if abs(receipt - invoice) > tolerance:
+        reasons.append("receipt_invoice_mismatch")
+    return values | {"reasons": reasons} if reasons else None
+
+
 def _contract_quantity_failures(context: RuleContext, tolerance: float) -> tuple[dict, list[EvidenceRef]]:
     contract_totals: dict[str, float] = defaultdict(float)
     reference_totals: dict[str, float] = defaultdict(float)
@@ -2405,6 +2423,7 @@ def _evidence_ref(
         doc_type=document.doc_type,
         field_name=field.field_name,
         value=value if value is not None else field.value_text,
+        source_page=field.source_page,
         source_text=field.source_text,
         source_bbox=field.source_bbox,
         confidence=field.confidence,
@@ -2422,6 +2441,7 @@ def _missing_ref(
         doc_type=document.doc_type if document else doc_type,
         field_name=field_name,
         value=None,
+        source_page=field.source_page if field else None,
         source_text=field.source_text if field else None,
         source_bbox=field.source_bbox if field else None,
         confidence=field.confidence if field else None,

@@ -4,8 +4,12 @@ from xml.etree import ElementTree
 from zipfile import ZipFile
 
 from app.db.session import SessionLocal
+from app.models.audit_result import AuditResult
 from app.models.control_table_row import ControlTableRow
+from app.models.document import Document
+from app.models.extracted_field import ExtractedField
 from app.models.report import Report
+from app.services import report_service
 from test_review_api import field_by_name
 from test_rule_engine_api import build_scenario, client, run_audit
 
@@ -119,6 +123,16 @@ def test_report_xlsx_exports_exceptions_evidence_and_field_corrections() -> None
     assert "General report review note." in corrections_xml
     assert "Supplier Corrected Co" in corrections_xml
     assert "PROC_MISSING_001" in rules_xml
+
+    with SessionLocal() as db:
+        task_uuid = UUID(task["id"])
+        evidence_rows = report_service._evidence_rows(
+            db.query(Document).filter(Document.task_id == task_uuid).all(),
+            db.query(ExtractedField).filter(ExtractedField.task_id == task_uuid).all(),
+            db.query(AuditResult).filter(AuditResult.task_id == task_uuid).all(),
+        )
+    source_page_index = evidence_rows[0].index("source_page")
+    assert any(row[0] == "audit_result" and row[source_page_index] == 1 for row in evidence_rows[1:])
 
 
 def test_control_table_report_generates_csv_download() -> None:

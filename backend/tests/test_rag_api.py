@@ -5,12 +5,32 @@ from app.main import app
 client = TestClient(app)
 
 
+def auth_headers(email: str, password: str = "test-password") -> dict[str, str]:
+    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def create_user(email: str, role_codes: list[str]) -> None:
+    response = client.post(
+        "/api/v1/users",
+        json={
+            "email": email,
+            "password": "test-password",
+            "full_name": email.split("@")[0],
+            "role_codes": role_codes,
+        },
+    )
+    assert response.status_code == 200
+
+
 def create_rag_document(
     *,
     knowledge_base: str = "regulation",
     title: str = "Revenue Guidance",
     text: str = "Revenue recognition requires persuasive evidence and consistent policy.",
     metadata_json: str = '{"issuer":"SEC","topic":"revenue"}',
+    headers: dict[str, str] | None = None,
 ) -> dict:
     response = client.post(
         "/api/v1/rag/documents",
@@ -22,6 +42,7 @@ def create_rag_document(
             "content_text": text,
             "created_by": "rag_test",
         },
+        headers=headers,
     )
     assert response.status_code == 200
     return response.json()
@@ -112,6 +133,7 @@ def test_rag_no_answer_when_evidence_is_insufficient() -> None:
 
 
 def test_workpaper_and_public_knowledge_bases_are_isolated() -> None:
+    task = client.post("/api/v1/tasks", json={"name": "RAG scoped task", "scenario": "procurement"}).json()
     public_doc = create_rag_document(
         knowledge_base="regulation",
         title="Public Cash Rule",
@@ -121,14 +143,14 @@ def test_workpaper_and_public_knowledge_bases_are_isolated() -> None:
     workpaper_doc = create_rag_document(
         knowledge_base="workpaper",
         title="Task Workpaper Cash",
-        text="Cash disbursement approvals in task WP-001 include reviewer correction notes.",
-        metadata_json='{"scope":"workpaper","task_id":"WP-001"}',
+        text="Cash disbursement approvals in the scoped task include reviewer correction notes.",
+        metadata_json=f'{{"scope":"workpaper","task_id":"{task["id"]}"}}',
     )
     index_document(public_doc["id"])
     index_document(workpaper_doc["id"])
 
     public_result = query_rag("cash disbursement approvals", "regulation")
-    workpaper_result = query_rag("cash disbursement approvals", "workpaper")
+    workpaper_result = query_rag("cash disbursement approvals", "workpaper", metadata_filter={"task_id": task["id"]})
 
     assert public_result["status"] == "answer"
     assert {citation["knowledge_base"] for citation in public_result["citations"]} == {"regulation"}
@@ -136,6 +158,51 @@ def test_workpaper_and_public_knowledge_bases_are_isolated() -> None:
     assert workpaper_result["status"] == "answer"
     assert {citation["knowledge_base"] for citation in workpaper_result["citations"]} == {"workpaper"}
     assert {citation["title"] for citation in workpaper_result["citations"]} == {"Task Workpaper Cash"}
+
+
+def test_workpaper_documents_require_task_scope_and_filter_by_user_scope() -> None:
+    create_user("owner-one@example.com", ["analyst"])
+    create_user("owner-two@example.com", ["analyst"])
+    owner_one_headers = auth_headers("owner-one@example.com")
+    owner_two_headers = auth_headers("owner-two@example.com")
+    task_one = client.post("/api/v1/tasks", json={"name": "Owner one task", "scenario": "procurement"}, headers=owner_one_headers).json()
+    task_two = client.post("/api/v1/tasks", json={"name": "Owner two task", "scenario": "procurement"}, headers=owner_two_headers).json()
+
+    missing_scope = client.post(
+        "/api/v1/rag/documents",
+        data={
+            "knowledge_base": "workpaper",
+            "title": "Missing Scope",
+            "source_type": "synthetic_text",
+            "content_text": "workpaper text",
+        },
+    )
+    assert missing_scope.status_code == 400
+    assert missing_scope.json()["detail"] == "workpaper RAG documents require metadata.task_id"
+
+    doc_one = create_rag_document(
+        knowledge_base="workpaper",
+        title="Owner One Workpaper",
+        text="scope guarded evidence for owner one",
+        metadata_json=f'{{"task_id":"{task_one["id"]}"}}',
+    )
+    doc_two = create_rag_document(
+        knowledge_base="workpaper",
+        title="Owner Two Workpaper",
+        text="scope guarded evidence for owner two",
+        metadata_json=f'{{"task_id":"{task_two["id"]}"}}',
+    )
+    index_document(doc_one["id"])
+    index_document(doc_two["id"])
+
+    owner_one_docs = client.get("/api/v1/rag/documents?knowledge_base=workpaper", headers=owner_one_headers)
+    assert owner_one_docs.status_code == 200
+    assert {document["title"] for document in owner_one_docs.json()} == {"Owner One Workpaper"}
+
+    admin_result = query_rag("scope guarded owner two", "workpaper", metadata_filter={"task_id": task_two["id"]})
+    chunk_id = admin_result["citations"][0]["chunk_id"]
+    forbidden_chunk = client.get(f"/api/v1/rag/chunks/{chunk_id}", headers=owner_one_headers)
+    assert forbidden_chunk.status_code == 403
 
 
 def test_invalid_metadata_json_is_rejected() -> None:

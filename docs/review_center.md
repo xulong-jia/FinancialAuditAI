@@ -17,6 +17,7 @@ Reviewers can correct extracted fields through `PATCH /api/v1/fields/{field_id}`
 Correction behavior:
 
 - Keeps original `source_page`, `source_text`, and `source_bbox`.
+- Preserves the first extracted value in `original_value_text`, `original_value_normalized`, and `original_confidence`.
 - Stores corrected value and normalized value.
 - Marks field as verified.
 - Writes `review_comments` with before/after.

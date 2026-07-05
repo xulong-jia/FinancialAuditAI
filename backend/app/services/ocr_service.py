@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from xml.etree import ElementTree
+from zipfile import BadZipFile, ZipFile
 from uuid import UUID
 
 import fitz
@@ -131,7 +133,52 @@ def _parse_document(document: Document, path: Path) -> list[DocumentPage]:
         return _parse_pdf(document, path)
     if document.file_ext in {"png", "jpg", "jpeg"}:
         return BasicImageOcrProvider().parse(document, path)
-    raise NotImplementedError(f"OCR is not supported for .{document.file_ext} in Phase 2")
+    if document.file_ext == "docx":
+        return _parse_docx(document, path)
+    if document.file_ext == "xlsx":
+        return _parse_xlsx(document, path)
+    raise ValueError(f"OCR is not supported for .{document.file_ext}")
+
+
+def _parse_docx(document: Document, path: Path) -> list[DocumentPage]:
+    try:
+        with ZipFile(path) as archive:
+            root = ElementTree.fromstring(archive.read("word/document.xml"))
+    except (BadZipFile, KeyError, ElementTree.ParseError) as exc:
+        raise ValueError("DOCX text could not be parsed") from exc
+
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    lines = []
+    for paragraph in root.findall(".//w:p", namespace):
+        text = "".join(node.text or "" for node in paragraph.findall(".//w:t", namespace)).strip()
+        if text:
+            lines.append(text)
+    return [_office_page(document, "\n".join(lines), "docx-xml", [])]
+
+
+def _parse_xlsx(document: Document, path: Path) -> list[DocumentPage]:
+    try:
+        with ZipFile(path) as archive:
+            shared_strings = _xlsx_shared_strings(archive)
+            rows = []
+            text_lines = []
+            for sheet_name in sorted(name for name in archive.namelist() if name.startswith("xl/worksheets/sheet") and name.endswith(".xml")):
+                root = ElementTree.fromstring(archive.read(sheet_name))
+                for row in root.findall(".//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}row"):
+                    cells = [
+                        value
+                        for value in (_xlsx_cell_text(cell, shared_strings) for cell in row.findall("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c"))
+                        if value
+                    ]
+                    if cells:
+                        source_text = " | ".join(cells)
+                        rows.append({"line_number": len(rows) + 1, "cells": cells, "source_text": source_text})
+                        text_lines.append(source_text)
+    except (BadZipFile, KeyError, ElementTree.ParseError) as exc:
+        raise ValueError("XLSX text could not be parsed") from exc
+
+    table_blocks = [{"type": "xlsx_sheet_rows", "rows": rows, "confidence": None}] if rows else []
+    return [_office_page(document, "\n".join(text_lines), "xlsx-xml", table_blocks)]
 
 
 def _parse_pdf(document: Document, path: Path) -> list[DocumentPage]:
@@ -196,6 +243,61 @@ def _save_image_page(document: Document, page_number: int, pixmap: fitz.Pixmap) 
 def _render_pdf_page_image(document: Document, page_number: int, page: fitz.Page) -> str:
     pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
     return _save_image_page(document, page_number, pixmap)
+
+
+def _office_page(document: Document, text: str, engine: str, table_blocks: list[dict]) -> DocumentPage:
+    image_path, width, height = _render_text_preview_image(document, text)
+    warnings = ["digital_text_confidence_not_applicable"]
+    if not text:
+        warnings.append("empty_text")
+    return DocumentPage(
+        document_id=document.id,
+        page_number=1,
+        raw_text=text,
+        ocr_blocks=[{"text": text, "bbox": None, "confidence": None, "confidence_source": "digital_text"}] if text else [],
+        table_blocks=table_blocks or _table_blocks(text),
+        image_path=image_path,
+        width=width,
+        height=height,
+        ocr_engine=engine,
+        ocr_confidence=None,
+        warnings=warnings,
+    )
+
+
+def _render_text_preview_image(document: Document, text: str) -> tuple[str, int, int]:
+    preview = fitz.open()
+    page = preview.new_page(width=595, height=842)
+    page.insert_textbox(fitz.Rect(36, 36, 559, 806), (text or "(empty document)")[:5000], fontsize=9)
+    pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+    image_path = _save_image_page(document, 1, pixmap)
+    width = pixmap.width
+    height = pixmap.height
+    preview.close()
+    return image_path, width, height
+
+
+def _xlsx_shared_strings(archive: ZipFile) -> list[str]:
+    try:
+        root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+    except KeyError:
+        return []
+    namespace = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    return [
+        "".join(node.text or "" for node in item.findall(f".//{namespace}t"))
+        for item in root.findall(f"{namespace}si")
+    ]
+
+
+def _xlsx_cell_text(cell: ElementTree.Element, shared_strings: list[str]) -> str:
+    namespace = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    value = cell.findtext(f"{namespace}v")
+    if cell.attrib.get("t") == "s" and value is not None:
+        index = int(value)
+        return shared_strings[index] if 0 <= index < len(shared_strings) else ""
+    if cell.attrib.get("t") == "inlineStr":
+        return "".join(node.text or "" for node in cell.findall(f".//{namespace}t")).strip()
+    return (value or "").strip()
 
 
 def _text_blocks(page: fitz.Page, text_page: fitz.TextPage | None = None) -> list[dict]:

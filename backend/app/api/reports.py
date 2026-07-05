@@ -52,6 +52,10 @@ def download_report(report_id: UUID, db: Session = Depends(get_db), user: User =
     path = report_service.report_file_path(report)
     if report.file_format == "csv":
         return FileResponse(path, media_type="text/csv", filename=f"{report.title}.csv")
+    if report.file_format == "markdown":
+        return FileResponse(path, media_type="text/markdown", filename=f"{report.title}.md")
+    if report.file_format == "pdf":
+        return FileResponse(path, media_type="application/pdf", filename=f"{report.title}.pdf")
     return FileResponse(
         path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

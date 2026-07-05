@@ -43,11 +43,11 @@ Supported eval types:
 - end-to-end smoke success
 - regression pass/fail counts
 
-Metrics are based on synthetic smoke datasets and include limitations when sample size is small.
+Metrics identify the dataset kind and include limitations when sample size is small or the dataset is a built-in sample set. They are not production performance claims unless a real evaluation dataset is supplied.
 
 ## Regression
 
-Regression evaluations can select open/fixed Bad Cases and save pass/fail results. Failed evaluation samples can become Bad Cases.
+Regression evaluations select Bad Cases marked for regression and determine pass/fail from validation results or expected-vs-actual output comparison. Failed evaluation samples can become Bad Cases.
 
 ## Boundaries
 

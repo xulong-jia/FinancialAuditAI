@@ -15,7 +15,7 @@ from app.models.document_page import DocumentPage
 from app.models.extracted_field import ExtractedField
 from app.schemas.document import DocumentDocType
 from app.schemas.extraction import ExtractedFieldValue, FieldType, validate_document_extraction
-from app.services import audit_log_service, llm_provider
+from app.services import audit_log_service, llm_provider, model_invocation_service
 
 
 class ExtractionProviderError(ValueError):
@@ -473,6 +473,18 @@ def extract_document(db: Session, document_id: UUID) -> list[ExtractedField]:
         raise HTTPException(status_code=400, detail="Document pages are required before extraction")
 
     values, extraction_method, provider_meta = _extract_values(document, scenario, specs, pages)
+    model_invocation_service.add_invocation(
+        db,
+        task_id=document.task_id,
+        document_id=document.id,
+        provider=str(provider_meta.get("provider_name") or provider_meta.get("provider") or "unknown"),
+        model_name=str(provider_meta.get("provider_name") or provider_meta.get("provider") or "unknown"),
+        invocation_type="extraction",
+        output_schema=document.doc_type,
+        status="degraded" if provider_meta.get("fallback_used") else "completed",
+        input_text="\n".join(page.raw_text for page in pages),
+        error={"message": str(provider_meta.get("error"))} if provider_meta.get("error") else None,
+    )
     try:
         validate_document_extraction(cast(DocumentDocType, document.doc_type), values, scenario)
     except ValidationError as exc:
@@ -810,6 +822,9 @@ def _to_model(document: Document, spec: FieldSpec, value: ExtractedFieldValue, e
         field_type=value.field_type,
         value_text=value.value_text,
         value_normalized=value.value_normalized,
+        original_value_text=value.value_text,
+        original_value_normalized=value.value_normalized,
+        original_confidence=value.confidence,
         unit=_field_unit(value),
         currency=_field_currency(value),
         confidence=value.confidence,

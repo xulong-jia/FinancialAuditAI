@@ -34,7 +34,7 @@ def run_evaluation(db: Session, payload: EvaluationRunRequest) -> EvaluationResu
         raise HTTPException(status_code=400, detail="Unsupported evaluation type")
 
     result = EvaluationResult(
-        eval_name=payload.eval_name or f"{payload.eval_type}_synthetic_eval",
+        eval_name=payload.eval_name or f"{payload.eval_type}_evaluation",
         eval_type=payload.eval_type,
         dataset_name=payload.dataset_name,
         model_name=payload.model_name,
@@ -301,12 +301,17 @@ def _evaluate_regression(db: Session) -> tuple[int, dict, list[dict]]:
         _failed_case(
             "regression",
             case.title,
-            {"status": case.status, "bad_case_id": str(case.id)},
-            {"status": "fixed"},
+            {
+                "status": case.status,
+                "bad_case_id": str(case.id),
+                "validation_result": case.validation_result,
+                "model_output": case.model_output,
+            },
+            {"expected_output": case.expected_output, "validated": True},
             case.severity,
         )
         for case in cases
-        if case.status in {"open", "reopened"}
+        if not _case_regression_passed(case)
     ]
     return (
         len(cases),
@@ -323,6 +328,15 @@ def _evaluate_regression(db: Session) -> tuple[int, dict, list[dict]]:
         },
         failed,
     )
+
+
+def _case_regression_passed(case: BadCase) -> bool:
+    if isinstance(case.validation_result, dict):
+        if case.validation_result.get("regression_passed") is True or case.validation_result.get("passed") is True:
+            return True
+        if case.validation_result.get("regression_passed") is False or case.validation_result.get("passed") is False:
+            return False
+    return case.model_output == case.expected_output
 
 
 def _project_demo_samples() -> list[dict]:
@@ -453,7 +467,7 @@ def _bad_case_type(eval_type: str) -> str:
 
 
 def _limitations(sample_count: int, dataset_kind: str | None = None) -> dict:
-    kind = dataset_kind or "synthetic_smoke"
+    kind = dataset_kind or "unclassified_dataset"
     return {
         "dataset_kind": kind,
         "is_production_evaluation": False,

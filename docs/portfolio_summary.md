@@ -2,7 +2,7 @@
 
 ## One-Line Positioning
 
-FinancialAuditAI is a local-first financial document review platform that turns audit-style document evidence into traceable fields, deterministic rule results, human review records, and xlsx reports.
+FinancialAuditAI is a local-first financial document review platform that turns audit-style document evidence into traceable fields, deterministic rule results, human review records, and control table reports.
 
 ## Project Boundary
 
@@ -13,7 +13,7 @@ The project is a portfolio and learning system. It uses synthetic, simulated, de
 - Backend: FastAPI, SQLAlchemy, Alembic, Pydantic.
 - Database: PostgreSQL, pgvector.
 - Frontend: React, TypeScript, Vite, Ant Design.
-- Reports: xlsx export.
+- Reports: xlsx, csv, pdf, and markdown export.
 - Storage: local filesystem under ignored `local_storage`.
 - Testing: pytest and frontend build verification.
 
@@ -26,7 +26,7 @@ The project is a portfolio and learning system. It uses synthetic, simulated, de
 - Deterministic Rule Engine with evidence.
 - Audit Workbench.
 - Review Center with before/after and audit logs.
-- Report Center xlsx export.
+- Report Center report export.
 - RAG Knowledge Center with citations and no-answer handling.
 - Rule Center for version and parameters.
 - Controlled Agent Workflow with state machine and tool whitelist.

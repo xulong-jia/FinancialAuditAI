@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.models.rag_chunk import RagChunk
 from app.models.rag_document import RagDocument
 from app.schemas.rag import KnowledgeBase
-from app.services import audit_log_service, llm_provider
+from app.services import audit_log_service, llm_provider, model_invocation_service
 
 ALLOWED_KNOWLEDGE_BASES = {"regulation", "inquiry_case", "prospectus", "workpaper"}
 ALLOWED_EXTENSIONS = {"txt", "pdf"}
@@ -204,22 +204,59 @@ def index_document(db: Session, document_id: UUID) -> dict:
     }
 
 
-def query(db: Session, query_text: str, knowledge_base: KnowledgeBase, top_k: int, metadata_filter: dict) -> dict:
+def query(
+    db: Session,
+    query_text: str,
+    knowledge_base: KnowledgeBase,
+    top_k: int,
+    metadata_filter: dict,
+    task_id: UUID | None = None,
+) -> dict:
     _validate_knowledge_base(knowledge_base)
+    if knowledge_base == "workpaper" and not metadata_filter.get("task_id"):
+        raise HTTPException(status_code=400, detail="workpaper RAG queries require metadata_filter.task_id")
     provider = _embedding_provider()
-    embedding = _vector_literal(provider.embed(query_text))
+    embedding_vector = provider.embed(query_text)
+    model_invocation_service.add_invocation(
+        db,
+        provider=provider.name,
+        model_name=provider.name,
+        invocation_type="embedding",
+        task_id=task_id,
+        status="degraded" if provider.kind == "deterministic_fallback" else "completed",
+        input_text=query_text,
+    )
+    embedding = _vector_literal(embedding_vector)
     rows = _search_chunks(db, knowledge_base, embedding, metadata_filter, top_k)
     citations, rerank_info = _rerank_citations(query_text, [
         _citation(row)
         for row in rows
         if row["score"] >= MIN_SCORE and _has_token_overlap(query_text, row["chunk_text"])
     ])
+    model_invocation_service.add_invocation(
+        db,
+        provider=str(rerank_info.get("rerank_provider") or settings.rag_rerank_provider),
+        model_name=str(rerank_info.get("rerank_provider") or settings.rag_rerank_provider),
+        invocation_type="rag_rerank",
+        task_id=task_id,
+        status="degraded" if rerank_info.get("rerank_provider_status") == "deterministic_fallback" else "completed",
+        input_text=query_text,
+    )
     provider_info = {
         "embedding_provider": provider.name,
         "embedding_provider_kind": provider.kind,
         **rerank_info,
     }
     if not citations:
+        model_invocation_service.add_invocation(
+            db,
+            provider=settings.rag_answer_provider,
+            model_name=settings.rag_answer_provider,
+            invocation_type="rag_answer",
+            task_id=task_id,
+            status="skipped_no_citations",
+            input_text=query_text,
+        )
         return {
             "status": "no_answer",
             "answer": "Evidence insufficient. No citation met the retrieval threshold.",
@@ -236,6 +273,16 @@ def query(db: Session, query_text: str, knowledge_base: KnowledgeBase, top_k: in
             },
         }
     answer_provider_result = llm_provider.get_llm_provider("rag_answer").generate_rag_answer(query_text, knowledge_base, citations)
+    model_invocation_service.add_invocation(
+        db,
+        provider=answer_provider_result.provider_name,
+        model_name=answer_provider_result.provider_name,
+        invocation_type="rag_answer",
+        task_id=task_id,
+        status="completed" if answer_provider_result.status == "ok" else "degraded",
+        input_text=query_text,
+        error={"message": answer_provider_result.error} if answer_provider_result.error else None,
+    )
     provider_info = provider_info | {
         "answer_provider": answer_provider_result.provider_name,
         "answer_provider_kind": answer_provider_result.provider_kind,

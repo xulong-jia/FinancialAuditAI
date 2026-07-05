@@ -140,7 +140,7 @@ export function ReportCenterPage({ currentUser }: PageProps) {
     void loadInitialData();
   }, []);
 
-  async function handleGenerateReport(fileFormat: "xlsx" | "csv") {
+  async function handleGenerateReport(fileFormat: "xlsx" | "csv" | "pdf" | "markdown") {
     if (!selectedTaskId) {
       message.warning("Select a task first");
       return;
@@ -209,6 +209,20 @@ export function ReportCenterPage({ currentUser }: PageProps) {
             onClick={() => void handleGenerateReport("csv")}
           >
             Generate CSV
+          </Button>
+          <Button
+            loading={loading}
+            disabled={!selectedTaskId || !canGenerateReport}
+            onClick={() => void handleGenerateReport("pdf")}
+          >
+            Generate PDF
+          </Button>
+          <Button
+            loading={loading}
+            disabled={!selectedTaskId || !canGenerateReport}
+            onClick={() => void handleGenerateReport("markdown")}
+          >
+            Generate Markdown
           </Button>
         </Space>
       </Card>

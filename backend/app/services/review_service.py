@@ -171,6 +171,7 @@ def update_field(db: Session, field_id: UUID, payload: FieldCorrection) -> Extra
     if field is None:
         raise HTTPException(status_code=404, detail="Field not found")
 
+    _ensure_original_snapshot(field)
     before = _field_snapshot(field)
     if "value_text" in payload.model_fields_set:
         field.value_text = payload.value_text
@@ -526,6 +527,9 @@ def _field_snapshot(field: ExtractedField) -> dict:
         "field_label": field.field_label,
         "value_text": field.value_text,
         "value_normalized": field.value_normalized,
+        "original_value_text": field.original_value_text,
+        "original_value_normalized": field.original_value_normalized,
+        "original_confidence": field.original_confidence,
         "confidence": field.confidence,
         "warnings": field.warnings or [],
         "source_page": field.source_page,
@@ -533,6 +537,17 @@ def _field_snapshot(field: ExtractedField) -> dict:
         "source_bbox": field.source_bbox,
         "is_verified": field.is_verified,
     }
+
+
+def _ensure_original_snapshot(field: ExtractedField) -> None:
+    if (
+        field.original_value_text is None
+        and field.original_value_normalized is None
+        and field.original_confidence is None
+    ):
+        field.original_value_text = field.value_text
+        field.original_value_normalized = field.value_normalized
+        field.original_confidence = field.confidence
 
 
 def _result_snapshot(result: AuditResult) -> dict:

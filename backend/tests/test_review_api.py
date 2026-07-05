@@ -71,6 +71,7 @@ def test_field_correction_preserves_source_and_writes_before_after_log() -> None
     assert response.status_code == 200
     payload = response.json()
     assert payload["value_text"] == "Supplier Corrected Co"
+    assert payload["original_value_text"] == "Supplier Co"
     assert payload["is_verified"] is True
     assert payload["corrected_by"] == "reviewer"
     assert payload["source_page"] == original_source_page

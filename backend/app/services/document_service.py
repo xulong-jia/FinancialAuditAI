@@ -11,12 +11,20 @@ from app.models.document import Document
 from app.schemas.document import DocumentDocType
 from app.services import audit_log_service
 
-ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg"}
+ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "docx", "xlsx"}
 ALLOWED_CONTENT_TYPES = {
     "pdf": {"application/pdf"},
     "png": {"image/png"},
     "jpg": {"image/jpeg"},
     "jpeg": {"image/jpeg"},
+    "docx": {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/octet-stream",
+    },
+    "xlsx": {
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/octet-stream",
+    },
 }
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024
 KNOWLEDGE_DOC_TYPES = {
@@ -198,5 +206,7 @@ def _has_expected_signature(extension: str, data: bytes) -> bool:
         "png": (b"\x89PNG\r\n\x1a\n",),
         "jpg": (b"\xff\xd8\xff",),
         "jpeg": (b"\xff\xd8\xff",),
+        "docx": (b"PK\x03\x04",),
+        "xlsx": (b"PK\x03\x04",),
     }
     return any(data.startswith(signature) for signature in signatures.get(extension, ()))

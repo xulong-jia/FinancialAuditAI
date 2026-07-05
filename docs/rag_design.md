@@ -9,7 +9,7 @@ RAG provides evidence retrieval and citations. It does not replace Rule Engine o
 - `prospectus`: public prospectus sections.
 - `workpaper`: current project workpapers, OCR text, fields, and review data.
 
-`workpaper` is isolated by `knowledge_base`; it must not be mixed into public knowledge bases.
+`workpaper` is isolated by `knowledge_base` and task scope; workpaper queries require a task id in `metadata_filter.task_id` and object-level task access.
 
 ## Storage
 
@@ -27,7 +27,8 @@ RAG provides evidence retrieval and citations. It does not replace Rule Engine o
 
 - The provider is abstracted behind the RAG service.
 - Local tests and demos use deterministic embeddings, so no external API key is required.
-- Real providers must be configured through environment variables and must not commit secrets.
+- Real embedding, rerank, and answer providers must be configured through environment variables and must not commit secrets.
+- Embedding, rerank, and answer calls write `model_invocations`; deterministic fallback is marked as degraded.
 
 ## Query Behavior
 

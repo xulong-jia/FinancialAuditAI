@@ -85,8 +85,8 @@ class BadCaseRead(BaseModel):
 class EvaluationRunRequest(BaseModel):
     eval_type: EvalType
     eval_name: str | None = Field(default=None, max_length=160)
-    dataset_name: str = Field(default="phase14_synthetic", min_length=1, max_length=160)
-    model_name: str | None = Field(default="deterministic-local", max_length=160)
+    dataset_name: str = Field(default="bad_case_regression", min_length=1, max_length=160)
+    model_name: str | None = Field(default=None, max_length=160)
     prompt_version: str | None = Field(default=None, max_length=80)
     rule_version: str | None = Field(default=None, max_length=80)
     created_by: str | None = Field(default=None, max_length=120)

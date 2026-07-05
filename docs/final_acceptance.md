@@ -16,7 +16,7 @@ FinancialAuditAI has completed Phase 0 through Phase 20. The final project is a 
 - [x] Deterministic Rule Engine.
 - [x] Audit Workbench evidence inspection.
 - [x] Review Center before/after closure.
-- [x] Report Center xlsx export.
+- [x] Report Center xlsx, csv, pdf, and markdown export.
 - [x] RAG Knowledge Center.
 - [x] Rule Center configuration.
 - [x] Agent Workflow state machine.
@@ -27,7 +27,7 @@ FinancialAuditAI has completed Phase 0 through Phase 20. The final project is a 
 ## Backend Acceptance
 
 - [x] FastAPI routes are under `/api/v1`, except `/health`.
-- [x] Error responses use FastAPI `{"detail": ...}` shape for expected errors.
+- [x] API JSON responses include `request_id`; expected errors use `{error, request_id}` envelope.
 - [x] No dead route was removed during Phase 20; route set is documented.
 - [x] Seed script is documented and uses synthetic demo data.
 - [x] No new backend business feature was added in Phase 20.
@@ -79,7 +79,7 @@ FinancialAuditAI has completed Phase 0 through Phase 20. The final project is a 
 - [x] Field corrections preserve source evidence.
 - [x] before/after is stored.
 - [x] Confirm/dismiss/rerun is documented.
-- [x] Report Center exports xlsx and keeps failures visible.
+- [x] Report Center exports reports and keeps failures visible.
 
 ## Evaluation Acceptance
 
@@ -113,19 +113,16 @@ FinancialAuditAI has completed Phase 0 through Phase 20. The final project is a 
 - [x] Portfolio summary.
 - [x] Screenshot checklist.
 
-## Verification Results
+## Latest Verification Results
 
 | Check | Result |
 | --- | --- |
-| `alembic upgrade head` on current database | PASS |
-| Alembic migrations from temporary empty database | PASS |
-| `pytest -q` | PASS, 108 passed |
+| `cd backend && ./.venv/bin/python -m pytest tests` | PASS, 146 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `npm run build` | PASS, Vite chunk-size warning only |
-| `python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.json` | PASS |
 | `docker compose config` | PASS |
-| PostgreSQL container health | PASS, healthy |
-| `python ../scripts/seed_demo_data.py` | PASS, synthetic task/report generated under ignored `local_storage` |
-| `python3 scripts/danger_check.py` | PASS |
+| `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
+| `cd backend && ./.venv/bin/alembic current` | PASS, `0021_extracted_field_original_values (head)` |
+| `git diff --check` | PASS |
 
 ## Final Boundary
 

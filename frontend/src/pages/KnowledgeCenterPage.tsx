@@ -139,7 +139,7 @@ export function KnowledgeCenterPage({ currentUser }: PageProps) {
         <Form<UploadFormValues>
           form={uploadForm}
           layout="vertical"
-          initialValues={{ knowledge_base: knowledgeBase, source_type: "synthetic_text" }}
+          initialValues={{ knowledge_base: knowledgeBase, source_type: "uploaded_text" }}
           onFinish={(values) => void handleUpload(values)}
         >
           <Space align="start" wrap>
@@ -157,7 +157,7 @@ export function KnowledgeCenterPage({ currentUser }: PageProps) {
             </Form.Item>
           </Space>
           <Form.Item name="content_text" label="Text">
-            <Input.TextArea rows={4} placeholder="Paste synthetic/public text or upload txt/pdf" />
+            <Input.TextArea rows={4} placeholder="Paste source-backed text or upload txt/pdf" />
           </Form.Item>
           <Space>
             <Upload

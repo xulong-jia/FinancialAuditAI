@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import fitz
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -245,6 +246,12 @@ def generate_control_table_report(
         elif task.scenario == "contract_review":
             control_sheet = "Contract Review"
         _write_csv(file_path, sheets[control_sheet])
+    elif file_format == "markdown":
+        file_path = reports_root() / str(task_id) / f"{report_id}.md"
+        _write_markdown(file_path, sheets)
+    elif file_format == "pdf":
+        file_path = reports_root() / str(task_id) / f"{report_id}.pdf"
+        _write_pdf(file_path, sheets)
     else:
         file_format = "xlsx"
         file_path = reports_root() / str(task_id) / f"{report_id}.xlsx"
@@ -297,6 +304,47 @@ def _write_csv(path: Path, rows: list[list[object | None]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerows(rows)
+
+
+def _write_markdown(path: Path, sheets: dict[str, list[list[object | None]]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sections = []
+    for name, rows in sheets.items():
+        sections.append(f"# {name}")
+        if not rows:
+            continue
+        header = [str(item or "") for item in rows[0]]
+        sections.append("| " + " | ".join(header) + " |")
+        sections.append("| " + " | ".join("---" for _ in header) + " |")
+        for row in rows[1:]:
+            sections.append("| " + " | ".join(str(item or "").replace("\n", " ") for item in row) + " |")
+        sections.append("")
+    path.write_text("\n".join(sections), encoding="utf-8")
+
+
+def _write_pdf(path: Path, sheets: dict[str, list[list[object | None]]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pdf = fitz.open()
+    page = pdf.new_page()
+    y = 48
+    for line in _pdf_lines(sheets):
+        if y > 780:
+            page = pdf.new_page()
+            y = 48
+        page.insert_text((48, y), line[:130], fontsize=9)
+        y += 14
+    pdf.save(path)
+    pdf.close()
+
+
+def _pdf_lines(sheets: dict[str, list[list[object | None]]]) -> list[str]:
+    lines: list[str] = []
+    for name, rows in sheets.items():
+        lines.append(name)
+        for row in rows[:40]:
+            lines.append(" | ".join(str(item or "").replace("\n", " ") for item in row[:8]))
+        lines.append("")
+    return lines
 
 
 def list_reports(db: Session, task_id: UUID) -> list[Report]:
@@ -654,7 +702,7 @@ def _evidence_rows(
                 str(result.id),
                 result.rule_code,
                 _json(ref.get("value")),
-                "",
+                ref.get("source_page") or "",
                 _json(ref.get("source_bbox")),
                 ref.get("source_text") or "",
             ])

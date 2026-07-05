@@ -1,9 +1,9 @@
 from uuid import UUID
 
 from app.db.session import SessionLocal
-from app.models.model_invocation import ModelInvocation
 from test_review_api import field_by_name
 from test_rule_engine_api import build_scenario, client, run_audit
+from app.models.model_invocation import ModelInvocation
 
 
 def test_procurement_mvp_demo_smoke_path() -> None:
@@ -52,18 +52,6 @@ def test_procurement_mvp_demo_smoke_path() -> None:
     assert download.content.startswith(b"PK")
 
     with SessionLocal() as db:
-        db.add(
-            ModelInvocation(
-                task_id=UUID(task["id"]),
-                document_id=UUID(docs["invoice"][0]["id"]),
-                provider="mock",
-                model_name="heuristic-mvp",
-                invocation_type="classification",
-                prompt_version=None,
-                input_hash="demo",
-                output_schema="ClassificationRead",
-                status="completed",
-            )
-        )
-        db.commit()
-        assert db.query(ModelInvocation).count() == 1
+        invocations = db.query(ModelInvocation).filter(ModelInvocation.task_id == UUID(task["id"])).all()
+        assert invocations
+        assert {invocation.provider for invocation in invocations} != {"mock"}

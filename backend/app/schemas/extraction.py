@@ -26,6 +26,9 @@ class ExtractedFieldValue(BaseModel):
     field_type: FieldType
     value_text: str | None = None
     value_normalized: dict[str, Any] | None = None
+    original_value_text: str | None = None
+    original_value_normalized: dict[str, Any] | None = None
+    original_confidence: float | None = Field(default=None, ge=0, le=1)
     confidence: float | None = Field(default=None, ge=0, le=1)
     source_page: int | None = None
     source_text: str | None = None

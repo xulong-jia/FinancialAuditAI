@@ -476,14 +476,14 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
           </Form.Item>
           <Form.Item>
             <Upload
-              accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+              accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx,application/pdf,image/png,image/jpeg,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               beforeUpload={() => false}
               fileList={fileList}
               maxCount={1}
               onChange={({ fileList: nextFileList }) => setFileList(nextFileList)}
               disabled={!canUploadDocument}
             >
-              <Button disabled={!canUploadDocument}>Select PDF/Image</Button>
+              <Button disabled={!canUploadDocument}>Select Document</Button>
             </Upload>
           </Form.Item>
           <Form.Item>

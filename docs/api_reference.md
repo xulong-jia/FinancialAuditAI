@@ -2,7 +2,7 @@
 
 Base URL: `http://localhost:8000/api/v1`
 
-Responses use JSON unless the endpoint is a report download. Expected errors use FastAPI's standard `{"detail": ...}` shape. Protected endpoints return 401 for missing/invalid tokens and 403 for insufficient permission.
+Responses use JSON unless the endpoint is a report download. `/api/v1` JSON responses are wrapped with `request_id`; expected errors use `{ "error": { "code", "message", "details" }, "request_id": "..." }`. Protected endpoints return 401 for missing/invalid tokens and 403 for insufficient permission.
 
 ## System
 
@@ -69,7 +69,7 @@ Supported task scenarios: `procurement`, `sales`, `confirmation`, `interview`, `
 - `GET /documents/{document_id}`
 - `PATCH /documents/{document_id}`
 
-Supported upload extensions: `pdf`, `png`, `jpg`, `jpeg`, `docx`, `xlsx`.
+Supported upload extensions: `pdf`, `png`, `jpg`, and `jpeg`. The upload API rejects formats that the current OCR/parser path does not support.
 
 ## OCR And Pages
 
@@ -209,9 +209,9 @@ Dismiss requires a non-empty `reason`.
 - `GET /tasks/{task_id}/reports`
 - `GET /reports/{report_id}/download`
 
-Report files are xlsx only in MVP. Generated files are stored under ignored `local_storage/reports`.
+Report generation supports `xlsx`, `csv`, `pdf`, and `markdown`. Generated files are stored under ignored `local_storage/reports`.
 
-Procurement reports include `Procurement Control Table`. Sales reports include `Sales Control Table`. Confirmation reports include `Confirmation Results`. Interview reports include `Interview Evidence`. Contract review reports include `Contract Review` and `Special Clauses`. All keep Summary, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
+Xlsx reports include scenario-specific sheets plus Summary, Exceptions, Evidence Index, Field Corrections, and Rule Definitions. Procurement reports include `Procurement Control Table`; sales reports include `Sales Control Table`; confirmation reports include `Confirmation Results`; interview reports include `Interview Evidence`; contract review reports include `Contract Review` and `Special Clauses`. Csv exports the scenario control table. Pdf and markdown exports render the same report workbook content in document form.
 
 ## RAG Knowledge Base
 
@@ -249,7 +249,7 @@ Agent workflow is a fixed state machine with whitelisted tool calls only. It rec
 - `GET /evaluations/results`
 - `GET /evaluations/results/{result_id}`
 
-Supported evaluation types: `classification`, `ocr`, `extraction`, `rule`, `rag`, `agent`, `end_to_end`, and `regression`. Phase 14 evaluations use synthetic smoke datasets and store explicit limitations in `metrics`; they are quality checks, not production score claims. Failed evaluation samples are stored in `failed_cases` and converted into open Bad Cases for regression tracking. Evaluation Center does not change Rule Engine logic, Review Center decisions, Agent behavior, or RAG answers.
+Supported evaluation types: `classification`, `ocr`, `extraction`, `rule`, `rag`, `agent`, `end_to_end`, and `regression`. Evaluation results store dataset kind and explicit limitations in `metrics`; built-in sample checks are not production score claims. Bad Case regression evaluates case outputs or validation results, and failed evaluation samples are stored in `failed_cases` and converted into open Bad Cases for regression tracking. Evaluation Center does not change Rule Engine logic, Review Center decisions, Agent behavior, or RAG answers.
 
 ## Security Notes
 

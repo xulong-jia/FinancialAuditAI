@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ReportGenerateRequest(BaseModel):
     generated_by: str | None = Field(default=None, max_length=120)
-    file_format: Literal["xlsx", "csv"] = "xlsx"
+    file_format: Literal["xlsx", "csv", "pdf", "markdown"] = "xlsx"
 
 
 class ReportRead(BaseModel):

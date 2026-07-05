@@ -21,7 +21,7 @@ from app.models.user_role import UserRole
 from app.schemas.auth import RoleCreate, RoleUpdate, UserCreate, UserUpdate
 
 ROLE_SEEDS: dict[str, tuple[str, list[str]]] = {
-    "viewer": ("Viewer", ["read", "read_all", "evaluation:read"]),
+    "viewer": ("Viewer", ["read", "evaluation:read"]),
     "analyst": (
         "Analyst",
         [

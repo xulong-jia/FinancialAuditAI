@@ -24,7 +24,7 @@ from app.schemas.review import (
     ReviewCommentRead,
     ReviewQueueItem,
 )
-from app.services import review_service
+from app.services import auth_service, review_service
 
 router = APIRouter(tags=["review"])
 
@@ -79,7 +79,10 @@ def update_field(
     user: User = Depends(require_any_permission("review:write", "field:correct")),
 ):
     field = _get_field(db, field_id)
-    enforce_task_scope(db, user, field.task_id, write=True)
+    task = enforce_task_scope(db, user, field.task_id, write=True)
+    permissions = auth_service.user_permissions(db, user)
+    if "*" not in permissions and "review:write" not in permissions and task.status not in {"draft", "uploaded"}:
+        raise HTTPException(status_code=403, detail="Analyst field correction is limited to draft stage")
     if payload.actor_name is None:
         payload = payload.model_copy(update={"actor_name": user.full_name})
     return review_service.update_field(db, field_id, payload)

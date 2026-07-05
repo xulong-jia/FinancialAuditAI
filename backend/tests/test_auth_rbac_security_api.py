@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.audit_result import AuditResult
+from app.models.audit_task import AuditTask
 from app.models.extracted_field import ExtractedField
 
 
@@ -128,7 +129,9 @@ def test_viewer_is_read_only_for_processing_review_and_report_actions() -> None:
     task = create_task()
     document = upload_pdf(task["id"])
 
-    assert client.get("/api/v1/tasks", headers=viewer_headers).status_code == 200
+    list_response = client.get("/api/v1/tasks", headers=viewer_headers)
+    assert list_response.status_code == 200
+    assert task["id"] not in {item["id"] for item in list_response.json()}
     assert client.post("/api/v1/tasks", json={"name": "blocked"}, headers=viewer_headers).status_code == 403
     assert client.post(f"/api/v1/documents/{document['id']}/ocr", headers=viewer_headers).status_code == 403
     assert client.post(f"/api/v1/documents/{document['id']}/extract", headers=viewer_headers).status_code == 403
@@ -145,7 +148,7 @@ def test_viewer_is_read_only_for_processing_review_and_report_actions() -> None:
 def test_default_role_permissions_match_execution_matrix_baseline() -> None:
     roles = {role["code"]: set(role["permissions"]) for role in client.get("/api/v1/roles").json()}
 
-    assert roles["viewer"] == {"read", "read_all", "evaluation:read"}
+    assert roles["viewer"] == {"read", "evaluation:read"}
     assert {"task:create", "document:upload", "document:process", "audit:run", "report:generate", "field:correct"}.issubset(roles["analyst"])
     assert {"review:write", "document:process", "audit:run", "report:generate", "evaluation:read"}.issubset(roles["reviewer"])
     assert {"project:manage", "rule:manage", "rag:manage", "quality:manage", "audit_log:read"}.issubset(roles["manager"])
@@ -265,6 +268,10 @@ def test_analyst_can_correct_own_field_without_review_decision_permission() -> N
     result_id = add_audit_result(task["id"])
 
     assert client.patch(f"/api/v1/fields/{field_id}", json={"value_text": "fixed"}, headers=analyst_headers).status_code == 200
+    with SessionLocal() as db:
+        db.get(AuditTask, UUID(task["id"])).status = "reviewing"
+        db.commit()
+    assert client.patch(f"/api/v1/fields/{field_id}", json={"value_text": "late fix"}, headers=analyst_headers).status_code == 403
     assert client.post(f"/api/v1/audit-results/{result_id}/confirm", json={}, headers=analyst_headers).status_code == 403
 
 

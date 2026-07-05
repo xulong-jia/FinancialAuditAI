@@ -1,6 +1,6 @@
 # FinancialAuditAI Final Compliance Fix Report
 
-## Current Round: Final backend high-risk compliance
+## Current Round: RBAC matrix compliance
 
 Status: resolved
 
@@ -33,9 +33,10 @@ Status: resolved
 | --- | --- |
 | P1 | resolved |
 | Latest re-review backend high-risk gaps | resolved |
+| RBAC matrix gaps | resolved |
 | P2 | pending |
 
-P0, P1, and latest re-review backend high-risk gaps are resolved. P2 is not claimed complete in this report.
+P0, P1, latest re-review backend high-risk gaps, and RBAC matrix gaps are resolved. P2 is not claimed complete in this report.
 
 ## Resolved P1 Items
 
@@ -53,3 +54,10 @@ P0, P1, and latest re-review backend high-risk gaps are resolved. P2 is not clai
 | RAG index embedding calls write `model_invocations` | resolved | `backend/app/services/rag_service.py`, `backend/tests/test_final_gap_closure_api.py` |
 | Agent evidence retrieval covers regulation, inquiry case, prospectus, and workpaper | resolved | `backend/app/services/agent_service.py`, `backend/tests/test_agent_workflow_api.py` |
 | Bad Case API enforces task-scope reads and writes for task/document-bound cases | resolved | `backend/app/api/quality.py`, `backend/app/services/bad_case_service.py`, `backend/tests/test_auth_rbac_security_api.py` |
+
+## Resolved RBAC Matrix Items
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Viewer cannot read cross-task task records through `read_all` | resolved | `backend/app/services/auth_service.py`, `backend/tests/test_auth_rbac_security_api.py` |
+| Analyst field correction is blocked after the task enters review-stage statuses | resolved | `backend/app/api/review.py`, `backend/tests/test_auth_rbac_security_api.py` |

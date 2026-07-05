@@ -171,14 +171,28 @@ def index_document(db: Session, document_id: UUID) -> dict:
 
     provider = _embedding_provider()
     db.query(RagChunk).filter(RagChunk.rag_document_id == document_id).delete()
+    scoped_task_id = None
+    if document.knowledge_base == "workpaper":
+        task_id = (document.metadata_json or {}).get("task_id")
+        scoped_task_id = UUID(str(task_id)) if task_id else None
     for chunk in chunks:
+        embedding_vector = provider.embed(chunk.text)
+        model_invocation_service.add_invocation(
+            db,
+            provider=provider.name,
+            model_name=provider.name,
+            invocation_type="embedding",
+            task_id=scoped_task_id,
+            status="degraded" if provider.kind == "deterministic_fallback" else "completed",
+            input_text=chunk.text,
+        )
         db.add(
             RagChunk(
                 rag_document_id=document.id,
                 knowledge_base=document.knowledge_base,
                 chunk_index=chunk.chunk_index,
                 chunk_text=chunk.text,
-                embedding=_vector_literal(provider.embed(chunk.text)),
+                embedding=_vector_literal(embedding_vector),
                 token_count=chunk.token_count,
                 section_title=chunk.section_title,
                 article_no=chunk.article_no,

@@ -40,6 +40,9 @@ def create_user(email: str, role_codes: list[str]) -> dict:
 def test_model_invocations_are_recorded_for_rag_query() -> None:
     document = create_rag_document(text="Inventory count procedures require source backed evidence.")
     index_document(document["id"])
+    with SessionLocal() as db:
+        indexed_embeddings = db.query(ModelInvocation).filter(ModelInvocation.invocation_type == "embedding").count()
+    assert indexed_embeddings == 1
 
     result = query_rag("inventory count evidence")
 

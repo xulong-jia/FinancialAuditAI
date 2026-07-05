@@ -37,6 +37,7 @@ TOOL_WHITELIST = {
     "route_review_queue",
     "create_bad_case",
 }
+EVIDENCE_KNOWLEDGE_BASES = ("regulation", "inquiry_case", "prospectus", "workpaper")
 
 STATE_SEQUENCE = [
     "DRAFT",
@@ -404,11 +405,11 @@ def _run_evidence_stage(
     output = _run_step(
         db,
         run,
-        step_name="retrieve_evidence:regulation",
+        step_name="retrieve_evidence:four_kb",
         tool_name="retrieve_evidence",
         input_payload={
             "query_ref": "procurement_rule_evidence",
-            "knowledge_base": "regulation",
+            "knowledge_bases": list(EVIDENCE_KNOWLEDGE_BASES),
             "audit_result_count": len(results),
             "retry_of": _str_or_none(retry_of),
         },
@@ -584,30 +585,37 @@ def _run_rule_engine(db: Session, task_id: UUID) -> dict:
 
 def _retrieve_evidence(db: Session, results: list[AuditResult]) -> dict:
     query = " ".join(sorted({result.rule_code for result in results})) or "procurement audit evidence"
-    rag_result = rag_service.query(
-        db,
-        query_text=query,
-        knowledge_base="regulation",
-        top_k=3,
-        metadata_filter={},
-        task_id=results[0].task_id if results else None,
-    )
-    citations = [
-        {
-            "chunk_id": str(citation["chunk_id"]),
-            "document_id": str(citation["document_id"]),
-            "title": citation["title"],
-            "score": citation["score"],
-            "knowledge_base": citation["knowledge_base"],
-        }
-        for citation in rag_result["citations"]
-    ]
+    task_id = results[0].task_id if results else None
+    citations = []
+    statuses = {}
+    for knowledge_base in EVIDENCE_KNOWLEDGE_BASES:
+        metadata_filter = {"task_id": str(task_id)} if knowledge_base == "workpaper" and task_id else {}
+        rag_result = rag_service.query(
+            db,
+            query_text=query,
+            knowledge_base=knowledge_base,
+            top_k=3,
+            metadata_filter=metadata_filter,
+            task_id=task_id,
+        )
+        statuses[knowledge_base] = rag_result["status"]
+        citations.extend(
+            {
+                "chunk_id": str(citation["chunk_id"]),
+                "document_id": str(citation["document_id"]),
+                "title": citation["title"],
+                "score": citation["score"],
+                "knowledge_base": citation["knowledge_base"],
+            }
+            for citation in rag_result["citations"]
+        )
     return {
-        "status": rag_result["status"],
-        "knowledge_base": "regulation",
+        "status": "answer" if citations else "no_answer",
+        "knowledge_bases": list(EVIDENCE_KNOWLEDGE_BASES),
+        "knowledge_base_statuses": statuses,
         "citation_count": len(citations),
         "citations": citations,
-        "evidence_insufficient": rag_result["status"] == "no_answer",
+        "evidence_insufficient": not citations,
         "conclusion_generated": False,
     }
 

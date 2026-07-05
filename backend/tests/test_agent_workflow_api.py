@@ -36,11 +36,11 @@ def list_steps(run_id: str) -> list[dict]:
     return response.json()
 
 
-def seed_rule_evidence() -> None:
+def seed_rule_evidence(knowledge_base: str = "regulation") -> None:
     response = client.post(
         "/api/v1/rag/documents",
         data={
-            "knowledge_base": "regulation",
+            "knowledge_base": knowledge_base,
             "title": "Procurement Rule Evidence",
             "source_type": "synthetic_text",
             "content_text": (
@@ -175,3 +175,22 @@ def test_no_citation_does_not_generate_evidence_conclusion_and_payload_is_refere
     assert "supplier_name: Supplier Co" not in serialized_steps
     assert "raw_text" not in serialized_steps
     assert "quote" not in serialized_steps
+
+
+def test_agent_evidence_retrieval_checks_all_knowledge_bases() -> None:
+    task, _ = make_agent_ready_scenario(
+        contract_amount=1000.0,
+        invoice_amounts=(1200.0,),
+        payment_amounts=(1200.0,),
+        voucher_amount=1200.0,
+        amount_excluding_tax=1090.91,
+        tax_amount=109.09,
+        amount_including_tax=1200.0,
+    )
+    seed_rule_evidence("inquiry_case")
+
+    run = create_agent_run(task["id"])
+    evidence_step = next(step for step in list_steps(run["id"]) if step["tool_name"] == "retrieve_evidence")
+
+    assert set(evidence_step["input_payload"]["knowledge_bases"]) == {"regulation", "inquiry_case", "prospectus", "workpaper"}
+    assert any(citation["knowledge_base"] == "inquiry_case" for citation in evidence_step["output_payload"]["citations"])

@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import can_access_task_scope, enforce_document_scope, enforce_task_scope, require_permission
 from app.db.session import get_db
+from app.models.bad_case import BadCase
 from app.models.user import User
 from app.schemas.quality import (
     BadCaseCreate,
@@ -26,31 +27,34 @@ def create_bad_case(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality:manage")),
 ):
+    payload = _scoped_bad_case_payload(db, user, payload, write=True)
     if payload.owner_name is None:
         payload = payload.model_copy(update={"owner_name": user.full_name})
     return bad_case_service.create_case(db, payload)
 
 
-@router.get("/bad-cases", response_model=list[BadCaseRead], dependencies=[Depends(require_permission("evaluation:read"))])
+@router.get("/bad-cases", response_model=list[BadCaseRead])
 def list_bad_cases(
     case_type: BadCaseType | None = None,
     status: str | None = None,
     severity: str | None = None,
     owner_name: str | None = None,
     db: Session = Depends(get_db),
+    user: User = Depends(require_permission("evaluation:read")),
 ):
-    return bad_case_service.list_cases(
-        db,
-        case_type=case_type,
-        status=status,
-        severity=severity,
-        owner_name=owner_name,
-    )
+    cases = bad_case_service.list_cases(db, case_type=case_type, status=status, severity=severity, owner_name=owner_name)
+    return [case for case in cases if _can_read_bad_case(db, user, case)]
 
 
-@router.get("/bad-cases/{case_id}", response_model=BadCaseRead, dependencies=[Depends(require_permission("evaluation:read"))])
-def get_bad_case(case_id: UUID, db: Session = Depends(get_db)):
-    return bad_case_service.get_case(db, case_id)
+@router.get("/bad-cases/{case_id}", response_model=BadCaseRead)
+def get_bad_case(
+    case_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission("evaluation:read")),
+):
+    case = bad_case_service.get_case(db, case_id)
+    _enforce_bad_case_scope(db, user, case)
+    return case
 
 
 @router.patch("/bad-cases/{case_id}", response_model=BadCaseRead)
@@ -60,6 +64,8 @@ def update_bad_case(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality:manage")),
 ):
+    case = bad_case_service.get_case(db, case_id)
+    _enforce_bad_case_scope(db, user, case, write=True)
     if payload.owner_name is None:
         payload = payload.model_copy(update={"owner_name": user.full_name})
     return bad_case_service.update_case(db, case_id, payload)
@@ -84,3 +90,28 @@ def list_evaluation_results(eval_type: EvalType | None = None, db: Session = Dep
 @router.get("/evaluations/results/{result_id}", response_model=EvaluationResultRead, dependencies=[Depends(require_permission("evaluation:read"))])
 def get_evaluation_result(result_id: UUID, db: Session = Depends(get_db)):
     return evaluation_service.get_result(db, result_id)
+
+
+def _scoped_bad_case_payload(db: Session, user: User, payload: BadCaseCreate, *, write: bool) -> BadCaseCreate:
+    task_id = payload.task_id
+    if payload.document_id is not None:
+        document = enforce_document_scope(db, user, payload.document_id, write=write)
+        if task_id is not None and document.task_id != task_id:
+            raise HTTPException(status_code=400, detail="Bad case document does not belong to task")
+        task_id = document.task_id
+    if task_id is not None:
+        enforce_task_scope(db, user, task_id, write=write)
+    return payload.model_copy(update={"task_id": task_id})
+
+
+def _enforce_bad_case_scope(db: Session, user: User, case: BadCase, *, write: bool = False) -> None:
+    if case.task_id is not None:
+        enforce_task_scope(db, user, case.task_id, write=write)
+    elif case.document_id is not None:
+        enforce_document_scope(db, user, case.document_id, write=write)
+
+
+def _can_read_bad_case(db: Session, user: User, case: BadCase) -> bool:
+    if case.task_id is None:
+        return case.document_id is None
+    return can_access_task_scope(db, user, case.task_id)

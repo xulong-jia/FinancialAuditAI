@@ -174,6 +174,37 @@ def test_analyst_object_scope_blocks_other_owner_task() -> None:
     assert second["id"]
 
 
+def test_bad_case_api_filters_task_scope_for_readers() -> None:
+    owner = create_user("badcase-owner@example.com", ["analyst"])
+    create_user("badcase-other@example.com", ["analyst"])
+    owner_headers = auth_headers("badcase-owner@example.com", "test-password")
+    other_headers = auth_headers("badcase-other@example.com", "test-password")
+    task = client.post(
+        "/api/v1/tasks",
+        json={"name": "Scoped bad case task", "scenario": "procurement"},
+        headers=owner_headers,
+    ).json()
+    created = client.post(
+        "/api/v1/bad-cases",
+        json={
+            "task_id": task["id"],
+            "case_type": "rule",
+            "title": "Scoped rule bad case",
+            "input_payload": {"task_id": task["id"]},
+            "model_output": {"status": "pass"},
+            "expected_output": {"status": "need_review"},
+        },
+    )
+    assert created.status_code == 200
+
+    assert client.get(f"/api/v1/bad-cases/{created.json()['id']}", headers=owner_headers).status_code == 200
+    assert client.get(f"/api/v1/bad-cases/{created.json()['id']}", headers=other_headers).status_code == 403
+    listed = client.get("/api/v1/bad-cases", headers=other_headers)
+    assert listed.status_code == 200
+    assert created.json()["id"] not in {case["id"] for case in listed.json()}
+    assert owner["id"]
+
+
 def test_reviewer_can_correct_field_and_audit_log_is_redacted() -> None:
     reviewer = create_user("reviewer@example.com", ["reviewer"])
     reviewer_headers = auth_headers("reviewer@example.com", "test-password")

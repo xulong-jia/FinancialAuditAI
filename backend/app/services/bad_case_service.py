@@ -129,8 +129,12 @@ def create_failed_case(
 def _validate_refs(db: Session, task_id: UUID | None, document_id: UUID | None) -> None:
     if task_id is not None and db.get(AuditTask, task_id) is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    if document_id is not None and db.get(Document, document_id) is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+    if document_id is not None:
+        document = db.get(Document, document_id)
+        if document is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        if task_id is not None and document.task_id != task_id:
+            raise HTTPException(status_code=400, detail="Document does not belong to task")
 
 
 def _validate_values(case_type: str, status: str, severity: str) -> None:

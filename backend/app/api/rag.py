@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_permission
 from app.db.session import get_db
 from app.schemas.rag import (
     KnowledgeBase,
@@ -19,7 +20,7 @@ from app.services import rag_service
 router = APIRouter(prefix="/rag", tags=["rag"])
 
 
-@router.post("/documents", response_model=RagDocumentRead)
+@router.post("/documents", response_model=RagDocumentRead, dependencies=[Depends(require_permission("rag:manage"))])
 async def create_rag_document(
     knowledge_base: Annotated[KnowledgeBase, Form()],
     title: Annotated[str, Form(min_length=1, max_length=255)],
@@ -53,17 +54,17 @@ async def create_rag_document(
     )
 
 
-@router.get("/documents", response_model=list[RagDocumentRead])
+@router.get("/documents", response_model=list[RagDocumentRead], dependencies=[Depends(require_permission("read"))])
 def list_rag_documents(knowledge_base: KnowledgeBase | None = None, db: Session = Depends(get_db)):
     return rag_service.list_documents(db, knowledge_base)
 
 
-@router.post("/documents/{doc_id}/index", response_model=RagIndexResult)
+@router.post("/documents/{doc_id}/index", response_model=RagIndexResult, dependencies=[Depends(require_permission("rag:manage"))])
 def index_rag_document(doc_id: UUID, db: Session = Depends(get_db)):
     return rag_service.index_document(db, doc_id)
 
 
-@router.post("/query", response_model=RagQueryResponse)
+@router.post("/query", response_model=RagQueryResponse, dependencies=[Depends(require_permission("read"))])
 def query_rag(payload: RagQueryRequest, db: Session = Depends(get_db)):
     return rag_service.query(
         db,
@@ -74,6 +75,6 @@ def query_rag(payload: RagQueryRequest, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/chunks/{chunk_id}", response_model=RagChunkRead)
+@router.get("/chunks/{chunk_id}", response_model=RagChunkRead, dependencies=[Depends(require_permission("read"))])
 def get_rag_chunk(chunk_id: UUID, db: Session = Depends(get_db)):
     return rag_service.get_chunk(db, chunk_id)

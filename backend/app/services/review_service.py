@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.security import redact
 from app.models.audit_log import AuditLog
 from app.models.audit_result import AuditResult
 from app.models.audit_task import AuditTask
@@ -290,7 +291,7 @@ def _add_log(
             action=action,
             target_type=target_type,
             target_id=target_id,
-            before_value=before_value,
-            after_value=after_value,
+            before_value=redact(before_value),
+            after_value=redact(after_value),
         )
     )

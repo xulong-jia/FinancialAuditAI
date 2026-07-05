@@ -16,6 +16,9 @@ from app.models.rag_chunk import RagChunk
 from app.models.rag_document import RagDocument
 from app.models.report import Report
 from app.models.review_comment import ReviewComment
+from app.models.role import Role
+from app.models.user import User
+from app.models.user_role import UserRole
 
 __all__ = [
     "AuditTask",
@@ -36,4 +39,7 @@ __all__ = [
     "RagDocument",
     "Report",
     "ReviewComment",
+    "Role",
+    "User",
+    "UserRole",
 ]

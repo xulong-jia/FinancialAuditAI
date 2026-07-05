@@ -2,7 +2,9 @@ import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Typography
 import { useEffect, useState } from "react";
 
 import { listEvaluationResults, runEvaluation } from "../api/client";
+import type { PageProps } from "../routes";
 import type { EvalType, EvaluationResult } from "../types/api";
+import { hasPermission } from "../utils/permissions";
 
 type EvaluationFormValues = {
   eval_type: EvalType;
@@ -26,11 +28,12 @@ function formatJson(value: unknown) {
   return JSON.stringify(value);
 }
 
-export function EvaluationCenterPage() {
+export function EvaluationCenterPage({ currentUser }: PageProps) {
   const [form] = Form.useForm<EvaluationFormValues>();
   const [results, setResults] = useState<EvaluationResult[]>([]);
   const [selected, setSelected] = useState<EvaluationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const canManageQuality = hasPermission(currentUser, "quality:manage");
 
   async function refreshResults() {
     const nextResults = await listEvaluationResults();
@@ -99,7 +102,7 @@ export function EvaluationCenterPage() {
               <Input style={{ width: 180 }} />
             </Form.Item>
           </Space>
-          <Button type="primary" htmlType="submit" loading={loading}>
+          <Button type="primary" htmlType="submit" loading={loading} disabled={!canManageQuality}>
             Run
           </Button>
         </Form>

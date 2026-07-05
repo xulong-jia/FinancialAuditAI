@@ -3,7 +3,9 @@ import type { UploadFile } from "antd/es/upload/interface";
 import { useEffect, useState } from "react";
 
 import { createRagDocument, indexRagDocument, listRagDocuments, queryRag } from "../api/client";
+import type { PageProps } from "../routes";
 import type { KnowledgeBase, RagCitation, RagDocument, RagQueryResponse } from "../types/api";
+import { hasPermission } from "../utils/permissions";
 
 const knowledgeBaseOptions: { label: string; value: KnowledgeBase }[] = [
   { label: "Regulation", value: "regulation" },
@@ -38,7 +40,7 @@ function parseJsonObject(raw: string | undefined) {
   return parsed as Record<string, unknown>;
 }
 
-export function KnowledgeCenterPage() {
+export function KnowledgeCenterPage({ currentUser }: PageProps) {
   const [uploadForm] = Form.useForm<UploadFormValues>();
   const [queryForm] = Form.useForm<QueryFormValues>();
   const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBase>("regulation");
@@ -46,6 +48,7 @@ export function KnowledgeCenterPage() {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [queryResult, setQueryResult] = useState<RagQueryResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const canManageRag = hasPermission(currentUser, "rag:manage");
 
   async function refreshDocuments(nextKnowledgeBase = knowledgeBase) {
     setDocuments(await listRagDocuments(nextKnowledgeBase));
@@ -162,10 +165,11 @@ export function KnowledgeCenterPage() {
               maxCount={1}
               fileList={fileList}
               onChange={({ fileList: nextFileList }) => setFileList(nextFileList)}
+              disabled={!canManageRag}
             >
-              <Button>Select txt/pdf</Button>
+              <Button disabled={!canManageRag}>Select txt/pdf</Button>
             </Upload>
-            <Button type="primary" htmlType="submit" loading={loading}>
+            <Button type="primary" htmlType="submit" loading={loading} disabled={!canManageRag}>
               Create
             </Button>
           </Space>
@@ -191,7 +195,7 @@ export function KnowledgeCenterPage() {
             {
               title: "Action",
               render: (_, record) => (
-                <Button loading={loading} onClick={() => void handleIndex(record.id)}>
+                <Button loading={loading} disabled={!canManageRag} onClick={() => void handleIndex(record.id)}>
                   Build Index
                 </Button>
               ),

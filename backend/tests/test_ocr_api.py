@@ -76,7 +76,7 @@ def test_empty_pdf_page_gets_warning() -> None:
 
 def test_ocr_failure_does_not_hide_task_or_document() -> None:
     task = create_task()
-    uploaded = upload_file(task["id"], "scan.jpg", b"not-real-image", "image/jpeg")
+    uploaded = upload_file(task["id"], "scan.jpg", b"\xff\xd8\xffnot-real-image", "image/jpeg")
 
     ocr_response = client.post(f"/api/v1/documents/{uploaded['id']}/ocr")
     assert ocr_response.status_code == 200

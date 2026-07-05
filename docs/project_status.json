@@ -1456,9 +1456,17 @@
       "phase_id": 19,
       "name": "RBAC、审计、安全、工程化完善",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
-        10
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18
       ],
       "deliverables": [
         "RBAC",
@@ -1472,55 +1480,55 @@
           "id": "P19-BE-001",
           "title": "实现用户、角色、权限、审计和日志脱敏",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented basic login, password hashing, signed bearer tokens, fixed role permissions, permission dependencies, audit log redaction, and upload content signature validation without adding SSO or new business modules.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P19-FE-001",
           "title": "实现登录页、Admin Center 和权限控制 UI",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented login flow, persisted bearer token handling, Admin Center user/role/audit-log views, and permission-based disabling for processing, review, report, RAG, rule, Agent, Bad Case, and Evaluation actions.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P19-DB-001",
-          "title": "创建 users、roles、user_roles 并回填外键",
+          "title": "创建 users、roles、user_roles 并兼容历史 nullable user 字段",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added 0014 migration for users, roles, and user_roles with seeded default roles. Historical actor_name and nullable user-related fields remain compatible; no forced backfill to real user foreign keys was introduced.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P19-API-001",
           "title": "实现 Auth、User、Role、Audit Log API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Implemented /auth/login, /auth/me, /auth/logout, /users, /roles, and /audit-logs APIs plus route-level 401/403 permission checks for key operations.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P19-TEST-001",
           "title": "测试登录、权限拒绝、只读限制、日志脱敏和上传安全",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added RBAC/auth/security API tests covering login, missing-token 401, viewer write denial, reviewer review rights, admin management rights, password_hash omission, audit log redaction, and upload content mismatch rejection. Existing business tests continue to pass.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P19-INFRA-001",
           "title": "评估并按需引入异步任务工程化",
           "area": "infra",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Assessed current synchronous flows and did not introduce Celery or Redis because the existing local demo/test workload remains stable. Added danger_check safety scan for forbidden paths and sensitive keywords.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         }
       ],
       "acceptance_criteria": [
@@ -1530,9 +1538,9 @@
         "上传、OCR 中间文件、报告不进入 Git",
         "日志不输出完整敏感底稿"
       ],
-      "notes": "",
+      "notes": "Phase 19 completed RBAC, security, audit, and engineering hardening. Added users/roles/user_roles migration, basic login and token auth, fixed role permissions, protected key APIs, Admin Center, audit log query, log redaction, stronger upload content validation, and scripts/danger_check.py. Maintained compatibility with historical nullable actor/user fields, did not add enterprise SSO, multi-tenant billing, production KMS, Celery/Redis, Phase 20, or tracker-outside features.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-05"
     },
     {
       "phase_id": 20,

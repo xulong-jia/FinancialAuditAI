@@ -486,3 +486,72 @@ export type RagQueryPayload = {
   top_k: number;
   metadata_filter: Record<string, unknown>;
 };
+
+export type RoleRecord = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  permissions: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type UserRecord = {
+  id: string;
+  email: string;
+  full_name: string;
+  organization: string | null;
+  title: string | null;
+  status: string;
+  last_login_at: string | null;
+  role_codes: string[];
+  permissions: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type LoginPayload = {
+  email: string;
+  password: string;
+};
+
+export type LoginResponse = {
+  access_token: string;
+  token_type: string;
+};
+
+export type UserCreatePayload = {
+  email: string;
+  password: string;
+  full_name: string;
+  organization?: string | null;
+  title?: string | null;
+  status?: string;
+  role_codes?: string[];
+};
+
+export type UserUpdatePayload = Partial<Omit<UserCreatePayload, "password">> & {
+  password?: string;
+};
+
+export type RoleCreatePayload = {
+  code: string;
+  name: string;
+  description?: string | null;
+  permissions?: string[];
+};
+
+export type RoleUpdatePayload = Partial<RoleCreatePayload>;
+
+export type AuditLogRecord = {
+  id: string;
+  actor_name: string | null;
+  task_id: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  before_value: Record<string, unknown> | null;
+  after_value: Record<string, unknown> | null;
+  created_at: string;
+};

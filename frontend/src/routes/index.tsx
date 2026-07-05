@@ -8,6 +8,8 @@ import { ReportCenterPage } from "../pages/ReportCenterPage";
 import { ReviewCenterPage } from "../pages/ReviewCenterPage";
 import { RuleCenterPage } from "../pages/RuleCenterPage";
 import { TaskCenterPage } from "../pages/TaskCenterPage";
+import { AdminCenterPage } from "../pages/AdminCenterPage";
+import type { UserRecord } from "../types/api";
 
 export type PageKey =
   | "task-center"
@@ -17,25 +19,29 @@ export type PageKey =
   | "knowledge-center"
   | "rule-center"
   | "bad-case-center"
-  | "evaluation-center";
+  | "evaluation-center"
+  | "admin-center";
 
 export type PageProps = {
   onNavigate: (key: PageKey) => void;
+  currentUser: UserRecord;
 };
 
 type AppRoute = {
   key: PageKey;
   label: string;
   Component: (props: PageProps) => ReactElement;
+  permission: string;
 };
 
 export const routes: AppRoute[] = [
-  { key: "task-center", label: "Task Center", Component: TaskCenterPage },
-  { key: "audit-workbench", label: "Audit Workbench", Component: AuditWorkbenchPage },
-  { key: "review-center", label: "Review Center", Component: ReviewCenterPage },
-  { key: "report-center", label: "Report Center", Component: ReportCenterPage },
-  { key: "knowledge-center", label: "Knowledge Center", Component: KnowledgeCenterPage },
-  { key: "rule-center", label: "Rule Center", Component: RuleCenterPage },
-  { key: "bad-case-center", label: "Bad Case Center", Component: BadCaseCenterPage },
-  { key: "evaluation-center", label: "Evaluation Center", Component: EvaluationCenterPage },
+  { key: "task-center", label: "Task Center", Component: TaskCenterPage, permission: "read" },
+  { key: "audit-workbench", label: "Audit Workbench", Component: AuditWorkbenchPage, permission: "read" },
+  { key: "review-center", label: "Review Center", Component: ReviewCenterPage, permission: "read" },
+  { key: "report-center", label: "Report Center", Component: ReportCenterPage, permission: "read" },
+  { key: "knowledge-center", label: "Knowledge Center", Component: KnowledgeCenterPage, permission: "read" },
+  { key: "rule-center", label: "Rule Center", Component: RuleCenterPage, permission: "read" },
+  { key: "bad-case-center", label: "Bad Case Center", Component: BadCaseCenterPage, permission: "evaluation:read" },
+  { key: "evaluation-center", label: "Evaluation Center", Component: EvaluationCenterPage, permission: "evaluation:read" },
+  { key: "admin-center", label: "Admin Center", Component: AdminCenterPage, permission: "user:manage" },
 ];

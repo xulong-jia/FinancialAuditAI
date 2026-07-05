@@ -2,7 +2,9 @@ import { Button, Card, Form, Input, Select, Space, Table, Tag, Typography, messa
 import { useEffect, useState } from "react";
 
 import { createBadCase, listBadCases, updateBadCase } from "../api/client";
+import type { PageProps } from "../routes";
 import type { BadCase, EvalType } from "../types/api";
+import { hasPermission } from "../utils/permissions";
 
 type BadCaseFormValues = {
   case_type: EvalType;
@@ -46,12 +48,13 @@ function statusColor(status: string) {
   return "gold";
 }
 
-export function BadCaseCenterPage() {
+export function BadCaseCenterPage({ currentUser }: PageProps) {
   const [form] = Form.useForm<BadCaseFormValues>();
   const [cases, setCases] = useState<BadCase[]>([]);
   const [caseType, setCaseType] = useState<EvalType | undefined>();
   const [status, setStatus] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
+  const canManageQuality = hasPermission(currentUser, "quality:manage");
 
   async function refreshCases(nextCaseType = caseType, nextStatus = status) {
     setCases(await listBadCases({ case_type: nextCaseType, status: nextStatus }));
@@ -143,7 +146,7 @@ export function BadCaseCenterPage() {
               <Input.TextArea rows={3} style={{ width: 300 }} />
             </Form.Item>
           </Space>
-          <Button type="primary" htmlType="submit" loading={loading}>
+          <Button type="primary" htmlType="submit" loading={loading} disabled={!canManageQuality}>
             Create
           </Button>
         </Form>
@@ -210,10 +213,10 @@ export function BadCaseCenterPage() {
               title: "Action",
               render: (_, record) => (
                 <Space>
-                  <Button size="small" onClick={() => void handleStatus(record.id, "fixed")}>
+                  <Button size="small" disabled={!canManageQuality} onClick={() => void handleStatus(record.id, "fixed")}>
                     Mark Fixed
                   </Button>
-                  <Button size="small" onClick={() => void handleStatus(record.id, "open")}>
+                  <Button size="small" disabled={!canManageQuality} onClick={() => void handleStatus(record.id, "open")}>
                     Reopen
                   </Button>
                 </Space>

@@ -6,6 +6,7 @@ import type { AgentRun, AgentStep } from "../types/api";
 
 type AgentStateTimelineProps = {
   taskId: string | null;
+  canRunAgent: boolean;
 };
 
 function statusColor(status: string) {
@@ -25,7 +26,7 @@ function formatPayload(value: Record<string, unknown> | null) {
   return value ? JSON.stringify(value) : "-";
 }
 
-export function AgentStateTimeline({ taskId }: AgentStateTimelineProps) {
+export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelineProps) {
   const [run, setRun] = useState<AgentRun | null>(null);
   const [steps, setSteps] = useState<AgentStep[]>([]);
   const [loading, setLoading] = useState(false);
@@ -83,11 +84,11 @@ export function AgentStateTimeline({ taskId }: AgentStateTimelineProps) {
         <Space>
           {run ? <Tag color={statusColor(run.current_state)}>{run.current_state}</Tag> : null}
           {run?.status === "failed" ? (
-            <Button onClick={() => void handleRetry()} loading={loading}>
+            <Button onClick={() => void handleRetry()} loading={loading} disabled={!canRunAgent}>
               Retry Failed Step
             </Button>
           ) : null}
-          <Button type="primary" onClick={() => void handleStart()} loading={loading} disabled={!taskId}>
+          <Button type="primary" onClick={() => void handleStart()} loading={loading} disabled={!taskId || !canRunAgent}>
             Start Agent Run
           </Button>
         </Space>

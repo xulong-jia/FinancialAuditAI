@@ -34,6 +34,8 @@ class Settings(BaseModel):
     )
     embedding_provider: str = "deterministic-local"
     embedding_dimensions: int = 32
+    auth_secret_key: str = "change-me-local-auth-secret"
+    access_token_minutes: int = 480
 
 
 @lru_cache
@@ -55,6 +57,8 @@ def get_settings() -> Settings:
         ),
         embedding_provider=os.getenv("EMBEDDING_PROVIDER", "deterministic-local"),
         embedding_dimensions=int(os.getenv("EMBEDDING_DIMENSIONS", "32")),
+        auth_secret_key=os.getenv("AUTH_SECRET_KEY", "change-me-local-auth-secret"),
+        access_token_minutes=int(os.getenv("ACCESS_TOKEN_MINUTES", "480")),
     )
 
 

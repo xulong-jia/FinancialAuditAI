@@ -4,6 +4,7 @@ import type {
   AgentRun,
   AgentRunCreatePayload,
   AgentStep,
+  AuditLogRecord,
   BadCase,
   BadCaseCreatePayload,
   BadCaseUpdatePayload,
@@ -35,14 +36,41 @@ import type {
   ReportGeneratePayload,
   ReportRecord,
   KnowledgeBase,
+  LoginPayload,
+  LoginResponse,
   RagDocument,
   RagIndexResult,
   RagQueryPayload,
   RagQueryResponse,
+  RoleCreatePayload,
+  RoleRecord,
+  RoleUpdatePayload,
+  UserCreatePayload,
+  UserRecord,
+  UserUpdatePayload,
 } from "../types/api";
 
+const tokenStorageKey = "financial_audit_ai_access_token";
+
+export function getAccessToken(): string | null {
+  return window.localStorage.getItem(tokenStorageKey);
+}
+
+export function setAccessToken(token: string) {
+  window.localStorage.setItem(tokenStorageKey, token);
+}
+
+export function clearAccessToken() {
+  window.localStorage.removeItem(tokenStorageKey);
+}
+
+function authHeaders(extraHeaders: Record<string, string> = {}) {
+  const token = getAccessToken();
+  return token ? { ...extraHeaders, Authorization: `Bearer ${token}` } : extraHeaders;
+}
+
 export async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`);
+  const response = await fetch(`${baseUrl}${path}`, { headers: authHeaders() });
   if (!response.ok) {
     throw new Error("Request failed");
   }
@@ -52,13 +80,53 @@ export async function getJson<T>(path: string): Promise<T> {
 async function sendJson<T>(path: string, method: string, body: unknown): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
   if (!response.ok) {
     throw new Error("Request failed");
   }
   return response.json() as Promise<T>;
+}
+
+export function login(payload: LoginPayload): Promise<LoginResponse> {
+  return sendJson<LoginResponse>("/api/v1/auth/login", "POST", payload);
+}
+
+export function getCurrentUser(): Promise<UserRecord> {
+  return getJson<UserRecord>("/api/v1/auth/me");
+}
+
+export function logout(): Promise<{ status: string }> {
+  return sendJson<{ status: string }>("/api/v1/auth/logout", "POST", {});
+}
+
+export function listUsers(): Promise<UserRecord[]> {
+  return getJson<UserRecord[]>("/api/v1/users");
+}
+
+export function createUser(payload: UserCreatePayload): Promise<UserRecord> {
+  return sendJson<UserRecord>("/api/v1/users", "POST", payload);
+}
+
+export function updateUser(userId: string, payload: UserUpdatePayload): Promise<UserRecord> {
+  return sendJson<UserRecord>(`/api/v1/users/${userId}`, "PATCH", payload);
+}
+
+export function listRoles(): Promise<RoleRecord[]> {
+  return getJson<RoleRecord[]>("/api/v1/roles");
+}
+
+export function createRole(payload: RoleCreatePayload): Promise<RoleRecord> {
+  return sendJson<RoleRecord>("/api/v1/roles", "POST", payload);
+}
+
+export function updateRole(roleId: string, payload: RoleUpdatePayload): Promise<RoleRecord> {
+  return sendJson<RoleRecord>(`/api/v1/roles/${roleId}`, "PATCH", payload);
+}
+
+export function listAuditLogs(): Promise<AuditLogRecord[]> {
+  return getJson<AuditLogRecord[]>("/api/v1/audit-logs");
 }
 
 export function listTasks(): Promise<AuditTask[]> {
@@ -175,6 +243,22 @@ export function reportDownloadUrl(reportId: string): string {
   return `${baseUrl}/api/v1/reports/${reportId}/download`;
 }
 
+export async function downloadReport(reportId: string, filename: string) {
+  const response = await fetch(`${baseUrl}/api/v1/reports/${reportId}/download`, { headers: authHeaders() });
+  if (!response.ok) {
+    throw new Error("Download failed");
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export async function uploadDocument(
   taskId: string,
   file: File,
@@ -186,6 +270,7 @@ export async function uploadDocument(
 
   const response = await fetch(`${baseUrl}/api/v1/tasks/${taskId}/documents`, {
     method: "POST",
+    headers: authHeaders(),
     body: form,
   });
   if (!response.ok) {
@@ -222,6 +307,7 @@ export async function createRagDocument(payload: {
   }
   const response = await fetch(`${baseUrl}/api/v1/rag/documents`, {
     method: "POST",
+    headers: authHeaders(),
     body: form,
   });
   if (!response.ok) {

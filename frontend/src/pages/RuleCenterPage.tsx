@@ -2,7 +2,9 @@ import { Alert, Button, Card, Empty, Form, Input, Select, Space, Switch, Table, 
 import { useEffect, useMemo, useState } from "react";
 
 import { evaluateRule, listRules, listTasks, updateRule } from "../api/client";
+import type { PageProps } from "../routes";
 import type { AuditRule, AuditRuleEvaluateResult, AuditTask } from "../types/api";
+import { hasPermission } from "../utils/permissions";
 
 type RuleFormValues = {
   name: string;
@@ -51,7 +53,7 @@ function evidenceCount(value: Record<string, unknown>) {
   return Array.isArray(refs) ? refs.length : 0;
 }
 
-export function RuleCenterPage() {
+export function RuleCenterPage({ currentUser }: PageProps) {
   const [ruleForm] = Form.useForm<RuleFormValues>();
   const [evaluateForm] = Form.useForm<EvaluateFormValues>();
   const [rules, setRules] = useState<AuditRule[]>([]);
@@ -61,6 +63,7 @@ export function RuleCenterPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
+  const canManageRules = hasPermission(currentUser, "rule:manage");
 
   const selectedRule = useMemo(
     () => rules.find((rule) => rule.id === selectedRuleId) ?? rules[0] ?? null,
@@ -231,7 +234,7 @@ export function RuleCenterPage() {
                 >
                   <Input.TextArea rows={10} />
                 </Form.Item>
-                <Button type="primary" htmlType="submit" loading={saving}>
+                <Button type="primary" htmlType="submit" loading={saving} disabled={!canManageRules}>
                   Save Rule
                 </Button>
               </Form>
@@ -253,7 +256,7 @@ export function RuleCenterPage() {
                 <Form.Item name="parameters_json" label="Temporary Parameter Override JSON">
                   <Input.TextArea rows={4} placeholder='{"tolerance_amount": 5}' />
                 </Form.Item>
-                <Button htmlType="submit" loading={evaluating}>
+                <Button htmlType="submit" loading={evaluating} disabled={!canManageRules}>
                   Evaluate Dry Run
                 </Button>
               </Form>

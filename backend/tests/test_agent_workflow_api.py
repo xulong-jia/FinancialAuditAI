@@ -70,7 +70,7 @@ def test_failed_step_retry_records_retry_step() -> None:
     upload = client.post(
         f"/api/v1/tasks/{task_response.json()['id']}/documents",
         data={"doc_type_hint": "invoice"},
-        files={"file": ("scan.jpg", b"not-real-image", "image/jpeg")},
+        files={"file": ("scan.jpg", b"\xff\xd8\xffnot-real-image", "image/jpeg")},
     )
     assert upload.status_code == 200
 

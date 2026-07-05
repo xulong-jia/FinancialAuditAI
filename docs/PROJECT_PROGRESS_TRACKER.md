@@ -46,7 +46,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 16 | 函证模块扩展 | Post-MVP | DONE | 函证字段抽取、差异比对、复核 |
 | Phase 17 | 访谈模块扩展 | Post-MVP | DONE | 访谈字段、关键回答、底稿交叉验证 |
 | Phase 18 | 合同审核模块扩展 | Post-MVP | DONE | 合同条款抽取、风险提示、证据索引 |
-| Phase 19 | RBAC、审计、安全、工程化完善 | Post-MVP | TODO | 用户角色权限、安全、审计、异步工程化 |
+| Phase 19 | RBAC、审计、安全、工程化完善 | Post-MVP | DONE | 用户角色权限、安全、审计、工程化稳定性 |
 | Phase 20 | 最终验收、文档整理、作品集展示材料 | Post-MVP | TODO | 最终验收清单、文档、截图、展示材料 |
 
 ## Phase 0: 项目初始化与工程骨架
@@ -1548,80 +1548,84 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：RBAC、审计、安全、工程化完善
 - 是否属于 MVP：否
-- Status: TODO
+- Status: DONE
 
 ### 阶段目标
 
-完善用户角色权限、审计日志、安全控制、异步任务和工程化稳定性。
+完善用户角色权限、审计日志、安全控制、上传安全、日志脱敏、错误处理和工程化稳定性。
 
 ### 后端任务
 
-- [ ] 实现用户登录基础能力。
-- [ ] 实现角色和权限点。
-- [ ] 将关键操作接入权限校验。
-- [ ] 完善 audit_logs。
-- [ ] 增强上传文件安全校验。
-- [ ] 评估是否引入 Celery / Redis。
-- [ ] 增强错误处理和日志脱敏。
+- [x] 实现用户登录基础能力。
+- [x] 实现角色和权限点。
+- [x] 将关键操作接入权限校验。
+- [x] 完善 audit_logs。
+- [x] 增强上传文件安全校验。
+- [x] 评估是否引入 Celery / Redis，当前保持同步流程，不强行引入额外队列。
+- [x] 增强错误处理和日志脱敏。
 
 ### 前端任务
 
-- [ ] 实现登录页。
-- [ ] 实现 Admin Center。
-- [ ] 根据权限隐藏或禁用操作。
-- [ ] 展示审计日志查询页面。
+- [x] 实现登录页。
+- [x] 实现 Admin Center。
+- [x] 根据权限隐藏或禁用操作。
+- [x] 展示审计日志查询页面。
 
 ### 数据库 / Migration 任务
 
-- [ ] 创建 `users` 表。
-- [ ] 创建 `roles` 表。
-- [ ] 创建 `user_roles` 表。
-- [ ] 回填 owner/reviewer 外键。
-- [ ] 检查敏感字段脱敏策略。
+- [x] 创建 `users` 表。
+- [x] 创建 `roles` 表。
+- [x] 创建 `user_roles` 表。
+- [x] 兼容 owner / reviewer / uploaded_by / corrected_by / reviewed_by / generated_by 等旧 nullable 字段，不强制历史数据回填真实用户外键。
+- [x] 检查敏感字段脱敏策略。
 
 ### API 任务
 
-- [ ] Auth API。
-- [ ] User API。
-- [ ] Role API。
-- [ ] Audit Log API。
-- [ ] 权限校验中间件或依赖。
+- [x] Auth API。
+- [x] User API。
+- [x] Role API。
+- [x] Audit Log API。
+- [x] 权限校验中间件或依赖。
 
 ### 测试任务
 
-- [ ] 登录测试。
-- [ ] 权限拒绝测试。
-- [ ] 只读用户不可触发处理测试。
-- [ ] 敏感日志不输出完整原文测试。
-- [ ] 上传安全校验测试。
+- [x] 登录测试。
+- [x] 权限拒绝测试。
+- [x] 只读用户不可触发处理测试。
+- [x] 敏感日志不输出完整原文测试。
+- [x] 上传安全校验测试。
 
 ### 验收标准
 
-- [ ] 角色权限能限制关键操作。
-- [ ] 字段修正、规则修改、报告导出有审计日志。
-- [ ] API Key 和 `.env` 不提交。
-- [ ] 上传、OCR 中间文件、报告不进入 Git。
-- [ ] 日志不输出完整敏感底稿。
+- [x] 角色权限能限制关键操作。
+- [x] 字段修正、规则修改、用户/角色变更有审计日志；报告导出继续保留生成记录。
+- [x] API Key 和 `.env` 不提交。
+- [x] 上传、OCR 中间文件、报告不进入 Git。
+- [x] 日志不输出完整敏感底稿。
 
 ### 交付物
 
-- [ ] RBAC。
-- [ ] Admin Center。
-- [ ] 安全检查文档。
-- [ ] 审计日志查询。
-- [ ] 工程化增强。
+- [x] RBAC。
+- [x] Admin Center。
+- [x] 安全检查文档。
+- [x] 审计日志查询。
+- [x] 工程化增强。
 
 ### 风险点
 
-- [ ] 权限模型过度设计。
-- [ ] 异步任务引入运维复杂度。
-- [ ] 日志泄露敏感数据。
+- [x] 权限模型过度设计风险已通过固定角色和简单权限点控制。
+- [x] 异步任务运维复杂度风险已通过不引入 Celery / Redis 控制。
+- [x] 日志泄露敏感数据风险已通过 `redact` 和 danger check 控制。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不做企业 SSO，除非有明确需求。
-- [ ] 不做多租户计费系统。
-- [ ] 不做生产级 KMS 集成。
+- [x] 不做企业 SSO，除非有明确需求。
+- [x] 不做多租户计费系统。
+- [x] 不做生产级 KMS 集成。
+
+### Notes
+
+- 2026-07-05: Phase 19 完成 RBAC、安全和工程化完善。新增 `users` / `roles` / `user_roles` migration、基础登录和 bearer token、固定角色权限点、Auth/User/Role/Audit Log API、权限 dependency、登录页、Admin Center、权限驱动的前端操作禁用、审计日志查询、上传文件 magic header 校验、audit log 敏感字段脱敏和 `scripts/danger_check.py`。历史 `actor_name` / nullable user 字段继续兼容，不强制历史数据回填真实用户外键；未引入 Celery / Redis；未实现企业 SSO、多租户计费、生产级 KMS、Phase 20 或 tracker 外功能。
 
 ## Phase 20: 最终验收、文档整理、作品集展示材料
 
@@ -1733,7 +1737,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [x] Phase 16 函证模块扩展完成。
 - [x] Phase 17 访谈模块扩展完成。
 - [x] Phase 18 合同审核模块扩展完成。
-- [ ] Phase 19 RBAC、审计、安全、工程化完善完成。
+- [x] Phase 19 RBAC、审计、安全、工程化完善完成。
 - [x] RAG 输出包含 citation 和 no-answer handling。
 - [ ] Agent 不绕过 Rule Engine。
 - [ ] Evaluation Center 可运行回归评测。

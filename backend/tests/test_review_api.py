@@ -77,8 +77,8 @@ def test_field_correction_preserves_source_and_writes_before_after_log() -> None
         log = db.query(AuditLog).filter(AuditLog.action == "field_corrected").one()
         assert comment.before_value["value_text"] == "Supplier Co"
         assert comment.after_value["value_text"] == "Supplier Corrected Co"
-        assert log.before_value["source_text"] == original_source_text
-        assert log.after_value["source_text"] == original_source_text
+        assert log.before_value["source_text"] == "[REDACTED_TEXT]"
+        assert log.after_value["source_text"] == "[REDACTED_TEXT]"
         assert log.task_id == UUID(task["id"])
 
 

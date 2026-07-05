@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_permission
 from app.db.session import get_db
 from app.schemas.audit import AuditResultRead
 from app.schemas.document import (
@@ -28,7 +29,7 @@ from app.services import (
 router = APIRouter(tags=["documents"])
 
 
-@router.post("/tasks/{task_id}/documents", response_model=DocumentRead)
+@router.post("/tasks/{task_id}/documents", response_model=DocumentRead, dependencies=[Depends(require_permission("document:upload"))])
 async def upload_document(
     task_id: UUID,
     file: Annotated[UploadFile, File()],
@@ -45,79 +46,79 @@ async def upload_document(
     )
 
 
-@router.get("/tasks/{task_id}/documents", response_model=list[DocumentRead])
+@router.get("/tasks/{task_id}/documents", response_model=list[DocumentRead], dependencies=[Depends(require_permission("read"))])
 def list_documents(task_id: UUID, db: Session = Depends(get_db)):
     task_service.get_task(db, task_id)
     return document_service.list_documents(db, task_id)
 
 
-@router.get("/tasks/{task_id}/fields", response_model=list[ExtractedFieldRead])
+@router.get("/tasks/{task_id}/fields", response_model=list[ExtractedFieldRead], dependencies=[Depends(require_permission("read"))])
 def list_task_fields(task_id: UUID, db: Session = Depends(get_db)):
     task_service.get_task(db, task_id)
     return extraction_service.list_task_fields(db, task_id)
 
 
-@router.post("/tasks/{task_id}/link-documents", response_model=LinkDocumentsResult)
+@router.post("/tasks/{task_id}/link-documents", response_model=LinkDocumentsResult, dependencies=[Depends(require_permission("document:process"))])
 def link_task_documents(task_id: UUID, db: Session = Depends(get_db)):
     task_service.get_task(db, task_id)
     return linkage_service.link_documents(db, task_id)
 
 
-@router.get("/tasks/{task_id}/document-relations", response_model=list[DocumentRelationRead])
+@router.get("/tasks/{task_id}/document-relations", response_model=list[DocumentRelationRead], dependencies=[Depends(require_permission("read"))])
 def list_task_document_relations(task_id: UUID, db: Session = Depends(get_db)):
     task_service.get_task(db, task_id)
     return linkage_service.list_document_relations(db, task_id)
 
 
-@router.post("/tasks/{task_id}/audit", response_model=list[AuditResultRead])
+@router.post("/tasks/{task_id}/audit", response_model=list[AuditResultRead], dependencies=[Depends(require_permission("audit:run"))])
 def run_task_audit(task_id: UUID, db: Session = Depends(get_db)):
     task_service.get_task(db, task_id)
     return rule_engine_service.run_audit(db, task_id)
 
 
-@router.get("/tasks/{task_id}/audit-results", response_model=list[AuditResultRead])
+@router.get("/tasks/{task_id}/audit-results", response_model=list[AuditResultRead], dependencies=[Depends(require_permission("read"))])
 def list_task_audit_results(task_id: UUID, db: Session = Depends(get_db)):
     task_service.get_task(db, task_id)
     return rule_engine_service.list_audit_results(db, task_id)
 
 
-@router.get("/audit-results/{result_id}", response_model=AuditResultRead)
+@router.get("/audit-results/{result_id}", response_model=AuditResultRead, dependencies=[Depends(require_permission("read"))])
 def get_audit_result(result_id: UUID, db: Session = Depends(get_db)):
     return rule_engine_service.get_audit_result(db, result_id)
 
 
-@router.get("/documents/{document_id}", response_model=DocumentRead)
+@router.get("/documents/{document_id}", response_model=DocumentRead, dependencies=[Depends(require_permission("read"))])
 def get_document(document_id: UUID, db: Session = Depends(get_db)):
     return document_service.get_document(db, document_id)
 
 
-@router.patch("/documents/{document_id}", response_model=DocumentRead)
+@router.patch("/documents/{document_id}", response_model=DocumentRead, dependencies=[Depends(require_permission("document:process"))])
 def update_document(document_id: UUID, payload: DocumentUpdate, db: Session = Depends(get_db)):
     return classification_service.update_document_classification(db, document_id, payload)
 
 
-@router.post("/documents/{document_id}/ocr", response_model=DocumentRead)
+@router.post("/documents/{document_id}/ocr", response_model=DocumentRead, dependencies=[Depends(require_permission("document:process"))])
 def run_ocr(document_id: UUID, db: Session = Depends(get_db)):
     return ocr_service.run_ocr(db, document_id)
 
 
-@router.post("/documents/{document_id}/classify", response_model=ClassificationRead)
+@router.post("/documents/{document_id}/classify", response_model=ClassificationRead, dependencies=[Depends(require_permission("document:process"))])
 def classify_document(document_id: UUID, db: Session = Depends(get_db)):
     return classification_service.classify_document(db, document_id)
 
 
-@router.post("/documents/{document_id}/extract", response_model=list[ExtractedFieldRead])
+@router.post("/documents/{document_id}/extract", response_model=list[ExtractedFieldRead], dependencies=[Depends(require_permission("document:process"))])
 def extract_document(document_id: UUID, db: Session = Depends(get_db)):
     return extraction_service.extract_document(db, document_id)
 
 
-@router.get("/documents/{document_id}/fields", response_model=list[ExtractedFieldRead])
+@router.get("/documents/{document_id}/fields", response_model=list[ExtractedFieldRead], dependencies=[Depends(require_permission("read"))])
 def list_document_fields(document_id: UUID, db: Session = Depends(get_db)):
     document_service.get_document(db, document_id)
     return extraction_service.list_document_fields(db, document_id)
 
 
-@router.get("/documents/{document_id}/pages", response_model=list[DocumentPageRead])
+@router.get("/documents/{document_id}/pages", response_model=list[DocumentPageRead], dependencies=[Depends(require_permission("read"))])
 def list_pages(document_id: UUID, db: Session = Depends(get_db)):
     document_service.get_document(db, document_id)
     return ocr_service.list_pages(db, document_id)

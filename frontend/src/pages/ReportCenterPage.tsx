@@ -2,13 +2,14 @@ import { Alert, Button, Card, Empty, Select, Space, Table, Tag, Typography, mess
 import { useEffect, useState } from "react";
 
 import {
+  downloadReport,
   generateControlTableReport,
   listReports,
   listTasks,
-  reportDownloadUrl,
 } from "../api/client";
 import type { PageProps } from "../routes";
 import type { AuditTask, ReportRecord } from "../types/api";
+import { hasPermission } from "../utils/permissions";
 
 const procurementPreviewColumns = [
   "business_key",
@@ -95,11 +96,12 @@ function controlTablePreview(report: ReportRecord | null): Record<string, unknow
   return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null) : [];
 }
 
-export function ReportCenterPage(_props: PageProps) {
+export function ReportCenterPage({ currentUser }: PageProps) {
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
+  const canGenerateReport = hasPermission(currentUser, "report:generate");
 
   async function refreshReports(taskId = selectedTaskId) {
     if (!taskId) {
@@ -143,7 +145,7 @@ export function ReportCenterPage(_props: PageProps) {
     }
     setLoading(true);
     try {
-      await generateControlTableReport(selectedTaskId, { generated_by: "reporter" });
+      await generateControlTableReport(selectedTaskId, { generated_by: currentUser.full_name });
       await refreshReports(selectedTaskId);
       message.success("Report generated");
     } catch {
@@ -188,7 +190,12 @@ export function ReportCenterPage(_props: PageProps) {
               void refreshReports(taskId);
             }}
           />
-          <Button type="primary" loading={loading} disabled={!selectedTaskId} onClick={() => void handleGenerateReport()}>
+          <Button
+            type="primary"
+            loading={loading}
+            disabled={!selectedTaskId || !canGenerateReport}
+            onClick={() => void handleGenerateReport()}
+          >
             Generate XLSX
           </Button>
         </Space>
@@ -256,7 +263,10 @@ export function ReportCenterPage(_props: PageProps) {
             {
               title: "Download",
               render: (_, record) => (
-                <Button size="small" href={reportDownloadUrl(record.id)}>
+                <Button
+                  size="small"
+                  onClick={() => void downloadReport(record.id, `${record.title}.${record.file_format}`)}
+                >
                   Download XLSX
                 </Button>
               ),

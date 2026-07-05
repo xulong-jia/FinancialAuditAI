@@ -114,6 +114,8 @@ async def save_document(
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
     if len(data) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="Uploaded file is too large")
+    if not _has_expected_signature(extension, data):
+        raise HTTPException(status_code=400, detail="Uploaded file content does not match extension")
 
     document_id = uuid4()
     file_hash = sha256(data).hexdigest()
@@ -144,3 +146,15 @@ async def save_document(
         raise
     db.refresh(document)
     return document
+
+
+def _has_expected_signature(extension: str, data: bytes) -> bool:
+    signatures = {
+        "pdf": (b"%PDF",),
+        "png": (b"\x89PNG\r\n\x1a\n",),
+        "jpg": (b"\xff\xd8\xff",),
+        "jpeg": (b"\xff\xd8\xff",),
+        "docx": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),
+        "xlsx": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),
+    }
+    return any(data.startswith(signature) for signature in signatures.get(extension, ()))

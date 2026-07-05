@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.security import redact
 from app.models.audit_log import AuditLog
 from app.models.audit_result import AuditResult
 from app.models.audit_rule import AuditRule
@@ -2233,8 +2234,8 @@ def _add_rule_log(
             action=action,
             target_type="audit_rule",
             target_id=target_id,
-            before_value=before_value,
-            after_value=after_value,
+            before_value=redact(before_value),
+            after_value=redact(after_value),
         )
     )
 

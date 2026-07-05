@@ -4,7 +4,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
+from secrets import token_urlsafe
 import sys
 from uuid import uuid4
 
@@ -17,8 +19,10 @@ from app.models.document import Document  # noqa: E402
 from app.models.document_page import DocumentPage  # noqa: E402
 from app.models.document_relation import DocumentRelation  # noqa: E402
 from app.models.extracted_field import ExtractedField  # noqa: E402
+from app.models.user import User  # noqa: E402
+from app.schemas.auth import UserCreate  # noqa: E402
 from app.schemas.task import TaskCreate  # noqa: E402
-from app.services import report_service, rule_engine_service, task_service  # noqa: E402
+from app.services import auth_service, report_service, rule_engine_service, task_service  # noqa: E402
 
 SEED_PATH = PROJECT_ROOT / "samples" / "procurement" / "demo_seed.json"
 
@@ -26,6 +30,7 @@ SEED_PATH = PROJECT_ROOT / "samples" / "procurement" / "demo_seed.json"
 def main() -> None:
     seed = json.loads(SEED_PATH.read_text())
     with SessionLocal() as db:
+        demo_credentials = _ensure_demo_admin(db)
         task = task_service.create_task(
             db,
             TaskCreate(
@@ -51,6 +56,28 @@ def main() -> None:
         print(f"Created demo task: {task.task_no} ({task.id})")
         print(f"Audit results: {len(results)}")
         print(f"Report: {report.storage_path}")
+        if demo_credentials:
+            print(f"Demo admin email: {demo_credentials[0]}")
+            print(f"Demo admin password: {demo_credentials[1]}")
+
+
+def _ensure_demo_admin(db) -> tuple[str, str] | None:
+    if db.query(User.id).first() is not None:
+        return None
+    email = os.environ.get("DEMO_ADMIN_EMAIL", "demo-admin@example.com")
+    demo_password = os.environ.get("DEMO_ADMIN_PASSWORD") or token_urlsafe(12)
+    auth_service.create_user(
+        db,
+        UserCreate(
+            email=email,
+            password=demo_password,
+            full_name="Demo Admin",
+            organization="Synthetic Demo",
+            title="Administrator",
+            role_codes=["admin"],
+        ),
+    )
+    return email, demo_password
 
 
 def _create_document(db, task_id, business_key: str, document_seed: dict) -> Document:

@@ -75,9 +75,19 @@ Post-MVP Phase 18 implemented:
 - Contract review xlsx export with Summary, Contract Review, Special Clauses, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
 - Contract terms and special clauses are evidence-backed risk prompts only; the system does not provide legal opinions, automatic approval, signature authenticity checks, or seal authenticity checks.
 
+Post-MVP Phase 19 implemented:
+
+- Basic login with hashed passwords and signed bearer tokens.
+- Fixed RBAC roles: `viewer`, `analyst`, `reviewer`, `manager`, and `admin`.
+- Permission checks for processing, review, report generation, Rule Center, RAG management, Agent runs, quality actions, user/role management, and audit-log access.
+- Admin Center for users, roles, permissions, and audit log review.
+- Audit log redaction, stronger upload content signature checks, and repository danger scan.
+- Historical nullable `actor_name` and user-related fields remain compatible; no enterprise SSO, multi-tenant billing, or production KMS is implemented.
+
 Not implemented:
 
-- Full RBAC, Dashboard, PDF reports.
+- Dashboard, PDF reports.
+- Enterprise SSO, third-party OAuth login, multi-tenant billing, complex organization management, or production KMS.
 - Complex revenue recognition, sales forecasting, cash-flow forecasting, or customer credit assessment.
 - External confirmation sending, email delivery, bank interfaces, seal authenticity checks, signature authenticity checks, or final confirmation authenticity judgments.
 - Audio upload, speech recognition, identity document recognition, external fact checking, or automatic final interview conclusions.
@@ -182,6 +192,8 @@ alembic upgrade head
 python ../scripts/seed_demo_data.py
 ```
 
+If no user exists, the seed script creates a local demo admin account and prints a generated password. Set `DEMO_ADMIN_EMAIL` and `DEMO_ADMIN_PASSWORD` before running the script if you need fixed local credentials.
+
 The seed script uses only synthetic procurement data from `samples/procurement/demo_seed.json`. Phase 15 sales sample metadata lives in `samples/sales/demo_seed.json`; Phase 16 confirmation sample metadata lives in `samples/confirmation/demo_seed.json`; Phase 17 interview sample metadata lives in `samples/interview/demo_seed.json`; Phase 18 contract review sample metadata lives in `samples/contract_review/demo_seed.json`. These files are synthetic and do not include real documents.
 
 ## Data And Safety
@@ -191,6 +203,12 @@ The seed script uses only synthetic procurement data from `samples/procurement/d
 - `.env`, `local_storage/`, uploaded files, generated reports, xlsx exports, virtual environments, `node_modules/`, logs, and secrets must not be committed.
 - Reports are saved under `local_storage/reports`, which is ignored by Git.
 - Uploaded documents are saved under `local_storage/uploads`, which is ignored by Git.
+- Set `AUTH_SECRET_KEY` in local or deployment environment configuration; do not use a production secret from `.env.example`.
+- Run the repository safety check before commit:
+
+```bash
+python3 scripts/danger_check.py
+```
 
 ## Project Tracking
 

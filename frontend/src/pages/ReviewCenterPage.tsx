@@ -26,6 +26,7 @@ import {
 } from "../api/client";
 import type { PageProps } from "../routes";
 import type { AuditResult, AuditTask, ExtractedField, ReviewComment, ReviewQueueItem } from "../types/api";
+import { hasPermission } from "../utils/permissions";
 
 type CorrectionFormValues = {
   value_text?: string;
@@ -66,7 +67,7 @@ function parseNormalized(raw: string | undefined) {
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
-export function ReviewCenterPage(_props: PageProps) {
+export function ReviewCenterPage({ currentUser }: PageProps) {
   const [correctionForm] = Form.useForm<CorrectionFormValues>();
   const [dismissForm] = Form.useForm<DismissFormValues>();
   const [tasks, setTasks] = useState<AuditTask[]>([]);
@@ -76,6 +77,7 @@ export function ReviewCenterPage(_props: PageProps) {
   const [editingField, setEditingField] = useState<ExtractedField | null>(null);
   const [dismissingResult, setDismissingResult] = useState<AuditResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const canReview = hasPermission(currentUser, "review:write");
 
   async function refresh(taskId = selectedTaskId) {
     setLoading(true);
@@ -301,7 +303,7 @@ export function ReviewCenterPage(_props: PageProps) {
                 const field = record.field;
                 if (field) {
                   return (
-                    <Button size="small" onClick={() => openCorrection(field)}>
+                    <Button size="small" disabled={!canReview} onClick={() => openCorrection(field)}>
                       Correct
                     </Button>
                   );
@@ -312,13 +314,13 @@ export function ReviewCenterPage(_props: PageProps) {
                 }
                 return (
                   <Space>
-                    <Button size="small" onClick={() => void handleConfirm(result)}>
+                    <Button size="small" disabled={!canReview} onClick={() => void handleConfirm(result)}>
                       Confirm
                     </Button>
-                    <Button size="small" danger onClick={() => setDismissingResult(result)}>
+                    <Button size="small" danger disabled={!canReview} onClick={() => setDismissingResult(result)}>
                       Dismiss
                     </Button>
-                    <Button size="small" onClick={() => void handleRerun(result)}>
+                    <Button size="small" disabled={!canReview} onClick={() => void handleRerun(result)}>
                       Rerun
                     </Button>
                   </Space>
@@ -392,7 +394,7 @@ export function ReviewCenterPage(_props: PageProps) {
               <Form.Item name="comment" label="Comment">
                 <TextArea rows={3} />
               </Form.Item>
-              <Button type="primary" htmlType="submit" loading={loading}>
+              <Button type="primary" htmlType="submit" loading={loading} disabled={!canReview}>
                 Save Correction
               </Button>
             </Form>
@@ -413,7 +415,7 @@ export function ReviewCenterPage(_props: PageProps) {
           <Form.Item name="reason" label="Dismiss Reason" rules={[{ required: true, message: "Reason is required" }]}>
             <TextArea rows={4} />
           </Form.Item>
-          <Button type="primary" danger htmlType="submit" loading={loading}>
+          <Button type="primary" danger htmlType="submit" loading={loading} disabled={!canReview}>
             Dismiss
           </Button>
         </Form>

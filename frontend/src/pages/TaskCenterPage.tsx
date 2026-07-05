@@ -30,6 +30,7 @@ import type {
   ExtractedField,
 } from "../types/api";
 import type { PageProps } from "../routes";
+import { hasPermission } from "../utils/permissions";
 
 const procurementDocTypes: { label: string; value: DocumentDocType }[] = [
   { label: "采购申请单", value: "purchase_request" },
@@ -89,7 +90,7 @@ function formatEvidence(value: Record<string, unknown>) {
   return JSON.stringify(value);
 }
 
-export function TaskCenterPage({ onNavigate }: PageProps) {
+export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
   const [form] = Form.useForm<CreateTaskPayload>();
   const [uploadForm] = Form.useForm<{ doc_type_hint: DocumentDocType }>();
   const [manualForm] = Form.useForm<{ doc_type: ClassificationDocType }>();
@@ -362,6 +363,10 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
   const documentNameById = Object.fromEntries(
     documents.map((document) => [document.id, document.original_filename]),
   );
+  const canCreateTask = hasPermission(currentUser, "task:create");
+  const canUploadDocument = hasPermission(currentUser, "document:upload");
+  const canProcessDocument = hasPermission(currentUser, "document:process");
+  const canRunAudit = hasPermission(currentUser, "audit:run");
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
@@ -393,7 +398,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
             />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>
+            <Button type="primary" htmlType="submit" loading={loading} disabled={!canCreateTask}>
               Create
             </Button>
           </Form.Item>
@@ -440,12 +445,18 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
               fileList={fileList}
               maxCount={1}
               onChange={({ fileList: nextFileList }) => setFileList(nextFileList)}
+              disabled={!canUploadDocument}
             >
-              <Button>Select file</Button>
+              <Button disabled={!canUploadDocument}>Select file</Button>
             </Upload>
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} disabled={!selectedTaskId}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              disabled={!selectedTaskId || !canUploadDocument}
+            >
               Upload
             </Button>
           </Form.Item>
@@ -454,7 +465,12 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
 
       <Card title="Documents">
         <Space style={{ marginBottom: 16 }}>
-          <Button type="primary" loading={loading} disabled={!selectedTaskId} onClick={() => void handleLinkDocuments()}>
+          <Button
+            type="primary"
+            loading={loading}
+            disabled={!selectedTaskId || !canProcessDocument}
+            onClick={() => void handleLinkDocuments()}
+          >
             Link Documents
           </Button>
         </Space>
@@ -513,13 +529,18 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
               title: "Action",
               render: (_, record) => (
                 <Space>
-                  <Button size="small" loading={loading} onClick={() => void handleRunOcr(record.id)}>
+                  <Button
+                    size="small"
+                    loading={loading}
+                    disabled={!canProcessDocument}
+                    onClick={() => void handleRunOcr(record.id)}
+                  >
                     Run OCR
                   </Button>
                   <Button
                     size="small"
                     loading={loading}
-                    disabled={record.ocr_status !== "completed"}
+                    disabled={!canProcessDocument || record.ocr_status !== "completed"}
                     onClick={() => void handleClassify(record.id)}
                   >
                     Classify
@@ -528,6 +549,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
                     size="small"
                     loading={loading}
                     disabled={
+                      !canProcessDocument ||
                       record.ocr_status !== "completed" ||
                       !record.doc_type ||
                       record.doc_type === "unknown"
@@ -586,7 +608,12 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
 
       <Card title="Audit Results">
         <Space style={{ marginBottom: 16 }}>
-          <Button type="primary" loading={loading} disabled={!selectedTaskId} onClick={() => void handleRunAudit()}>
+          <Button
+            type="primary"
+            loading={loading}
+            disabled={!selectedTaskId || !canRunAudit}
+            onClick={() => void handleRunAudit()}
+          >
             Run Audit
           </Button>
         </Space>
@@ -689,7 +716,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
                 <Select style={{ width: 240 }} options={classificationDocTypes} />
               </Form.Item>
               <Form.Item>
-                <Button htmlType="submit" loading={loading}>
+                <Button htmlType="submit" loading={loading} disabled={!canProcessDocument}>
                   Save Manual Type
                 </Button>
               </Form.Item>

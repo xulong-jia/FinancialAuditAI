@@ -9,6 +9,29 @@ Responses use JSON unless the endpoint is a report download. Errors use FastAPI'
 - `GET /health`
 - `GET /api/v1/config`
 
+## Auth And RBAC
+
+- `POST /auth/login`
+- `GET /auth/me`
+- `POST /auth/logout`
+- `GET /users`
+- `POST /users`
+- `PATCH /users/{user_id}`
+- `GET /roles`
+- `POST /roles`
+- `PATCH /roles/{role_id}`
+- `GET /audit-logs`
+
+Protected endpoints use `Authorization: Bearer <token>`. `GET /health` and `GET /api/v1/config` remain public local health/config endpoints. Password hashes are never returned.
+
+Default roles:
+
+- `viewer`: read-only access.
+- `analyst`: create/update tasks, upload documents, run document processing, run rule audit, and run Agent workflows.
+- `reviewer`: review queue operations, field correction, exception confirm/dismiss, and rule rerun.
+- `manager`: report generation, evaluation result viewing, and audit-log viewing.
+- `admin`: all permissions, including Rule Center, RAG management, user and role management, and system configuration.
+
 ## Tasks
 
 - `POST /tasks`
@@ -193,7 +216,7 @@ RAG query responses include `answer`, `citations`, and `limitations`. If evidenc
 - `GET /agents/runs/{run_id}/steps`
 - `POST /agents/runs/{run_id}/retry`
 
-Agent workflow is a fixed state machine with whitelisted tool calls only. It records `agent_runs` and `agent_steps` with input references, output references, status, duration, and errors. It calls the existing OCR, classification, extraction, linkage, Rule Engine, RAG retrieval, review routing, and report generation services. Agent workflow does not provide free chat, autonomous planning, RBAC, Evaluation Center, Bad Case Center, or final audit conclusions. It does not write Rule Engine pass/fail decisions directly and does not auto-confirm high-risk exceptions.
+Agent workflow is a fixed state machine with whitelisted tool calls only. It records `agent_runs` and `agent_steps` with input references, output references, status, duration, and errors. It calls the existing OCR, classification, extraction, linkage, Rule Engine, RAG retrieval, review routing, and report generation services. Agent workflow does not provide free chat, autonomous planning, Evaluation Center, Bad Case Center, or final audit conclusions. It does not write Rule Engine pass/fail decisions directly and does not auto-confirm high-risk exceptions.
 
 ## Quality Center
 
@@ -209,8 +232,13 @@ Supported evaluation types: `classification`, `ocr`, `extraction`, `rule`, `rag`
 
 ## Security Notes
 
-- MVP does not implement login, RBAC, user roles, or production authorization.
-- User fields such as `actor_name`, `reviewed_by`, `corrected_by`, and `generated_by` are nullable strings.
+- Phase 19 implements basic login, fixed RBAC roles, route-level permission dependencies, Admin Center, and audit-log query.
+- RBAC keeps historical fields such as `actor_name`, `reviewed_by`, `corrected_by`, and `generated_by` compatible as nullable strings/fallbacks; old records are not forced to have real user IDs.
+- Permission failures return 403; missing or invalid tokens return 401 on protected endpoints.
+- Uploads validate extension, content type, size, hash, and basic file signature/magic header.
+- Audit logs redact sensitive keys and large raw text fields such as OCR/source/chunk text.
+- `scripts/danger_check.py` scans tracked/staged files for forbidden paths and obvious static secrets before commit.
 - Do not use this API with real confidential documents.
 - Workpaper content must stay isolated from public RAG knowledge bases.
 - Agent step payloads should contain references and summaries, not complete sensitive original text.
+- Phase 19 does not implement enterprise SSO, third-party OAuth, multi-tenant billing, production KMS, or complex organization hierarchy.

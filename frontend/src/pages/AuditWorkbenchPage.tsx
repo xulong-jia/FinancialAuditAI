@@ -15,6 +15,7 @@ import {
 import { AgentStateTimeline } from "../components/AgentStateTimeline";
 import type { PageProps } from "../routes";
 import type { AuditResult, AuditTask, DocumentPage, DocumentRecord, ExtractedField } from "../types/api";
+import { hasPermission } from "../utils/permissions";
 
 type EvidenceRef = {
   document_id?: string | null;
@@ -82,7 +83,7 @@ function renderHighlightedText(rawText: string, evidenceText: string | null) {
   );
 }
 
-export function AuditWorkbenchPage({ onNavigate }: PageProps) {
+export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [fields, setFields] = useState<ExtractedField[]>([]);
@@ -99,6 +100,9 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
   const [loadingTaskData, setLoadingTaskData] = useState(false);
   const [loadingPages, setLoadingPages] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canReview = hasPermission(currentUser, "review:write");
+  const canViewEvaluation = hasPermission(currentUser, "evaluation:read");
+  const canRunAgent = hasPermission(currentUser, "agent:run");
 
   useEffect(() => {
     let active = true;
@@ -358,7 +362,9 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
             <Typography.Title level={3} style={{ margin: 0 }}>
               Audit Workbench
             </Typography.Title>
-            <Button onClick={() => onNavigate("bad-case-center")}>Bad Case Center</Button>
+            <Button disabled={!canViewEvaluation} onClick={() => onNavigate("bad-case-center")}>
+              Bad Case Center
+            </Button>
             <Select
               placeholder="Select task"
               style={{ minWidth: 320 }}
@@ -389,7 +395,7 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
         </Card>
       ) : (
         <>
-          <AgentStateTimeline taskId={selectedTaskId} />
+          <AgentStateTimeline taskId={selectedTaskId} canRunAgent={canRunAgent} />
           <div
             style={{
               display: "grid",
@@ -568,7 +574,7 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
                     {
                       title: "Review",
                       render: (_, record) => (
-                        <Button size="small" onClick={() => void handleCorrectField(record)}>
+                        <Button size="small" disabled={!canReview} onClick={() => void handleCorrectField(record)}>
                           Correct
                         </Button>
                       ),
@@ -689,7 +695,7 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
                     {!field.value_text && field.is_required ? <Tag color="red">Missing</Tag> : null}
                     {field.confidence != null && field.confidence < 0.6 ? <Tag color="gold">Low Confidence</Tag> : null}
                     {field.is_verified ? <Tag color="green">Verified</Tag> : null}
-                    <Button size="small" onClick={() => void handleCorrectField(field)}>
+                    <Button size="small" disabled={!canReview} onClick={() => void handleCorrectField(field)}>
                       Correct
                     </Button>
                   </Space>
@@ -711,13 +717,13 @@ export function AuditWorkbenchPage({ onNavigate }: PageProps) {
                     </Space>
                     <Typography.Text>{result.message}</Typography.Text>
                     <Space wrap>
-                      <Button size="small" onClick={() => void handleConfirmResult(result)}>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleConfirmResult(result)}>
                         Confirm
                       </Button>
-                      <Button size="small" danger onClick={() => void handleDismissResult(result)}>
+                      <Button size="small" danger disabled={!canReview} onClick={() => void handleDismissResult(result)}>
                         Dismiss
                       </Button>
-                      <Button size="small" onClick={() => void handleRerunResult(result)}>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleRerunResult(result)}>
                         Rerun
                       </Button>
                     </Space>

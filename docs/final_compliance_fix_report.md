@@ -70,3 +70,13 @@ P0, P1, latest re-review backend high-risk gaps, RBAC matrix gaps, and P2 closur
 | Evaluation synthetic/non-production boundary wording | resolved | `docs/evaluation.md` |
 | Frontend permission affordances for read-only users | resolved | `frontend/src/pages/BadCaseCenterPage.tsx`, `frontend/src/pages/KnowledgeCenterPage.tsx`, `frontend/src/pages/ReportCenterPage.tsx`, `frontend/src/pages/RuleCenterPage.tsx` |
 | Admin Center model/provider configuration visibility | resolved | `backend/app/api/router.py`, `frontend/src/pages/AdminCenterPage.tsx`, `README.md` |
+
+## Final Execution Manual Re-review Conclusion
+
+Conclusion: can be submitted as the final local portfolio version.
+
+Blocking gaps from the final execution-manual review are resolved in code or closed with explicit compatibility boundaries. Remaining non-blocking limits are:
+
+- External OCR/LLM/RAG providers require environment configuration; deterministic providers remain local fallback and are marked degraded.
+- Built-in Evaluation Center runs are synthetic/sample/regression scoped and report `is_production_evaluation=false`.
+- Historical actor display fields remain nullable strings for compatibility; authenticated accountability is carried by `audit_logs.user_id`.

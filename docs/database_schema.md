@@ -17,7 +17,7 @@ This document summarizes the core tables managed by Alembic migrations `0001` th
 | `audit_logs` | Audit trail for review, rules, users, and roles | `id`, `actor_name`, `task_id`, `action`, `target_type`, `target_id`, `before_value`, `after_value` |
 | `control_table_rows` | Report preview/control rows | `id`, `task_id`, `business_key`, `scenario`, `row_data`, `overall_status`, `evidence_refs`, `reviewer_comment` |
 | `reports` | Generated report records | `id`, `task_id`, `report_type`, `title`, `status`, `file_format`, `storage_path`, `summary`, `generated_by` |
-| `model_invocations` | Provider invocation audit records | `id`, `task_id`, `document_id`, `provider`, `model_name`, `invocation_type`, `status`, `latency_ms`, `token_usage`, `error` |
+| `model_invocations` | Provider invocation audit records | `id`, `task_id`, `document_id`, `provider`, `model_name`, `invocation_type`, `status`, `latency_ms`, `token_usage`, `cost_estimate`, `error` |
 
 ## Post-MVP Tables
 

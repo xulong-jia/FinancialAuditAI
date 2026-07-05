@@ -8,6 +8,7 @@ from app.schemas.extraction import ExtractedFieldValue, validate_document_extrac
 from app.services.extraction_service import (
     SCHEMA_SPECS,
     ExtractionProviderError,
+    _values_from_llm_payload,
     parse_llm_json_output,
 )
 
@@ -143,6 +144,23 @@ def test_six_procurement_extraction_schemas_are_defined() -> None:
     assert set(SCHEMA_SPECS) == set(EXPECTED_SCHEMA_FIELDS)
     for doc_type, expected_fields in EXPECTED_SCHEMA_FIELDS.items():
         assert [field.field_name for field in SCHEMA_SPECS[doc_type]] == expected_fields
+
+
+def test_llm_payload_accepts_execution_manual_procurement_field_names() -> None:
+    values = _values_from_llm_payload(
+        {
+            "fields": [
+                {"field_name": "requester", "value_text": "Alice", "confidence": 0.9},
+                {"field_name": "approver", "value_text": "Bob", "confidence": 0.9},
+            ]
+        },
+        SCHEMA_SPECS["purchase_request"],
+        [],
+    )
+
+    fields = {value.field_name: value for value in values}
+    assert fields["requester_name"].value_text == "Alice"
+    assert fields["approver_name"].value_text == "Bob"
 
 
 def test_pydantic_schema_validation_requires_document_fields() -> None:

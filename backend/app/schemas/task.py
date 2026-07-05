@@ -80,3 +80,5 @@ class TaskRunRead(BaseModel):
     next_action: str | None
     pending_steps: list[str]
     message: str
+    rag_evidence_status: str
+    rag_citation_count: int

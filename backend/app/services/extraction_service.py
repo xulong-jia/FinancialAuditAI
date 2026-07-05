@@ -31,6 +31,15 @@ class FieldSpec:
     is_required: bool = True
 
 
+FIELD_NAME_ALIASES = {
+    "requester": "requester_name",
+    "approver": "approver_name",
+    "receiver": "receiver_name",
+    "preparer": "preparer_name",
+    "reviewer": "reviewer_name",
+}
+
+
 SCHEMA_SPECS: dict[str, tuple[FieldSpec, ...]] = {
     "purchase_request": (
         FieldSpec("request_no", "Request No", "text", ("request no", "request_no", "申请编号")),
@@ -568,6 +577,7 @@ def _extract_values(
             "field_name": spec.field_name,
             "field_label": spec.field_label,
             "field_type": spec.field_type,
+            "accepted_field_names": _accepted_field_names(spec.field_name),
             "aliases": list(spec.aliases),
             "is_required": spec.is_required,
         }
@@ -605,12 +615,21 @@ def _values_from_llm_payload(
         items = [item for item in raw_fields if isinstance(item, dict)]
     else:
         raise ExtractionProviderError("Extraction provider fields must be a list or object")
-    fields_by_name = {str(item.get("field_name")): item for item in items if item.get("field_name")}
+    fields_by_name = {_canonical_field_name(str(item.get("field_name"))): item for item in items if item.get("field_name")}
     values = []
     for spec in specs:
         item = fields_by_name.get(spec.field_name)
         values.append(_llm_field_value(spec, item, pages) if item else _missing_value(spec))
     return values
+
+
+def _accepted_field_names(field_name: str) -> list[str]:
+    aliases = [alias for alias, canonical in FIELD_NAME_ALIASES.items() if canonical == field_name]
+    return [field_name, *aliases]
+
+
+def _canonical_field_name(field_name: str) -> str:
+    return FIELD_NAME_ALIASES.get(field_name, field_name)
 
 
 def _llm_field_value(

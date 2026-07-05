@@ -66,6 +66,8 @@ def test_pdf_ocr_extracts_pages_in_order() -> None:
     assert "bbox" in pages[0]["ocr_blocks"][0]
     assert "confidence" in pages[0]["ocr_blocks"][0]
     assert pages[0]["ocr_blocks"][0]["confidence_source"] == "not_available"
+    assert pages[0]["ocr_confidence"] is None
+    assert "digital_text_confidence_not_applicable" in pages[0]["warnings"]
     assert pages[0]["table_blocks"][0]["rows"][0]["cells"] == ["item", "amount"]
 
     image_response = client.get(f"/api/v1/documents/{uploaded['id']}/pages/1/image")
@@ -101,6 +103,7 @@ def test_png_ocr_runs_without_unimplemented_provider() -> None:
     assert pages[0]["width"] == 1
     assert pages[0]["height"] == 1
     assert "confidence_unavailable" in pages[0]["warnings"]
+    assert "ocr_confidence_not_reported_by_provider" in pages[0]["warnings"]
 
 
 def test_ocr_failure_does_not_hide_task_or_document() -> None:

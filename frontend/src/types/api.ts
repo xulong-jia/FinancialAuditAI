@@ -130,6 +130,8 @@ export type TaskRunResult = {
   next_action: string | null;
   pending_steps: string[];
   message: string;
+  rag_evidence_status: string;
+  rag_citation_count: number;
 };
 
 export type DocumentRecord = {

@@ -115,6 +115,7 @@ def run_task(db: Session, task_id: UUID) -> dict:
     previous_status = task.status
     _run_task_pipeline(db, task)
     status, pending_steps, message = _task_run_state(db, task)
+    rag_evidence_status, rag_citation_count = _rag_evidence_state(db, task.id)
     task.status = status
     db.commit()
     db.refresh(task)
@@ -125,6 +126,8 @@ def run_task(db: Session, task_id: UUID) -> dict:
         "next_action": pending_steps[0] if pending_steps else None,
         "pending_steps": pending_steps,
         "message": message,
+        "rag_evidence_status": rag_evidence_status,
+        "rag_citation_count": rag_citation_count,
     }
 
 
@@ -209,3 +212,14 @@ def _task_run_state(db: Session, task: AuditTask) -> tuple[str, list[str], str]:
         return "reviewing", ["complete_review"], "Audit results include pending review items."
 
     return "completed", [], "Task processing contract is complete."
+
+
+def _rag_evidence_state(db: Session, task_id: UUID) -> tuple[str, int]:
+    results = list(db.scalars(select(AuditResult).where(AuditResult.task_id == task_id)))
+    if not results:
+        return "not_started", 0
+    review_results = [result for result in results if result.status != "pass"]
+    if not review_results:
+        return "not_required", 0
+    citation_count = sum(len(result.rag_citations or []) for result in review_results)
+    return ("completed" if citation_count else "no_answer", citation_count)

@@ -1,6 +1,6 @@
 # FinancialAuditAI Final Compliance Fix Report
 
-## Current Round: P0
+## Current Round: P1
 
 Status: resolved
 
@@ -20,18 +20,27 @@ Status: resolved
 | `python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.json` | PASS |
 | `python3 scripts/danger_check.py` | PASS |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 148 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 150 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `docker compose config` | PASS |
 | Docker PostgreSQL health | PASS, `financialauditai-postgres-1` healthy |
-| `cd backend && ./.venv/bin/alembic current` | PASS, `0021_extracted_field_original_values (head)` |
+| `cd backend && ./.venv/bin/alembic current` | PASS, `0022_model_invocation_cost_estimate (head)` |
 | `git diff --check` | PASS |
 
 ## Remaining Scope
 
 | Priority | Status |
 | --- | --- |
-| P1 | pending |
+| P1 | resolved |
 | P2 | pending |
 
-P0 is resolved. P1 and P2 are not claimed complete in this report.
+P0 and P1 are resolved. P2 is not claimed complete in this report.
+
+## Resolved P1 Items
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Procurement Schema field-name compatibility | resolved | `backend/app/services/extraction_service.py`, `backend/tests/test_extraction_api.py` |
+| `model_invocations` cost-estimate compatibility | resolved | `backend/app/models/model_invocation.py`, `backend/app/services/model_invocation_service.py`, `backend/alembic/versions/0022_model_invocation_cost_estimate.py`, `backend/tests/test_final_gap_closure_api.py` |
+| OCR confidence semantics | resolved | `backend/app/services/ocr_service.py`, `backend/tests/test_ocr_api.py` |
+| `/tasks/{task_id}/run` RAG evidence retrieval status | resolved | `backend/app/services/task_service.py`, `backend/app/schemas/task.py`, `backend/tests/test_final_gap_closure_api.py` |

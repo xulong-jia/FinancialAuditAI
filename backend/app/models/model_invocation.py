@@ -30,5 +30,6 @@ class ModelInvocation(Base):
     status: Mapped[str] = mapped_column(String(32), index=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     token_usage: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    cost_estimate: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

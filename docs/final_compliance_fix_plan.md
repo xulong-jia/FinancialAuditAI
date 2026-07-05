@@ -36,5 +36,5 @@ Review basis: the final execution-manual review found the project partially comp
 | Round | Scope | Status |
 | --- | --- | --- |
 | P0 | DOCX/XLSX, procurement quantity, report evidence page, RAG workpaper scope | resolved |
-| P1 | Provider/accountability compatibility and task-run RAG status | pending |
+| P1 | Provider/accountability compatibility and task-run RAG status | resolved |
 | P2 | Delivery wording and frontend permission affordances | pending |

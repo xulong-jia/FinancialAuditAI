@@ -39,7 +39,7 @@ class BasicImageOcrProvider:
 
         if not text:
             warnings.append("empty_text")
-        warnings.append("confidence_unavailable")
+        warnings.extend(["confidence_unavailable", "ocr_confidence_not_reported_by_provider"])
 
         return [
             DocumentPage(
@@ -189,7 +189,8 @@ def _parse_pdf(document: Document, path: Path) -> list[DocumentPage]:
             text = page.get_text("text").strip()
             warnings = [] if text else ["empty_text"]
             blocks = _text_blocks(page)
-            ocr_engine = "pymupdf"
+            ocr_engine = "pymupdf-text"
+            text_from_native_pdf = bool(text)
 
             if not text:
                 try:
@@ -197,12 +198,16 @@ def _parse_pdf(document: Document, path: Path) -> list[DocumentPage]:
                     text = page.get_text("text", textpage=text_page).strip()
                     blocks = _text_blocks(page, text_page)
                     ocr_engine = "pymupdf-ocr"
+                    text_from_native_pdf = False
                     warnings = [] if text else ["empty_text"]
                 except (RuntimeError, ValueError) as exc:
                     warnings.append(f"ocr_text_unavailable:{exc.__class__.__name__}")
 
             if text:
-                warnings.append("confidence_unavailable")
+                if text_from_native_pdf:
+                    warnings.append("digital_text_confidence_not_applicable")
+                else:
+                    warnings.extend(["confidence_unavailable", "ocr_confidence_not_reported_by_provider"])
 
             rect = page.rect
             pages.append(

@@ -69,7 +69,7 @@ Supported task scenarios: `procurement`, `sales`, `confirmation`, `interview`, `
 - `GET /documents/{document_id}`
 - `PATCH /documents/{document_id}`
 
-Supported upload extensions: `pdf`, `png`, `jpg`, and `jpeg`. The upload API rejects formats that the current OCR/parser path does not support.
+Supported upload extensions: `pdf`, `png`, `jpg`, `jpeg`, `docx`, and `xlsx`. The upload API rejects formats that the current OCR/parser path does not support.
 
 ## OCR And Pages
 

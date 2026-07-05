@@ -11,7 +11,7 @@ from app.schemas.auth import UserCreate
 from app.services import auth_service
 from test_quality_api import create_bad_case, run_eval
 from test_rag_api import create_rag_document, index_document, query_rag
-from test_rule_engine_api import build_scenario
+from test_rule_engine_api import build_scenario, seed_rag_document
 
 
 client = TestClient(app)
@@ -45,11 +45,10 @@ def test_model_invocations_are_recorded_for_rag_query() -> None:
 
     assert result["status"] == "answer"
     with SessionLocal() as db:
-        invocation_types = {
-            invocation.invocation_type
-            for invocation in db.query(ModelInvocation).order_by(ModelInvocation.created_at).all()
-        }
+        invocations = db.query(ModelInvocation).order_by(ModelInvocation.created_at).all()
+        invocation_types = {invocation.invocation_type for invocation in invocations}
     assert {"embedding", "rag_rerank", "rag_answer"}.issubset(invocation_types)
+    assert all(invocation.cost_estimate for invocation in invocations)
 
 
 def test_workpaper_rag_requires_task_scope_metadata() -> None:
@@ -95,9 +94,34 @@ def test_task_run_executes_rules_and_generates_report_for_ready_task() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "completed"
+    assert response.json()["rag_evidence_status"] == "not_required"
+    assert response.json()["rag_citation_count"] == 0
     with SessionLocal() as db:
         assert db.query(AuditResult).filter(AuditResult.task_id == UUID(task["id"])).count() == 7
         assert db.query(Report).filter(Report.task_id == UUID(task["id"])).count() == 1
+
+
+def test_task_run_reports_rag_evidence_retrieval_for_review_items() -> None:
+    seed_rag_document(
+        "Task Run RAG Evidence",
+        "PROC_AMOUNT_001 evidence retrieval guidance for overpayment review.",
+    )
+    task, _ = build_scenario(
+        contract_amount=1000.0,
+        invoice_amounts=(1300.0,),
+        payment_amounts=(1300.0,),
+        voucher_amount=1300.0,
+        amount_excluding_tax=1181.82,
+        tax_amount=118.18,
+        amount_including_tax=1300.0,
+    )
+
+    response = client.post(f"/api/v1/tasks/{task['id']}/run")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "reviewing"
+    assert response.json()["rag_evidence_status"] == "completed"
+    assert response.json()["rag_citation_count"] > 0
 
 
 def test_report_generation_supports_markdown_and_pdf() -> None:

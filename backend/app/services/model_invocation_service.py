@@ -19,6 +19,7 @@ def add_invocation(
     output_schema: str | None = None,
     input_text: str | None = None,
     token_usage: dict | None = None,
+    cost_estimate: dict | None = None,
     error: dict | None = None,
 ) -> None:
     db.add(
@@ -33,6 +34,13 @@ def add_invocation(
             output_schema=output_schema,
             status=status,
             token_usage=token_usage,
+            cost_estimate=cost_estimate or _cost_estimate(token_usage),
             error=error,
         )
     )
+
+
+def _cost_estimate(token_usage: dict | None) -> dict:
+    if not token_usage:
+        return {"currency": "USD", "amount": None, "basis": "token_usage_not_available"}
+    return {"currency": "USD", "amount": None, "basis": "token_usage_unpriced", "token_usage": token_usage}

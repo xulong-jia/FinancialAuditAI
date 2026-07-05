@@ -73,3 +73,4 @@ class RagQueryResponse(BaseModel):
     answer: str
     citations: list[RagCitation]
     limitations: list[str]
+    provider_info: dict = Field(default_factory=dict)

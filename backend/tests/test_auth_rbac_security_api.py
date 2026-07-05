@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal
 from app.main import app
+from app.models.audit_result import AuditResult
 from app.models.extracted_field import ExtractedField
 
 
@@ -30,8 +31,9 @@ def create_user(email: str, role_codes: list[str]) -> dict:
     return response.json()
 
 
-def create_task() -> dict:
-    response = client.post("/api/v1/tasks", json={"name": "RBAC task", "scenario": "procurement"})
+def create_task(payload: dict | None = None) -> dict:
+    body = {"name": "RBAC task", "scenario": "procurement"} | (payload or {})
+    response = client.post("/api/v1/tasks", json=body)
     assert response.status_code == 200
     return response.json()
 
@@ -77,6 +79,31 @@ def add_review_field(task_id: str, document_id: str) -> str:
     return str(field_id)
 
 
+def add_audit_result(task_id: str) -> str:
+    result_id = uuid4()
+    with SessionLocal() as db:
+        db.add(
+            AuditResult(
+                id=result_id,
+                task_id=UUID(task_id),
+                rule_id=None,
+                rule_code="PROC_TEST_SCOPE",
+                rule_version="1.0",
+                business_key="SCOPE-001",
+                status="fail",
+                severity="high",
+                message="scope test",
+                expected_value={"status": "pass"},
+                actual_value={"status": "fail"},
+                evidence={"refs": []},
+                rag_citations=None,
+                review_status="pending",
+            )
+        )
+        db.commit()
+    return str(result_id)
+
+
 def test_login_me_and_password_hash_is_not_returned() -> None:
     user = create_user("analyst@example.com", ["analyst"])
     assert "password_hash" not in user
@@ -112,12 +139,45 @@ def test_viewer_is_read_only_for_processing_review_and_report_actions() -> None:
         headers=viewer_headers,
     ).status_code == 403
     assert client.post(f"/api/v1/tasks/{task['id']}/reports/control-table", json={}, headers=viewer_headers).status_code == 403
+    assert client.delete(f"/api/v1/documents/{document['id']}", headers=viewer_headers).status_code == 403
+
+
+def test_default_role_permissions_match_execution_matrix_baseline() -> None:
+    roles = {role["code"]: set(role["permissions"]) for role in client.get("/api/v1/roles").json()}
+
+    assert roles["viewer"] == {"read", "read_all", "evaluation:read"}
+    assert {"task:create", "document:upload", "document:process", "audit:run", "report:generate", "field:correct"}.issubset(roles["analyst"])
+    assert {"review:write", "document:process", "audit:run", "report:generate", "evaluation:read"}.issubset(roles["reviewer"])
+    assert {"project:manage", "rule:manage", "rag:manage", "quality:manage", "audit_log:read"}.issubset(roles["manager"])
+    assert roles["admin"] == {"*"}
+
+
+def test_analyst_object_scope_blocks_other_owner_task() -> None:
+    first = create_user("owner-one@example.com", ["analyst"])
+    second = create_user("owner-two@example.com", ["analyst"])
+    first_headers = auth_headers("owner-one@example.com", "test-password")
+    second_headers = auth_headers("owner-two@example.com", "test-password")
+    task_response = client.post(
+        "/api/v1/tasks",
+        json={"name": "Owner one task", "scenario": "procurement"},
+        headers=first_headers,
+    )
+    assert task_response.status_code == 200
+    task = task_response.json()
+    assert task["owner_id"] == first["id"]
+
+    list_response = client.get("/api/v1/tasks", headers=second_headers)
+    assert list_response.status_code == 200
+    assert task["id"] not in {item["id"] for item in list_response.json()}
+    assert client.get(f"/api/v1/tasks/{task['id']}", headers=second_headers).status_code == 403
+    assert client.patch(f"/api/v1/tasks/{task['id']}", json={"name": "blocked"}, headers=second_headers).status_code == 403
+    assert second["id"]
 
 
 def test_reviewer_can_correct_field_and_audit_log_is_redacted() -> None:
-    create_user("reviewer@example.com", ["reviewer"])
+    reviewer = create_user("reviewer@example.com", ["reviewer"])
     reviewer_headers = auth_headers("reviewer@example.com", "test-password")
-    task = create_task()
+    task = create_task({"reviewer_id": reviewer["id"]})
     document = upload_pdf(task["id"])
     field_id = add_review_field(task["id"], document["id"])
 
@@ -132,6 +192,93 @@ def test_reviewer_can_correct_field_and_audit_log_is_redacted() -> None:
     field_log = next(log for log in logs if log["action"] == "field_corrected")
     assert "secret original source text" not in str(field_log)
     assert "[REDACTED_TEXT]" in str(field_log)
+    assert field_log["user_id"]
+    assert field_log["ip_address"]
+    assert field_log["user_agent"]
+
+
+def test_unassigned_reviewer_cannot_correct_other_task_field() -> None:
+    assigned = create_user("assigned-reviewer@example.com", ["reviewer"])
+    create_user("unassigned-reviewer@example.com", ["reviewer"])
+    unassigned_headers = auth_headers("unassigned-reviewer@example.com", "test-password")
+    task = create_task({"reviewer_id": assigned["id"]})
+    document = upload_pdf(task["id"])
+    field_id = add_review_field(task["id"], document["id"])
+
+    response = client.patch(
+        f"/api/v1/fields/{field_id}",
+        json={"value_text": "blocked"},
+        headers=unassigned_headers,
+    )
+
+    assert response.status_code == 403
+
+
+def test_analyst_can_correct_own_field_without_review_decision_permission() -> None:
+    analyst = create_user("field-analyst@example.com", ["analyst"])
+    analyst_headers = auth_headers("field-analyst@example.com", "test-password")
+    task_response = client.post(
+        "/api/v1/tasks",
+        json={"name": "Analyst field correction", "scenario": "procurement"},
+        headers=analyst_headers,
+    )
+    assert task_response.status_code == 200
+    task = task_response.json()
+    document = client.post(
+        f"/api/v1/tasks/{task['id']}/documents",
+        data={"doc_type_hint": "purchase_contract"},
+        files={"file": ("contract.pdf", b"%PDF-1.4\nanalyst field\n", "application/pdf")},
+        headers=analyst_headers,
+    ).json()
+    field_id = add_review_field(task["id"], document["id"])
+    result_id = add_audit_result(task["id"])
+
+    assert client.patch(f"/api/v1/fields/{field_id}", json={"value_text": "fixed"}, headers=analyst_headers).status_code == 200
+    assert client.post(f"/api/v1/audit-results/{result_id}/confirm", json={}, headers=analyst_headers).status_code == 403
+
+
+def test_single_audit_result_read_enforces_task_scope() -> None:
+    owner = create_user("result-owner@example.com", ["analyst"])
+    create_user("result-other@example.com", ["analyst"])
+    owner_headers = auth_headers("result-owner@example.com", "test-password")
+    other_headers = auth_headers("result-other@example.com", "test-password")
+    task = client.post(
+        "/api/v1/tasks",
+        json={"name": "Scoped result", "scenario": "procurement"},
+        headers=owner_headers,
+    ).json()
+    result_id = add_audit_result(task["id"])
+
+    assert owner["id"] == task["owner_id"]
+    assert client.get(f"/api/v1/audit-results/{result_id}", headers=owner_headers).status_code == 200
+    assert client.get(f"/api/v1/audit-results/{result_id}", headers=other_headers).status_code == 403
+
+
+def test_manager_scope_uses_organization_when_present() -> None:
+    create_user("scoped-manager@example.com", ["manager"])
+    manager_headers = auth_headers("scoped-manager@example.com", "test-password")
+    manager = client.get("/api/v1/auth/me", headers=manager_headers).json()
+    client.patch(
+        f"/api/v1/users/{manager['id']}",
+        json={"organization": "Scoped Project", "role_codes": ["manager"]},
+    )
+    manager_headers = auth_headers("scoped-manager@example.com", "test-password")
+    owner_headers = auth_headers("admin@example.com", "admin-password")
+    in_scope = client.post(
+        "/api/v1/tasks",
+        json={"name": "In scope", "scenario": "procurement", "project_name": "Scoped Project"},
+        headers=owner_headers,
+    ).json()
+    out_scope = client.post(
+        "/api/v1/tasks",
+        json={"name": "Out scope", "scenario": "procurement", "project_name": "Other Project"},
+        headers=owner_headers,
+    ).json()
+
+    list_response = client.get("/api/v1/tasks", headers=manager_headers)
+    assert in_scope["id"] in {task["id"] for task in list_response.json()}
+    assert out_scope["id"] not in {task["id"] for task in list_response.json()}
+    assert client.get(f"/api/v1/tasks/{out_scope['id']}", headers=manager_headers).status_code == 403
 
 
 def test_admin_can_manage_rules_rag_users_roles_and_audit_logs() -> None:

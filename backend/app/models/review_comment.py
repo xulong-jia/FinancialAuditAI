@@ -27,9 +27,13 @@ class ReviewComment(Base):
     field_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("extracted_fields.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    author_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     author_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     comment_type: Mapped[str] = mapped_column(String(64), index=True)
     content: Mapped[str] = mapped_column(Text)
     before_value: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     after_value: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    attachment_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

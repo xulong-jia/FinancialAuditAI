@@ -95,7 +95,7 @@ export function RuleCenterPage({ currentUser }: PageProps) {
       version: selectedRule.version,
       enabled: selectedRule.enabled,
       description: selectedRule.description ?? "",
-      actor_name: "rule_admin",
+      actor_name: currentUser.full_name,
       parameters_json: formatJson(selectedRule.parameters),
     });
     setEvaluationResults([]);
@@ -151,13 +151,13 @@ export function RuleCenterPage({ currentUser }: PageProps) {
             <Typography.Title level={3} style={{ margin: 0 }}>
               Rule Center
             </Typography.Title>
-            <Tag color="blue">Python registry</Tag>
-            <Tag color="default">No DSL</Tag>
+            <Tag color="blue">Expression contract</Tag>
+            <Tag color="default">Registered Python rules</Tag>
           </Space>
           <Alert
             type="info"
             showIcon
-            message="Rules remain deterministic code. This page only changes enabled status, version, and approved parameters."
+            message="Rules use stored expression contracts and deterministic registered implementations."
           />
         </Space>
       </Card>
@@ -221,8 +221,10 @@ export function RuleCenterPage({ currentUser }: PageProps) {
                 </Space>
                 <Space wrap style={{ marginBottom: 16 }}>
                   <Tag>{selectedRule.category}</Tag>
+                  <Tag>{selectedRule.scenario}</Tag>
                   <Tag color={selectedRule.severity === "high" ? "red" : "gold"}>{selectedRule.severity}</Tag>
                   <Tag>{selectedRule.rule_code}</Tag>
+                  <Tag>{selectedRule.expression}</Tag>
                 </Space>
                 <Form.Item name="description" label="Description">
                   <Input />

@@ -50,6 +50,16 @@ def prepare_report_data() -> tuple[dict, dict]:
         },
     )
     assert response.status_code == 200
+    comment_response = client.post(
+        "/api/v1/review/comments",
+        json={
+            "task_id": task["id"],
+            "author_name": "report_reviewer",
+            "comment_type": "general",
+            "content": "General report review note.",
+        },
+    )
+    assert comment_response.status_code == 200
     return task, docs
 
 
@@ -66,7 +76,7 @@ def test_control_table_report_generates_xlsx_with_required_sheets() -> None:
     assert report["file_format"] == "xlsx"
     assert report["status"] == "completed"
     assert report["storage_path"].startswith("local_storage/reports/")
-    assert report["summary"]["audit_result_count"] == 6
+    assert report["summary"]["audit_result_count"] == 7
     assert report["summary"]["fail_count"] >= 1
     assert report["summary"]["usage_boundary"]
 
@@ -76,6 +86,12 @@ def test_control_table_report_generates_xlsx_with_required_sheets() -> None:
         assert rows
         assert rows[0].business_key
         assert rows[0].evidence_refs
+        assert rows[0].row_data["contract_qty"] == 10.0
+        assert rows[0].row_data["receipt_qty"] == 10.0
+        assert rows[0].row_data["invoice_qty"] == 10.0
+        assert rows[0].row_data["item_check"] in {"pass", "warning", "fail", "need_review"}
+        assert any(ref["type"] == "audit_result" and ref["audit_result_id"] for ref in rows[0].evidence_refs)
+        assert any(ref["type"] == "extracted_field" and ref["field_id"] for ref in rows[0].evidence_refs)
 
     download = client.get(f"/api/v1/reports/{report['id']}/download")
     assert download.status_code == 200
@@ -97,9 +113,33 @@ def test_report_xlsx_exports_exceptions_evidence_and_field_corrections() -> None
     assert "PROC_AMOUNT_001" in exceptions_xml
     assert "refs" in exceptions_xml
     assert "supplier_name" in evidence_xml
+    assert "source_bbox" in evidence_xml
+    assert "source_text" in evidence_xml
     assert "Correct supplier for report export." in corrections_xml
+    assert "General report review note." in corrections_xml
     assert "Supplier Corrected Co" in corrections_xml
     assert "PROC_MISSING_001" in rules_xml
+
+
+def test_control_table_report_generates_csv_download() -> None:
+    task, _ = prepare_report_data()
+
+    response = client.post(
+        f"/api/v1/tasks/{task['id']}/reports/control-table",
+        json={"generated_by": "reporter", "file_format": "csv"},
+    )
+
+    assert response.status_code == 200
+    report = response.json()
+    assert report["file_format"] == "csv"
+    assert report["storage_path"].endswith(".csv")
+
+    download = client.get(f"/api/v1/reports/{report['id']}/download")
+    assert download.status_code == 200
+    assert download.headers["content-type"].startswith("text/csv")
+    csv_text = download.content.decode()
+    assert "business_key" in csv_text
+    assert "reviewer_comment" in csv_text
 
 
 def test_report_history_api_lists_generated_reports() -> None:

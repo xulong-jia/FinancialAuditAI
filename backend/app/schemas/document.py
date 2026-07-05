@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 ProcurementDocType = Literal[
@@ -41,7 +41,19 @@ ContractReviewDocType = Literal[
     "framework_agreement",
     "contract_attachment",
 ]
-DocumentDocType = ProcurementDocType | SalesDocType | ConfirmationDocType | InterviewDocType | ContractReviewDocType
+KnowledgeDocType = Literal[
+    "prospectus",
+    "inquiry_letter",
+    "regulation",
+]
+DocumentDocType = (
+    ProcurementDocType
+    | SalesDocType
+    | ConfirmationDocType
+    | InterviewDocType
+    | ContractReviewDocType
+    | KnowledgeDocType
+)
 UnknownDocType = Literal["unknown"]
 ClassificationDocType = DocumentDocType | UnknownDocType
 
@@ -72,6 +84,7 @@ class DocumentRead(BaseModel):
 
     id: UUID
     task_id: UUID
+    uploaded_by: UUID | None
     uploaded_by_name: str | None
     original_filename: str
     file_ext: str
@@ -85,6 +98,7 @@ class DocumentRead(BaseModel):
     classification_reason: str | None
     alternative_types: list[AlternativeDocType] | None
     original_classification: dict | None
+    metadata: dict = Field(default_factory=dict, validation_alias="metadata_json")
     page_count: int | None
     upload_status: str
     ocr_status: str
@@ -99,6 +113,7 @@ class PageBlock(BaseModel):
     text: str
     bbox: list[float] | None = None
     confidence: float | None = None
+    confidence_source: str | None = None
 
 
 class DocumentPageRead(BaseModel):
@@ -110,6 +125,7 @@ class DocumentPageRead(BaseModel):
     raw_text: str
     ocr_blocks: list[PageBlock]
     table_blocks: list[dict]
+    image_path: str | None
     width: int | None
     height: int | None
     ocr_engine: str

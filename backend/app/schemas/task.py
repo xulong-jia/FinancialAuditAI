@@ -5,7 +5,19 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
-TaskStatus = Literal["draft", "uploaded", "failed"]
+TaskStatus = Literal[
+    "draft",
+    "uploaded",
+    "ocr_running",
+    "ocr_completed",
+    "classified",
+    "extracting",
+    "extracted",
+    "auditing",
+    "reviewing",
+    "completed",
+    "failed",
+]
 Scenario = Literal["procurement", "sales", "confirmation", "interview", "contract_review"]
 
 
@@ -17,6 +29,10 @@ class TaskCreate(BaseModel):
     fiscal_year: int | None = Field(default=None, ge=1900, le=2100)
     period_start: date | None = None
     period_end: date | None = None
+    risk_level: str | None = Field(default=None, max_length=32)
+    owner_id: UUID | None = None
+    reviewer_id: UUID | None = None
+    metadata: dict = Field(default_factory=dict)
     actor_name: str | None = Field(default=None, max_length=120)
 
 
@@ -28,6 +44,10 @@ class TaskUpdate(BaseModel):
     period_start: date | None = None
     period_end: date | None = None
     status: TaskStatus | None = None
+    risk_level: str | None = Field(default=None, max_length=32)
+    owner_id: UUID | None = None
+    reviewer_id: UUID | None = None
+    metadata: dict | None = None
     actor_name: str | None = Field(default=None, max_length=120)
 
 
@@ -44,6 +64,19 @@ class TaskRead(BaseModel):
     period_start: date | None
     period_end: date | None
     status: str
+    risk_level: str | None
+    owner_id: UUID | None
+    reviewer_id: UUID | None
+    metadata: dict = Field(default_factory=dict, validation_alias="metadata_json")
     actor_name: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class TaskRunRead(BaseModel):
+    task_id: UUID
+    previous_status: str
+    status: str
+    next_action: str | None
+    pending_steps: list[str]
+    message: str

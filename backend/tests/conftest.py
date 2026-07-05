@@ -4,6 +4,7 @@ import shutil
 
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import text
 
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
@@ -20,6 +21,8 @@ def _request_with_auth(self, method: str, url, **kwargs):
     headers = dict(kwargs.pop("headers", {}) or {})
     if _AUTH_TOKEN and "authorization" not in {key.lower() for key in headers}:
         headers["Authorization"] = f"Bearer {_AUTH_TOKEN}"
+    if "x-api-raw" not in {key.lower() for key in headers}:
+        headers["X-Api-Raw"] = "1"
     kwargs["headers"] = headers
     return _ORIGINAL_REQUEST(self, method, url, **kwargs)
 
@@ -30,7 +33,9 @@ TestClient.request = _request_with_auth
 @pytest.fixture(autouse=True)
 def clean_database() -> Generator[None, None, None]:
     global _AUTH_TOKEN
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    _align_postgres_schema_for_tests()
     upload_dir = uploads_root()
     report_dir = reports_root()
     if upload_dir.exists():
@@ -65,3 +70,11 @@ def clean_database() -> Generator[None, None, None]:
         shutil.rmtree(upload_dir)
     if report_dir.exists():
         shutil.rmtree(report_dir)
+
+
+def _align_postgres_schema_for_tests() -> None:
+    if engine.dialect.name != "postgresql":
+        return
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE rag_documents ALTER COLUMN metadata TYPE jsonb USING metadata::jsonb"))
+        connection.execute(text("ALTER TABLE rag_chunks ALTER COLUMN metadata TYPE jsonb USING metadata::jsonb"))

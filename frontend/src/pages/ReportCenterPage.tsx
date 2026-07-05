@@ -34,6 +34,7 @@ const salesPreviewColumns = [
   "invoice_amount",
   "receipt_amount",
   "amount_check",
+  "revenue_check",
   "overall_status",
   "reviewer_comment",
 ];
@@ -72,6 +73,7 @@ const contractReviewPreviewColumns = [
   "payment_terms",
   "delivery_terms",
   "special_clauses",
+  "special_clause_check",
   "signature_seal_check",
   "key_terms_check",
   "overall_status",
@@ -138,16 +140,19 @@ export function ReportCenterPage({ currentUser }: PageProps) {
     void loadInitialData();
   }, []);
 
-  async function handleGenerateReport() {
+  async function handleGenerateReport(fileFormat: "xlsx" | "csv") {
     if (!selectedTaskId) {
       message.warning("Select a task first");
       return;
     }
     setLoading(true);
     try {
-      await generateControlTableReport(selectedTaskId, { generated_by: currentUser.full_name });
+      await generateControlTableReport(selectedTaskId, {
+        generated_by: currentUser.full_name,
+        file_format: fileFormat,
+      });
       await refreshReports(selectedTaskId);
-      message.success("Report generated");
+      message.success(`${fileFormat.toUpperCase()} report generated`);
     } catch {
       message.error("Failed to generate report");
     } finally {
@@ -194,9 +199,16 @@ export function ReportCenterPage({ currentUser }: PageProps) {
             type="primary"
             loading={loading}
             disabled={!selectedTaskId || !canGenerateReport}
-            onClick={() => void handleGenerateReport()}
+            onClick={() => void handleGenerateReport("xlsx")}
           >
             Generate XLSX
+          </Button>
+          <Button
+            loading={loading}
+            disabled={!selectedTaskId || !canGenerateReport}
+            onClick={() => void handleGenerateReport("csv")}
+          >
+            Generate CSV
           </Button>
         </Space>
       </Card>
@@ -267,7 +279,7 @@ export function ReportCenterPage({ currentUser }: PageProps) {
                   size="small"
                   onClick={() => void downloadReport(record.id, `${record.title}.${record.file_format}`)}
                 >
-                  Download XLSX
+                  Download {record.file_format.toUpperCase()}
                 </Button>
               ),
             },

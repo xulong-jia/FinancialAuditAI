@@ -96,14 +96,55 @@ def add_rate(task_id: str, document_id: str, field_name: str, rate: float) -> No
 
 
 def add_items(task_id: str, document_id: str, quantity: float) -> None:
-    add_field(
+    set_items(
         task_id,
         document_id,
-        "item_lines",
-        f"Item: Widget; Quantity: {quantity}; Unit: pcs",
-        normalized={"items": [{"item_name": "Widget", "quantity": quantity, "unit": "pcs"}]},
-        field_type="line_items",
+        [{"item_name": "Widget", "item_key": "widget", "quantity": quantity, "unit": "pcs"}],
     )
+
+
+def set_items(task_id: str, document_id: str, items: list[dict]) -> None:
+    text = "\n".join(
+        f"Item: {item['item_name']}; Quantity: {item['quantity']}; Unit: {item.get('unit', 'pcs')}"
+        for item in items
+    )
+    with SessionLocal() as db:
+        field = (
+            db.query(ExtractedField)
+            .filter(
+                ExtractedField.document_id == UUID(document_id),
+                ExtractedField.field_name == "item_lines",
+            )
+            .one_or_none()
+        )
+        if field is None:
+            db.add(
+                ExtractedField(
+                    task_id=UUID(task_id),
+                    document_id=UUID(document_id),
+                    field_name="item_lines",
+                    field_label="Item Lines",
+                    field_type="line_items",
+                    value_text=text,
+                    value_normalized={"items": items},
+                    unit=None,
+                    currency=None,
+                    confidence=0.85,
+                    source_page=1,
+                    source_text=text,
+                    source_bbox=None,
+                    extraction_method="test",
+                    is_required=True,
+                    is_verified=False,
+                    corrected_by=None,
+                    corrected_at=None,
+                    warnings=[],
+                )
+            )
+        else:
+            field.value_text = text
+            field.value_normalized = {"items": items}
+        db.commit()
 
 
 def build_scenario(
@@ -115,6 +156,7 @@ def build_scenario(
     contract_amount: float = 1000.0,
     invoice_amounts: tuple[float, ...] = (800.0,),
     payment_amounts: tuple[float, ...] = (800.0,),
+    receipt_quantities: tuple[float, ...] = (10.0,),
     voucher_amount: float = 800.0,
     invoice_seller: str = "Supplier Co",
     payment_payee: str = "Supplier Co",
@@ -127,7 +169,10 @@ def build_scenario(
     docs: dict[str, list[dict]] = {
         "purchase_request": [upload_document(task["id"], "request.pdf", "purchase_request")],
         "purchase_contract": [upload_document(task["id"], "contract.pdf", "purchase_contract")],
-        "warehouse_receipt": [upload_document(task["id"], "receipt.pdf", "warehouse_receipt")],
+        "warehouse_receipt": [
+            upload_document(task["id"], f"receipt-{index}.pdf", "warehouse_receipt")
+            for index, _ in enumerate(receipt_quantities, start=1)
+        ],
         "invoice": [
             upload_document(task["id"], f"invoice-{index}.pdf", "invoice")
             for index, _ in enumerate(invoice_amounts, start=1)
@@ -168,11 +213,11 @@ def build_scenario(
     maybe("purchase_contract", contract, "amount_including_tax", lambda: add_money(task["id"], contract["id"], "amount_including_tax", contract_amount))
     add_rate(task["id"], contract["id"], "tax_rate", 0.1)
 
-    receipt = docs["warehouse_receipt"][0]
-    maybe("warehouse_receipt", receipt, "receipt_no", lambda: add_field(task["id"], receipt["id"], "receipt_no", "WR-001"))
-    maybe("warehouse_receipt", receipt, "receipt_date", lambda: add_date(task["id"], receipt["id"], "receipt_date", receipt_date))
-    maybe("warehouse_receipt", receipt, "supplier_name", lambda: add_field(task["id"], receipt["id"], "supplier_name", "Supplier Co"))
-    maybe("warehouse_receipt", receipt, "item_lines", lambda: add_items(task["id"], receipt["id"], 10.0))
+    for index, receipt in enumerate(docs["warehouse_receipt"]):
+        maybe("warehouse_receipt", receipt, "receipt_no", lambda receipt=receipt, index=index: add_field(task["id"], receipt["id"], "receipt_no", f"WR-{index + 1:03d}"))
+        maybe("warehouse_receipt", receipt, "receipt_date", lambda receipt=receipt: add_date(task["id"], receipt["id"], "receipt_date", receipt_date))
+        maybe("warehouse_receipt", receipt, "supplier_name", lambda receipt=receipt: add_field(task["id"], receipt["id"], "supplier_name", "Supplier Co"))
+        maybe("warehouse_receipt", receipt, "item_lines", lambda receipt=receipt, index=index: add_items(task["id"], receipt["id"], receipt_quantities[index]))
 
     for index, invoice in enumerate(docs["invoice"]):
         amount = invoice_amounts[index]
@@ -219,6 +264,23 @@ def run_audit(task_id: str) -> dict[str, dict]:
     return result_by_code(results)
 
 
+def seed_rag_document(title: str, text: str) -> None:
+    create_response = client.post(
+        "/api/v1/rag/documents",
+        data={
+            "knowledge_base": "regulation",
+            "title": title,
+            "source_type": "synthetic_text",
+            "metadata_json": '{"topic":"rule_engine"}',
+            "content_text": text,
+            "created_by": "rule_test",
+        },
+    )
+    assert create_response.status_code == 200
+    index_response = client.post(f"/api/v1/rag/documents/{create_response.json()['id']}/index")
+    assert index_response.status_code == 200
+
+
 def test_audit_api_runs_all_rules_and_persists_results() -> None:
     task, _ = build_scenario()
 
@@ -229,6 +291,7 @@ def test_audit_api_runs_all_rules_and_persists_results() -> None:
         "PROC_TIME_001",
         "PROC_AMOUNT_001",
         "PROC_NAME_001",
+        "PROC_ITEM_001",
         "PROC_QTY_001",
         "PROC_TAX_001",
     }
@@ -236,7 +299,7 @@ def test_audit_api_runs_all_rules_and_persists_results() -> None:
 
     list_response = client.get(f"/api/v1/tasks/{task['id']}/audit-results")
     assert list_response.status_code == 200
-    assert len(list_response.json()) == 6
+    assert len(list_response.json()) == 7
 
     detail_response = client.get(f"/api/v1/audit-results/{list_response.json()[0]['id']}")
     assert detail_response.status_code == 200
@@ -247,6 +310,12 @@ def test_audit_api_runs_all_rules_and_persists_results() -> None:
     rule_codes = {rule["rule_code"] for rule in rules_response.json()}
     assert set(results).issubset(rule_codes)
     assert "SALES_AMOUNT_001" in rule_codes
+    amount_rule = {rule["rule_code"]: rule for rule in rules_response.json()}["PROC_AMOUNT_001"]
+    assert amount_rule["scenario"] == "procurement"
+    assert amount_rule["category"] == "amount"
+    assert amount_rule["severity"] == "high"
+    assert amount_rule["expression"] == "python:PROC_AMOUNT_001"
+    assert isinstance(amount_rule["required_fields"], list)
 
 
 def test_missing_required_field_needs_review_and_never_passes() -> None:
@@ -281,6 +350,45 @@ def test_amount_rule_fails_on_overpayment_and_supports_many_invoices_payments() 
     assert results["PROC_AMOUNT_001"]["status"] == "fail"
     assert results["PROC_AMOUNT_001"]["actual_value"]["invoice_total"] > 1000.0
     assert results["PROC_AMOUNT_001"]["actual_value"]["payment_total"] > 1000.0
+
+
+def test_failed_rule_result_binds_real_rag_citation_without_overriding_status() -> None:
+    seed_rag_document(
+        "Proc Amount Rule Citation",
+        "PROC_AMOUNT_001 guidance: Procurement amounts exceed contract amount and require source-backed explanation.",
+    )
+    task, _ = build_scenario(
+        contract_amount=1000.0,
+        invoice_amounts=(1300.0,),
+        payment_amounts=(1300.0,),
+        voucher_amount=1300.0,
+        amount_excluding_tax=1181.82,
+        tax_amount=118.18,
+        amount_including_tax=1300.0,
+    )
+
+    results = run_audit(task["id"])
+
+    amount_result = results["PROC_AMOUNT_001"]
+    assert amount_result["status"] == "fail"
+    assert amount_result["rag_citations"]
+    assert any(citation["title"] == "Proc Amount Rule Citation" for citation in amount_result["rag_citations"])
+
+
+def test_amount_rule_needs_review_when_configured_basis_is_missing() -> None:
+    task, _ = build_scenario()
+    rules_response = client.get("/api/v1/rules")
+    amount_rule = {rule["rule_code"]: rule for rule in rules_response.json()}["PROC_AMOUNT_001"]
+    patch_response = client.patch(
+        f"/api/v1/rules/{amount_rule['id']}",
+        json={"parameters": {"amount_basis": "excluding_tax", "tolerance_amount": 1.0}},
+    )
+    assert patch_response.status_code == 200
+
+    results = run_audit(task["id"])
+
+    assert results["PROC_AMOUNT_001"]["status"] == "need_review"
+    assert "amount_excluding_tax" in results["PROC_AMOUNT_001"]["actual_value"]["missing_fields"]
 
 
 def test_name_rule_needs_review_when_subject_missing() -> None:
@@ -319,6 +427,44 @@ def test_quantity_rule_fails_on_basic_quantity_mismatch() -> None:
 
     assert results["PROC_QTY_001"]["status"] == "fail"
     assert results["PROC_QTY_001"]["actual_value"]["invoice"] == 9.0
+
+
+def test_quantity_rule_supports_split_receipts() -> None:
+    task, _ = build_scenario(receipt_quantities=(4.0, 6.0))
+
+    results = run_audit(task["id"])
+
+    assert results["PROC_QTY_001"]["status"] == "pass"
+    assert results["PROC_QTY_001"]["actual_value"]["warehouse_receipt"] == 10.0
+
+
+def test_item_rule_checks_multi_item_keys() -> None:
+    task, docs = build_scenario()
+    items = [
+        {"item_name": "Widget A", "item_key": "widget-a", "quantity": 4.0, "unit": "pcs"},
+        {"item_name": "Widget B", "item_key": "widget-b", "quantity": 6.0, "unit": "pcs"},
+    ]
+    for doc_type in ("purchase_contract", "warehouse_receipt", "invoice"):
+        set_items(task["id"], docs[doc_type][0]["id"], items)
+
+    results = run_audit(task["id"])
+
+    assert results["PROC_ITEM_001"]["status"] == "pass"
+    assert results["PROC_QTY_001"]["status"] == "pass"
+
+
+def test_item_rule_fails_on_item_mismatch() -> None:
+    task, docs = build_scenario()
+    set_items(
+        task["id"],
+        docs["invoice"][0]["id"],
+        [{"item_name": "Different Widget", "item_key": "different-widget", "quantity": 10.0, "unit": "pcs"}],
+    )
+
+    results = run_audit(task["id"])
+
+    assert results["PROC_ITEM_001"]["status"] == "fail"
+    assert "differentwidget" in results["PROC_ITEM_001"]["actual_value"]["failures"]
 
 
 def test_tax_rule_fails_when_tax_arithmetic_does_not_reconcile() -> None:

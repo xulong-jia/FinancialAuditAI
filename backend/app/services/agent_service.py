@@ -20,6 +20,7 @@ from app.services import (
     ocr_service,
     rag_service,
     report_service,
+    review_service,
     rule_engine_service,
 )
 
@@ -33,6 +34,8 @@ TOOL_WHITELIST = {
     "retrieve_evidence",
     "generate_control_table",
     "create_review_ticket",
+    "route_review_queue",
+    "create_bad_case",
 }
 
 STATE_SEQUENCE = [
@@ -62,6 +65,7 @@ FAILURE_STATES = {
     "link_business_documents": "LINKAGE_FAILED",
     "run_rule_engine": "RULE_AUDIT_FAILED",
     "retrieve_evidence": "EVIDENCE_RETRIEVAL_FAILED",
+    "route_review_queue": "REVIEW_ROUTING_FAILED",
     "generate_control_table": "REPORT_FAILED",
 }
 RETRY_START = {
@@ -71,6 +75,7 @@ RETRY_START = {
     "link_business_documents": "LINKAGE_PENDING",
     "run_rule_engine": "RULE_AUDIT_PENDING",
     "retrieve_evidence": "EVIDENCE_RETRIEVAL_PENDING",
+    "route_review_queue": "EVIDENCE_RETRIEVAL_COMPLETED",
     "generate_control_table": "AUTO_PASS",
 }
 ALLOWED_TRANSITIONS = {
@@ -171,6 +176,47 @@ def retry_run(db: Session, run_id: UUID) -> AgentRun:
     return get_run(db, run_id)
 
 
+def resume_run(db: Session, run_id: UUID) -> AgentRun:
+    run = get_run(db, run_id)
+    if run.status != "waiting_review" or run.current_state != "HUMAN_REVIEW_REQUIRED":
+        raise HTTPException(status_code=400, detail="Agent run is not waiting for human review")
+    pending_items = _pending_review_items(db, run.task_id)
+    if pending_items:
+        raise HTTPException(status_code=400, detail="Human review queue is not empty")
+
+    run.status = "running"
+    run.error = None
+    run.finished_at = None
+    run.updated_at = utc_now()
+    db.commit()
+    db.refresh(run)
+
+    try:
+        _transition(db, run, "REVIEWING")
+        report_output = _run_step(
+            db,
+            run,
+            step_name="generate_control_table",
+            tool_name="generate_control_table",
+            input_payload={"task_id": str(run.task_id), "resumed_after_human_review": True},
+            call=lambda: _generate_control_table(db, run.task_id),
+        )
+        _transition(db, run, "REPORT_READY")
+        _transition(db, run, "COMPLETED")
+        _complete_run(
+            db,
+            run,
+            {
+                **(run.output_refs or {}),
+                "status": "completed_after_human_review",
+                "report_id": report_output.get("report_id"),
+            },
+        )
+    except AgentStepFailed as exc:
+        _fail_run(db, run, FAILURE_STATES.get(exc.tool_name, "REPORT_FAILED"), exc.error)
+    return get_run(db, run_id)
+
+
 def validate_transition(current_state: str, next_state: str) -> None:
     if next_state not in ALLOWED_TRANSITIONS.get(current_state, set()):
         raise HTTPException(
@@ -204,8 +250,10 @@ def _execute_workflow(
             evidence_output = _run_evidence_stage(db, run, results, retry_of)
         else:
             evidence_output = {"status": "skipped"}
+            if start_state == "EVIDENCE_RETRIEVAL_COMPLETED" and run.current_state == "REVIEW_ROUTING_FAILED":
+                _transition(db, run, "EVIDENCE_RETRIEVAL_COMPLETED")
 
-        review_results = [result for result in results if result.status != "pass"]
+        review_results = [result for result in results if _requires_result_review(result)]
         if review_results:
             _transition(db, run, "HUMAN_REVIEW_REQUIRED")
             for result in review_results:
@@ -217,25 +265,31 @@ def _execute_workflow(
                     input_payload={"audit_result_id": str(result.id), "retry_of": _str_or_none(retry_of)},
                     call=lambda result_id=result.id: _create_review_ticket(db, result_id),
                 )
-            _transition(db, run, "REVIEWING")
-            report_output = _run_step(
-                db,
-                run,
-                step_name="generate_control_table",
-                tool_name="generate_control_table",
-                input_payload={"task_id": str(run.task_id), "retry_of": _str_or_none(retry_of)},
-                call=lambda: _generate_control_table(db, run.task_id),
-            )
-            _transition(db, run, "REPORT_READY")
-            _transition(db, run, "COMPLETED")
-            _complete_run(
+            route_output = _run_review_routing_step(db, run, retry_of)
+            _pause_for_review(
                 db,
                 run,
                 {
-                    "status": "completed_with_human_review_required",
+                    "status": "human_review_required",
                     "audit_result_ids": [str(result.id) for result in results],
                     "review_result_ids": [str(result.id) for result in review_results],
-                    "report_id": report_output.get("report_id"),
+                    "review_queue": route_output,
+                    "evidence": evidence_output,
+                },
+            )
+            return
+
+        route_output = _run_review_routing_step(db, run, retry_of)
+        if route_output.get("review_item_count", 0) > 0:
+            _transition(db, run, "HUMAN_REVIEW_REQUIRED")
+            _pause_for_review(
+                db,
+                run,
+                {
+                    "status": "human_review_required",
+                    "audit_result_ids": [str(result.id) for result in results],
+                    "review_result_ids": [],
+                    "review_queue": route_output,
                     "evidence": evidence_output,
                 },
             )
@@ -364,6 +418,17 @@ def _run_evidence_stage(
     return output
 
 
+def _run_review_routing_step(db: Session, run: AgentRun, retry_of: UUID | None) -> dict:
+    return _run_step(
+        db,
+        run,
+        step_name="route_review_queue",
+        tool_name="route_review_queue",
+        input_payload={"task_id": str(run.task_id), "retry_of": _str_or_none(retry_of)},
+        call=lambda: _route_review_queue(db, run.task_id),
+    )
+
+
 def _run_step(
     db: Session,
     run: AgentRun,
@@ -419,6 +484,15 @@ def _complete_run(db: Session, run: AgentRun, output_refs: dict) -> None:
     run.output_refs = _safe_payload(output_refs)
     run.error = None
     run.finished_at = utc_now()
+    run.updated_at = utc_now()
+    db.commit()
+
+
+def _pause_for_review(db: Session, run: AgentRun, output_refs: dict) -> None:
+    run.status = "waiting_review"
+    run.output_refs = _safe_payload(output_refs)
+    run.error = None
+    run.finished_at = None
     run.updated_at = utc_now()
     db.commit()
 
@@ -537,6 +611,32 @@ def _retrieve_evidence(db: Session, results: list[AuditResult]) -> dict:
     }
 
 
+def _route_review_queue(db: Session, task_id: UUID) -> dict:
+    items = _pending_review_items(db, task_id)
+    counts = Counter(item.item_type for item in items)
+    return {
+        "task_id": str(task_id),
+        "review_item_count": len(items),
+        "item_type_counts": dict(counts),
+        "items": [
+            {
+                "item_type": item.item_type,
+                "reason": item.reason,
+                "document_id": _str_or_none(item.document_id),
+                "field_id": _str_or_none(item.field_id),
+                "audit_result_id": _str_or_none(item.audit_result_id),
+                "agent_step_id": _str_or_none(item.agent_step_id),
+                "comment_id": _str_or_none(item.comment_id),
+            }
+            for item in items
+        ],
+    }
+
+
+def _pending_review_items(db: Session, task_id: UUID):
+    return review_service.list_review_queue(db, task_id)
+
+
 def _generate_control_table(db: Session, task_id: UUID) -> dict:
     report = report_service.generate_control_table_report(db, task_id, generated_by="agent")
     return {"task_id": str(task_id), "report_id": str(report.id), "status": report.status}
@@ -559,6 +659,12 @@ def _create_review_ticket(db: Session, result_id: UUID) -> dict:
 
 def _list_audit_results(db: Session, task_id: UUID) -> list[AuditResult]:
     return list(db.scalars(select(AuditResult).where(AuditResult.task_id == task_id)))
+
+
+def _requires_result_review(result: AuditResult) -> bool:
+    if result.status == "pass":
+        return False
+    return result.review_status not in {"confirmed", "dismissed"}
 
 
 def _next_step_order(db: Session, run_id: UUID) -> int:

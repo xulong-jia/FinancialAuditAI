@@ -7,6 +7,8 @@ import json
 import math
 from pathlib import Path
 import re
+import urllib.error
+import urllib.request
 from uuid import UUID, uuid4
 
 import fitz
@@ -18,6 +20,7 @@ from app.core.config import settings
 from app.models.rag_chunk import RagChunk
 from app.models.rag_document import RagDocument
 from app.schemas.rag import KnowledgeBase
+from app.services import audit_log_service, llm_provider
 
 ALLOWED_KNOWLEDGE_BASES = {"regulation", "inquiry_case", "prospectus", "workpaper"}
 ALLOWED_EXTENSIONS = {"txt", "pdf"}
@@ -51,6 +54,7 @@ class TextChunk:
 
 class DeterministicEmbeddingProvider:
     name = "deterministic-local"
+    kind = "deterministic_fallback"
 
     def embed(self, text_value: str) -> list[float]:
         vector = [0.0] * EMBEDDING_DIMENSIONS
@@ -61,6 +65,36 @@ class DeterministicEmbeddingProvider:
         if not length:
             return vector
         return [value / length for value in vector]
+
+
+class OpenAICompatibleEmbeddingProvider:
+    kind = "real"
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def embed(self, text_value: str) -> list[float]:
+        endpoint = settings.llm_api_url.rstrip("/")
+        if not endpoint.endswith("/embeddings"):
+            endpoint = f"{endpoint}/embeddings"
+        body = json.dumps({"model": settings.llm_model, "input": text_value[:8000]}).encode()
+        request = urllib.request.Request(
+            endpoint,
+            data=body,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.llm_api_key}"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=settings.llm_timeout_seconds) as response:
+                payload = json.loads(response.read().decode())
+        except (OSError, urllib.error.URLError) as exc:
+            raise HTTPException(status_code=400, detail=f"Embedding provider request failed: {exc}") from exc
+        embedding = payload.get("data", [{}])[0].get("embedding")
+        if not isinstance(embedding, list) or not all(isinstance(value, (int, float)) for value in embedding):
+            raise HTTPException(status_code=400, detail="Embedding provider returned invalid embedding")
+        if len(embedding) != EMBEDDING_DIMENSIONS:
+            raise HTTPException(status_code=400, detail=f"Embedding provider must return {EMBEDDING_DIMENSIONS} dimensions")
+        return [float(value) for value in embedding]
 
 
 def rag_uploads_root() -> Path:
@@ -102,6 +136,15 @@ async def create_document(
         created_by=created_by,
     )
     db.add(document)
+    audit_log_service.add_log(
+        db,
+        actor_name=created_by,
+        task_id=None,
+        action="rag_document_created",
+        target_type="rag_document",
+        target_id=document.id,
+        after_value={"knowledge_base": knowledge_base, "title": title, "source_type": source_type},
+    )
     db.commit()
     db.refresh(document)
     return document
@@ -144,6 +187,15 @@ def index_document(db: Session, document_id: UUID) -> dict:
                 metadata_json=chunk.metadata,
             )
         )
+    audit_log_service.add_log(
+        db,
+        actor_name=document.created_by,
+        task_id=None,
+        action="rag_document_indexed",
+        target_type="rag_document",
+        target_id=document.id,
+        after_value={"knowledge_base": document.knowledge_base, "chunk_count": len(chunks)},
+    )
     db.commit()
     return {
         "document_id": document.id,
@@ -157,11 +209,16 @@ def query(db: Session, query_text: str, knowledge_base: KnowledgeBase, top_k: in
     provider = _embedding_provider()
     embedding = _vector_literal(provider.embed(query_text))
     rows = _search_chunks(db, knowledge_base, embedding, metadata_filter, top_k)
-    citations = [
+    citations, rerank_info = _rerank_citations(query_text, [
         _citation(row)
         for row in rows
         if row["score"] >= MIN_SCORE and _has_token_overlap(query_text, row["chunk_text"])
-    ]
+    ])
+    provider_info = {
+        "embedding_provider": provider.name,
+        "embedding_provider_kind": provider.kind,
+        **rerank_info,
+    }
     if not citations:
         return {
             "status": "no_answer",
@@ -169,20 +226,34 @@ def query(db: Session, query_text: str, knowledge_base: KnowledgeBase, top_k: in
             "citations": [],
             "limitations": [
                 "RAG found no sufficiently relevant citation.",
+                _provider_limitation(provider_info),
                 "RAG does not replace the deterministic Rule Engine or human review.",
             ],
+            "provider_info": provider_info | {
+                "answer_provider": settings.rag_answer_provider,
+                "answer_provider_kind": _provider_kind(settings.rag_answer_provider),
+                "answer_provider_status": "not_called_no_citations",
+            },
         }
+    answer_provider_result = llm_provider.get_llm_provider("rag_answer").generate_rag_answer(query_text, knowledge_base, citations)
+    provider_info = provider_info | {
+        "answer_provider": answer_provider_result.provider_name,
+        "answer_provider_kind": answer_provider_result.provider_kind,
+        "answer_provider_status": answer_provider_result.status,
+        "answer_provider_error": answer_provider_result.error,
+    }
+    answer, answer_limitations = _answer_with_provider_result(answer_provider_result, citations, knowledge_base)
     return {
         "status": "answer",
-        "answer": (
-            f"Found {len(citations)} supporting citation(s) in {knowledge_base}. "
-            "Use these citations as evidence only; do not treat this as an audit conclusion."
-        ),
+        "answer": answer,
         "citations": citations,
         "limitations": [
             "Answer is limited to retrieved citations.",
+            _provider_limitation(provider_info),
+            *answer_limitations,
             "RAG does not modify Rule Engine results or make final audit judgments.",
         ],
+        "provider_info": provider_info,
     }
 
 
@@ -343,6 +414,87 @@ def _citation(row: dict) -> dict:
     }
 
 
+def _answer_from_citations(citations: list[dict], knowledge_base: str) -> str:
+    snippets = [
+        f"{citation['title']}: {citation['quote']}"
+        for citation in citations[:3]
+    ]
+    return f"{knowledge_base} evidence: " + " | ".join(snippets)
+
+
+def _answer_with_provider_result(result: llm_provider.ProviderResult, citations: list[dict], knowledge_base: str) -> tuple[str, list[str]]:
+    if result.status == "ok" and isinstance(result.payload, dict):
+        answer = result.payload.get("answer")
+        if isinstance(answer, str) and answer.strip():
+            limitations = result.payload.get("limitations")
+            return answer.strip(), [str(item) for item in limitations] if isinstance(limitations, list) else []
+    return _answer_from_citations(citations, knowledge_base), [
+        "Answer generation used deterministic fallback because no real/local answer provider returned grounded JSON."
+    ]
+
+
+def _rerank_citations(query_text: str, citations: list[dict]) -> tuple[list[dict], dict]:
+    provider = llm_provider.get_llm_provider("rag_rerank")
+    provider_info = {
+        "rerank_provider": provider.provider_name,
+        "rerank_provider_kind": provider.provider_kind,
+        "rerank_provider_status": "deterministic_fallback",
+    }
+    if provider.provider_kind in {"real", "local"}:
+        result = provider.rerank_citations(query_text, citations)
+        provider_info.update(
+            {
+                "rerank_provider_status": result.status,
+                "rerank_provider_error": result.error,
+            }
+        )
+        ordered = _citations_from_rerank_payload(citations, result.payload) if result.status == "ok" else None
+        if ordered is not None:
+            return ordered, provider_info
+    if settings.rag_rerank_provider not in {"deterministic-fallback", "deterministic-local", "local", "local-http", "local-llm", "mock", "openai", "openai-compatible", "real"}:
+        raise HTTPException(status_code=400, detail="Configured RAG rerank provider is not enabled")
+    provider_info["rerank_provider_status"] = "deterministic_fallback"
+    query_tokens = set(_tokens(query_text))
+    return sorted(
+        citations,
+        key=lambda citation: (
+            len(query_tokens & set(_tokens(str(citation.get("quote") or "")))),
+            float(citation.get("score") or 0.0),
+        ),
+        reverse=True,
+    ), provider_info
+
+
+def _citations_from_rerank_payload(citations: list[dict], payload: dict | None) -> list[dict] | None:
+    if not isinstance(payload, dict) or not isinstance(payload.get("chunk_ids"), list):
+        return None
+    by_id = {str(citation["chunk_id"]): citation for citation in citations}
+    ordered = [by_id[str(chunk_id)] for chunk_id in payload["chunk_ids"] if str(chunk_id) in by_id]
+    if not ordered:
+        return None
+    ordered_ids = {str(citation["chunk_id"]) for citation in ordered}
+    ordered.extend(citation for citation in citations if str(citation["chunk_id"]) not in ordered_ids)
+    return ordered
+
+
+def _provider_kind(provider_name: str) -> str:
+    normalized = (provider_name or "").strip().lower()
+    if normalized in {"openai", "openai-compatible", "real"}:
+        return "real" if settings.llm_api_url and settings.llm_api_key else "unconfigured_real"
+    if normalized in {"local", "local-http", "local-llm"}:
+        return "local" if settings.llm_api_url else "unconfigured_local"
+    return "deterministic_fallback"
+
+
+def _provider_limitation(provider_info: dict) -> str:
+    return (
+        "Provider status: "
+        f"embedding={provider_info.get('embedding_provider_kind')}, "
+        f"rerank={provider_info.get('rerank_provider_kind')}, "
+        f"answer={provider_info.get('answer_provider_kind', 'not_called')}."
+    )
+
+
 def _quote(text_value: str, limit: int = 240) -> str:
     clean = " ".join(text_value.split())
     return clean if len(clean) <= limit else f"{clean[: limit - 3]}..."
@@ -398,9 +550,15 @@ def _chunk_counts(db: Session, document_ids: list[UUID]) -> dict[UUID, int]:
     return {document_id: count for document_id, count in rows}
 
 
-def _embedding_provider() -> DeterministicEmbeddingProvider:
-    if settings.embedding_provider not in {"deterministic-local", "local", "mock"}:
-        raise HTTPException(status_code=400, detail="Only deterministic local embeddings are configured")
+def _embedding_provider() -> DeterministicEmbeddingProvider | OpenAICompatibleEmbeddingProvider:
+    if settings.embedding_provider in {"openai", "openai-compatible", "real"}:
+        if not settings.llm_api_url or not settings.llm_api_key:
+            raise HTTPException(status_code=400, detail="Real embedding provider is configured but LLM_API_URL/LLM_API_KEY is missing")
+        if settings.embedding_dimensions != EMBEDDING_DIMENSIONS:
+            raise HTTPException(status_code=400, detail="Embedding dimensions must be 32 for the configured vector index")
+        return OpenAICompatibleEmbeddingProvider(settings.embedding_provider)
+    if settings.embedding_provider not in {"deterministic-local", "deterministic-fallback", "local", "mock"}:
+        raise HTTPException(status_code=400, detail="Configured embedding provider is not enabled")
     if settings.embedding_dimensions != EMBEDDING_DIMENSIONS:
         raise HTTPException(status_code=400, detail="Embedding dimensions must be 32 for Phase 11")
     return DeterministicEmbeddingProvider()

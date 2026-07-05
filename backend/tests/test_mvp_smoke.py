@@ -42,7 +42,7 @@ def test_procurement_mvp_demo_smoke_path() -> None:
         json={"generated_by": "demo_reviewer"},
     )
     assert report.status_code == 200
-    assert report.json()["summary"]["audit_result_count"] == 6
+    assert report.json()["summary"]["audit_result_count"] == 7
 
     download = client.get(f"/api/v1/reports/{report.json()['id']}/download")
     assert download.status_code == 200

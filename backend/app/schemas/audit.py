@@ -10,12 +10,16 @@ class AuditRuleRead(BaseModel):
     id: UUID
     rule_code: str
     name: str
-    version: str
-    enabled: bool
-    parameters: dict
+    scenario: str
     category: str
     severity: str
+    version: str
+    enabled: bool
+    expression: str
+    parameters: dict
+    required_fields: list[str]
     description: str | None
+    created_by: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -23,18 +27,28 @@ class AuditRuleRead(BaseModel):
 class AuditRuleCreate(BaseModel):
     rule_code: str = Field(min_length=1, max_length=64)
     name: str = Field(min_length=1, max_length=255)
+    scenario: str = Field(default="procurement", min_length=1, max_length=64)
+    category: str = Field(default="walkthrough", min_length=1, max_length=64)
+    severity: str = Field(default="medium", min_length=1, max_length=32)
     version: str = Field(default="1.0", min_length=1, max_length=32)
     enabled: bool = True
+    expression: str | None = None
     parameters: dict = Field(default_factory=dict)
+    required_fields: list[str] = Field(default_factory=list)
     description: str | None = None
     actor_name: str | None = Field(default=None, max_length=120)
 
 
 class AuditRuleUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
+    scenario: str | None = Field(default=None, min_length=1, max_length=64)
+    category: str | None = Field(default=None, min_length=1, max_length=64)
+    severity: str | None = Field(default=None, min_length=1, max_length=32)
     version: str | None = Field(default=None, min_length=1, max_length=32)
     enabled: bool | None = None
+    expression: str | None = None
     parameters: dict | None = None
+    required_fields: list[str] | None = None
     description: str | None = None
     actor_name: str | None = Field(default=None, max_length=120)
 

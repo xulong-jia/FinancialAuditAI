@@ -1,4 +1,15 @@
-export type TaskStatus = "draft" | "uploaded" | "failed";
+export type TaskStatus =
+  | "draft"
+  | "uploaded"
+  | "ocr_running"
+  | "ocr_completed"
+  | "classified"
+  | "extracting"
+  | "extracted"
+  | "auditing"
+  | "reviewing"
+  | "completed"
+  | "failed";
 
 export type ProcurementDocType =
   | "purchase_request"
@@ -36,12 +47,15 @@ export type ContractReviewDocType =
   | "framework_agreement"
   | "contract_attachment";
 
+export type KnowledgeDocType = "prospectus" | "inquiry_letter" | "regulation";
+
 export type DocumentDocType =
   | ProcurementDocType
   | SalesDocType
   | ConfirmationDocType
   | InterviewDocType
-  | ContractReviewDocType;
+  | ContractReviewDocType
+  | KnowledgeDocType;
 export type ClassificationDocType = DocumentDocType | "unknown";
 
 export type AlternativeDocType = {
@@ -97,14 +111,28 @@ export type AuditTask = {
   period_start: string | null;
   period_end: string | null;
   status: TaskStatus;
+  risk_level: string | null;
+  owner_id: string | null;
+  reviewer_id: string | null;
+  metadata: Record<string, unknown>;
   actor_name: string | null;
   created_at: string;
   updated_at: string;
 };
 
+export type TaskRunResult = {
+  task_id: string;
+  previous_status: string;
+  status: TaskStatus;
+  next_action: string | null;
+  pending_steps: string[];
+  message: string;
+};
+
 export type DocumentRecord = {
   id: string;
   task_id: string;
+  uploaded_by: string | null;
   uploaded_by_name: string | null;
   original_filename: string;
   file_ext: string;
@@ -118,6 +146,7 @@ export type DocumentRecord = {
   classification_reason: string | null;
   alternative_types: AlternativeDocType[] | null;
   original_classification: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
   page_count: number | null;
   upload_status: string;
   ocr_status: string;
@@ -153,12 +182,16 @@ export type AuditRule = {
   id: string;
   rule_code: string;
   name: string;
-  version: string;
-  enabled: boolean;
-  parameters: Record<string, unknown>;
+  scenario: string;
   category: string;
   severity: string;
+  version: string;
+  enabled: boolean;
+  expression: string;
+  parameters: Record<string, unknown>;
+  required_fields: string[];
   description: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -166,18 +199,28 @@ export type AuditRule = {
 export type AuditRuleCreatePayload = {
   rule_code: string;
   name: string;
+  scenario?: string;
+  category?: string;
+  severity?: string;
   version?: string;
   enabled?: boolean;
+  expression?: string | null;
   parameters?: Record<string, unknown>;
+  required_fields?: string[];
   description?: string | null;
   actor_name?: string;
 };
 
 export type AuditRuleUpdatePayload = {
   name?: string;
+  scenario?: string;
+  category?: string;
+  severity?: string;
   version?: string;
   enabled?: boolean;
+  expression?: string | null;
   parameters?: Record<string, unknown>;
+  required_fields?: string[];
   description?: string | null;
   actor_name?: string;
 };
@@ -244,11 +287,22 @@ export type EvalType =
   | "end_to_end"
   | "regression";
 
+export type BadCaseType =
+  | "classification"
+  | "ocr"
+  | "extraction"
+  | "rule"
+  | "rag"
+  | "agent"
+  | "review_dispute"
+  | "end_to_end"
+  | "regression";
+
 export type BadCase = {
   id: string;
   task_id: string | null;
   document_id: string | null;
-  case_type: EvalType;
+  case_type: BadCaseType;
   title: string;
   input_payload: Record<string, unknown>;
   model_output: Record<string, unknown>;
@@ -258,12 +312,15 @@ export type BadCase = {
   status: string;
   severity: string;
   owner_name: string | null;
+  in_regression: boolean;
+  validation_result: Record<string, unknown> | null;
+  validated_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
 export type BadCaseCreatePayload = {
-  case_type: EvalType;
+  case_type: BadCaseType;
   title: string;
   input_payload?: Record<string, unknown>;
   model_output?: Record<string, unknown>;
@@ -273,6 +330,8 @@ export type BadCaseCreatePayload = {
   status?: string;
   severity?: string;
   owner_name?: string | null;
+  in_regression?: boolean;
+  validation_result?: Record<string, unknown> | null;
 };
 
 export type BadCaseUpdatePayload = Partial<Omit<BadCaseCreatePayload, "case_type">>;
@@ -336,6 +395,10 @@ export type CreateTaskPayload = {
   project_name?: string;
   company_name?: string;
   fiscal_year?: number;
+  risk_level?: string;
+  owner_id?: string;
+  reviewer_id?: string;
+  metadata?: Record<string, unknown>;
   actor_name?: string;
 };
 
@@ -343,6 +406,7 @@ export type PageBlock = {
   text: string;
   bbox: number[] | null;
   confidence: number | null;
+  confidence_source: string | null;
 };
 
 export type DocumentPage = {
@@ -352,6 +416,7 @@ export type DocumentPage = {
   raw_text: string;
   ocr_blocks: PageBlock[];
   table_blocks: Record<string, unknown>[];
+  image_path: string | null;
   width: number | null;
   height: number | null;
   ocr_engine: string;
@@ -362,14 +427,19 @@ export type DocumentPage = {
 };
 
 export type ReviewQueueItem = {
-  item_type: "field" | "audit_result";
+  item_type: "document" | "field" | "audit_result" | "agent_step" | "comment";
   task_id: string;
   document_id: string | null;
   field_id: string | null;
   audit_result_id: string | null;
+  agent_step_id: string | null;
+  comment_id: string | null;
   reason: string;
+  document: DocumentRecord | null;
   field: ExtractedField | null;
   audit_result: AuditResult | null;
+  agent_step: AgentStep | null;
+  comment: ReviewComment | null;
 };
 
 export type ReviewComment = {
@@ -378,11 +448,13 @@ export type ReviewComment = {
   document_id: string | null;
   audit_result_id: string | null;
   field_id: string | null;
+  author_id: string | null;
   author_name: string | null;
   comment_type: string;
   content: string;
   before_value: Record<string, unknown> | null;
   after_value: Record<string, unknown> | null;
+  attachment_path: string | null;
   created_at: string;
 };
 
@@ -409,11 +481,31 @@ export type ReviewCommentPayload = {
   document_id?: string | null;
   audit_result_id?: string | null;
   field_id?: string | null;
+  author_id?: string | null;
   author_name?: string | null;
   comment_type: string;
   content: string;
   before_value?: Record<string, unknown> | null;
   after_value?: Record<string, unknown> | null;
+  attachment_path?: string | null;
+};
+
+export type ReextractPayload = {
+  actor_name?: string;
+  reason?: string;
+};
+
+export type BadCaseFromReviewPayload = {
+  task_id: string;
+  document_id?: string | null;
+  audit_result_id?: string | null;
+  field_id?: string | null;
+  agent_step_id?: string | null;
+  comment_id?: string | null;
+  case_type?: BadCaseType;
+  title: string;
+  severity?: string;
+  owner_name?: string | null;
 };
 
 export type ReportRecord = {
@@ -433,6 +525,7 @@ export type ReportRecord = {
 
 export type ReportGeneratePayload = {
   generated_by?: string;
+  file_format?: "xlsx" | "csv";
 };
 
 export type KnowledgeBase = "regulation" | "inquiry_case" | "prospectus" | "workpaper";
@@ -478,6 +571,7 @@ export type RagQueryResponse = {
   answer: string;
   citations: RagCitation[];
   limitations: string[];
+  provider_info: Record<string, unknown>;
 };
 
 export type RagQueryPayload = {
@@ -547,11 +641,14 @@ export type RoleUpdatePayload = Partial<RoleCreatePayload>;
 export type AuditLogRecord = {
   id: string;
   actor_name: string | null;
+  user_id: string | null;
   task_id: string | null;
   action: string;
   target_type: string;
   target_id: string | null;
   before_value: Record<string, unknown> | null;
   after_value: Record<string, unknown> | null;
+  ip_address: string | null;
+  user_agent: string | null;
   created_at: string;
 };

@@ -15,6 +15,7 @@ import {
   listTasks,
   runAudit,
   runOcr,
+  runTask,
   updateDocument,
   uploadDocument,
 } from "../api/client";
@@ -68,6 +69,11 @@ const contractReviewDocTypes: { label: string; value: DocumentDocType }[] = [
   { label: "框架协议", value: "framework_agreement" },
   { label: "合同附件", value: "contract_attachment" },
 ];
+const knowledgeDocTypes: { label: string; value: DocumentDocType }[] = [
+  { label: "招股说明书 / 募集说明书", value: "prospectus" },
+  { label: "问询函", value: "inquiry_letter" },
+  { label: "法规 / 准则", value: "regulation" },
+];
 
 const classificationDocTypes: { label: string; value: ClassificationDocType }[] = [
   ...procurementDocTypes,
@@ -75,6 +81,7 @@ const classificationDocTypes: { label: string; value: ClassificationDocType }[] 
   ...confirmationDocTypes,
   ...interviewDocTypes,
   ...contractReviewDocTypes,
+  ...knowledgeDocTypes,
   { label: "未知 / 需要复核", value: "unknown" },
 ];
 
@@ -312,6 +319,24 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
     }
   }
 
+  async function handleRunTaskContract() {
+    if (!selectedTaskId) {
+      message.warning("Select a task first");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await runTask(selectedTaskId);
+      await refreshTasks();
+      message.info(result.message);
+    } catch {
+      message.error("Failed to run task contract");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleManualCorrection(values: { doc_type: ClassificationDocType }) {
     if (!selectedDocumentId || !selectedTaskId) {
       message.warning("Select a document first");
@@ -322,7 +347,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
     try {
       await updateDocument(selectedDocumentId, {
         doc_type: values.doc_type,
-        actor_name: "manual_reviewer",
+        actor_name: currentUser.full_name,
       });
       await refreshDocuments(selectedTaskId);
       message.success("Document type updated");
@@ -351,19 +376,20 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   const uploadDocTypes =
     selectedTask?.scenario === "sales"
-      ? salesDocTypes
+      ? [...salesDocTypes, ...knowledgeDocTypes]
       : selectedTask?.scenario === "confirmation"
-        ? confirmationDocTypes
+        ? [...confirmationDocTypes, ...knowledgeDocTypes]
         : selectedTask?.scenario === "interview"
-          ? interviewDocTypes
+          ? [...interviewDocTypes, ...knowledgeDocTypes]
           : selectedTask?.scenario === "contract_review"
-            ? contractReviewDocTypes
-            : procurementDocTypes;
+            ? [...contractReviewDocTypes, ...knowledgeDocTypes]
+            : [...procurementDocTypes, ...knowledgeDocTypes];
   const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
   const documentNameById = Object.fromEntries(
     documents.map((document) => [document.id, document.original_filename]),
   );
   const canCreateTask = hasPermission(currentUser, "task:create");
+  const canUpdateTask = hasPermission(currentUser, "task:update");
   const canUploadDocument = hasPermission(currentUser, "document:upload");
   const canProcessDocument = hasPermission(currentUser, "document:process");
   const canRunAudit = hasPermission(currentUser, "audit:run");
@@ -408,6 +434,15 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
           <Form.Item>
             <Button onClick={openReportCenter}>Open Report Center</Button>
           </Form.Item>
+          <Form.Item>
+            <Button
+              loading={loading}
+              disabled={!selectedTaskId || !canUpdateTask}
+              onClick={() => void handleRunTaskContract()}
+            >
+              Run Task
+            </Button>
+          </Form.Item>
         </Form>
       </Card>
 
@@ -441,13 +476,14 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
           </Form.Item>
           <Form.Item>
             <Upload
+              accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
               beforeUpload={() => false}
               fileList={fileList}
               maxCount={1}
               onChange={({ fileList: nextFileList }) => setFileList(nextFileList)}
               disabled={!canUploadDocument}
             >
-              <Button disabled={!canUploadDocument}>Select file</Button>
+              <Button disabled={!canUploadDocument}>Select PDF/Image</Button>
             </Upload>
           </Form.Item>
           <Form.Item>

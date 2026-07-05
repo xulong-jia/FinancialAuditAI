@@ -17,38 +17,17 @@ class AuditRule(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     rule_code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
+    scenario: Mapped[str] = mapped_column(String(64), index=True, default="procurement")
+    category: Mapped[str] = mapped_column(String(64), default="walkthrough")
+    severity: Mapped[str] = mapped_column(String(32), default="medium")
     version: Mapped[str] = mapped_column(String(32), default="1.0")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    expression: Mapped[str] = mapped_column(Text, default="")
     parameters: Mapped[dict] = mapped_column(JSON, default=dict)
+    required_fields: Mapped[list[str]] = mapped_column(JSON, default=list)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
-
-    @property
-    def category(self) -> str:
-        if self.rule_code.startswith("SALES_"):
-            return "sales"
-        if self.rule_code.startswith("CONF_"):
-            return "confirmation"
-        if self.rule_code.startswith("INTERVIEW_"):
-            return "interview"
-        if self.rule_code.startswith("CONTRACT_"):
-            return "contract_review"
-        return "procurement"
-
-    @property
-    def severity(self) -> str:
-        high_rules = {
-            "PROC_AMOUNT_001",
-            "PROC_QTY_001",
-            "SALES_AMOUNT_001",
-            "SALES_QTY_001",
-            "CONF_DATE_001",
-            "CONF_AMOUNT_001",
-            "INTERVIEW_AMOUNT_001",
-            "CONTRACT_AMOUNT_001",
-            "CONTRACT_SPECIAL_CLAUSE_001",
-        }
-        return "high" if self.rule_code in high_rules else "medium"

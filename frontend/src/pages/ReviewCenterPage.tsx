@@ -17,15 +17,19 @@ import { useEffect, useState } from "react";
 
 import {
   confirmAuditResult,
+  createBadCaseFromReview,
+  createReviewComment,
   dismissAuditResult,
   listReviewComments,
   listReviewQueue,
   listTasks,
+  reextractDocument,
   rerunAuditResult,
+  rerunRulesForField,
   updateField,
 } from "../api/client";
 import type { PageProps } from "../routes";
-import type { AuditResult, AuditTask, ExtractedField, ReviewComment, ReviewQueueItem } from "../types/api";
+import type { AuditResult, AuditTask, BadCaseType, ExtractedField, ReviewComment, ReviewQueueItem } from "../types/api";
 import { hasPermission } from "../utils/permissions";
 
 type CorrectionFormValues = {
@@ -78,6 +82,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
   const [dismissingResult, setDismissingResult] = useState<AuditResult | null>(null);
   const [loading, setLoading] = useState(false);
   const canReview = hasPermission(currentUser, "review:write");
+  const reviewerName = currentUser.full_name;
 
   async function refresh(taskId = selectedTaskId) {
     setLoading(true);
@@ -126,6 +131,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
       value_text: field.value_text ?? undefined,
       value_normalized_json: field.value_normalized ? JSON.stringify(field.value_normalized) : undefined,
       confidence: field.confidence ?? undefined,
+      actor_name: reviewerName,
     });
   }
 
@@ -140,7 +146,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
         value_text: values.value_text ?? null,
         value_normalized: parseNormalized(values.value_normalized_json),
         confidence: values.confidence ?? null,
-        actor_name: values.actor_name,
+        actor_name: values.actor_name ?? reviewerName,
         comment: values.comment,
       });
       setEditingField(null);
@@ -158,7 +164,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
     setLoading(true);
     try {
       await confirmAuditResult(result.id, {
-        actor_name: "reviewer",
+        actor_name: reviewerName,
         reason: "Confirmed in Review Center.",
       });
       await refresh();
@@ -177,7 +183,10 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
 
     setLoading(true);
     try {
-      await dismissAuditResult(dismissingResult.id, values);
+      await dismissAuditResult(dismissingResult.id, {
+        ...values,
+        actor_name: values.actor_name ?? reviewerName,
+      });
       setDismissingResult(null);
       dismissForm.resetFields();
       await refresh();
@@ -192,11 +201,113 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
   async function handleRerun(result: AuditResult) {
     setLoading(true);
     try {
-      await rerunAuditResult(result.id, { actor_name: "reviewer" });
+      await rerunAuditResult(result.id, { actor_name: reviewerName });
       await refresh();
       message.success("Rules rerun");
     } catch {
       message.error("Failed to rerun rules");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRerunField(field: ExtractedField) {
+    setLoading(true);
+    try {
+      await rerunRulesForField(field.id, {
+        actor_name: reviewerName,
+        reason: "Rules rerun after field review.",
+      });
+      await refresh();
+      message.success("Rules rerun");
+    } catch {
+      message.error("Failed to rerun rules");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleReextract(documentId: string) {
+    setLoading(true);
+    try {
+      await reextractDocument(documentId, {
+        actor_name: reviewerName,
+        reason: "Re-extraction requested in Review Center.",
+      });
+      await refresh();
+      message.success("Document re-extracted");
+    } catch {
+      message.error("Failed to re-extract document");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleMarkReviewed(record: ReviewQueueItem) {
+    setLoading(true);
+    try {
+      await createReviewComment({
+        task_id: record.task_id,
+        document_id: record.document_id,
+        audit_result_id: record.audit_result_id,
+        field_id: record.field_id,
+        author_name: reviewerName,
+        comment_type: record.item_type === "agent_step" ? "agent_step_reviewed" : "manual_review_resolved",
+        content: `Reviewed ${record.item_type}: ${record.reason}.`,
+        after_value: {
+          agent_step_id: record.agent_step_id,
+          comment_id: record.comment_id,
+          reason: record.reason,
+          resolved: true,
+        },
+      });
+      await refresh();
+      message.success("Review item marked reviewed");
+    } catch {
+      message.error("Failed to mark review item");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function badCaseType(record: ReviewQueueItem): BadCaseType {
+    if (record.item_type === "document" && record.reason.startsWith("ocr")) {
+      return "ocr";
+    }
+    if (record.item_type === "document") {
+      return "classification";
+    }
+    if (record.item_type === "field") {
+      return "extraction";
+    }
+    if (record.item_type === "agent_step") {
+      return record.reason.startsWith("rag") ? "rag" : "agent";
+    }
+    if (record.item_type === "comment") {
+      return "review_dispute";
+    }
+    return "rule";
+  }
+
+  async function handleCreateBadCase(record: ReviewQueueItem) {
+    setLoading(true);
+    try {
+      await createBadCaseFromReview({
+        task_id: record.task_id,
+        document_id: record.document_id,
+        audit_result_id: record.audit_result_id,
+        field_id: record.field_id,
+        agent_step_id: record.agent_step_id,
+        comment_id: record.comment_id,
+        case_type: badCaseType(record),
+        title: `${record.item_type}:${record.reason}`,
+        severity: record.audit_result?.severity ?? "medium",
+        owner_name: reviewerName,
+      });
+      await refresh();
+      message.success("Bad case created");
+    } catch {
+      message.error("Failed to create bad case");
     } finally {
       setLoading(false);
     }
@@ -231,7 +342,14 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
 
       <Card title="Review Queue">
         <Table<ReviewQueueItem>
-          rowKey={(record) => record.field_id ?? record.audit_result_id ?? `${record.item_type}-${record.reason}`}
+          rowKey={(record) =>
+            record.field_id ??
+            record.audit_result_id ??
+            record.document_id ??
+            record.agent_step_id ??
+            record.comment_id ??
+            `${record.item_type}-${record.reason}`
+          }
           loading={loading}
           dataSource={queue}
           pagination={false}
@@ -241,7 +359,9 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
               title: "Type",
               dataIndex: "item_type",
               render: (value: ReviewQueueItem["item_type"]) => (
-                <Tag color={value === "field" ? "blue" : "purple"}>{value}</Tag>
+                <Tag color={value === "field" ? "blue" : value === "audit_result" ? "purple" : "gold"}>
+                  {value}
+                </Tag>
               ),
             },
             { title: "Reason", dataIndex: "reason" },
@@ -257,6 +377,21 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                   <Space direction="vertical" size={2}>
                     <Typography.Text>{record.audit_result.rule_code}</Typography.Text>
                     <Typography.Text type="secondary">{record.audit_result.message}</Typography.Text>
+                  </Space>
+                ) : record.document ? (
+                  <Space direction="vertical" size={2}>
+                    <Typography.Text>{record.document.original_filename}</Typography.Text>
+                    <Typography.Text type="secondary">{record.document.doc_type ?? "unknown"}</Typography.Text>
+                  </Space>
+                ) : record.agent_step ? (
+                  <Space direction="vertical" size={2}>
+                    <Typography.Text>{record.agent_step.step_name}</Typography.Text>
+                    <Typography.Text type="secondary">{record.agent_step.tool_name}</Typography.Text>
+                  </Space>
+                ) : record.comment ? (
+                  <Space direction="vertical" size={2}>
+                    <Typography.Text>{record.comment.comment_type}</Typography.Text>
+                    <Typography.Text type="secondary">{record.comment.content}</Typography.Text>
                   </Space>
                 ) : (
                   "-"
@@ -280,6 +415,13 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                     ) : null}
                     {record.field.is_verified ? <Tag color="green">Verified</Tag> : null}
                   </Space>
+                ) : record.document ? (
+                  <Space>
+                    <Tag color={statusColor(record.document.review_status)}>{record.document.review_status}</Tag>
+                    <Tag color={statusColor(record.document.ocr_status)}>{record.document.ocr_status}</Tag>
+                  </Space>
+                ) : record.agent_step ? (
+                  <Tag color={statusColor(record.agent_step.status)}>{record.agent_step.status}</Tag>
                 ) : (
                   "-"
                 ),
@@ -293,6 +435,16 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                   <Typography.Text ellipsis={{ tooltip: formatJson(record.audit_result.actual_value) }} style={{ maxWidth: 240 }}>
                     {formatJson(record.audit_result.actual_value)}
                   </Typography.Text>
+                ) : record.document ? (
+                  <Typography.Text>{record.document.doc_type_confidence ?? "-"}</Typography.Text>
+                ) : record.agent_step ? (
+                  <Typography.Text ellipsis={{ tooltip: formatJson(record.agent_step.output_payload) }} style={{ maxWidth: 240 }}>
+                    {formatJson(record.agent_step.output_payload)}
+                  </Typography.Text>
+                ) : record.comment ? (
+                  <Typography.Text ellipsis={{ tooltip: record.comment.content }} style={{ maxWidth: 240 }}>
+                    {record.comment.content}
+                  </Typography.Text>
                 ) : (
                   "-"
                 ),
@@ -303,28 +455,75 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                 const field = record.field;
                 if (field) {
                   return (
-                    <Button size="small" disabled={!canReview} onClick={() => openCorrection(field)}>
-                      Correct
-                    </Button>
+                    <Space>
+                      <Button size="small" disabled={!canReview} onClick={() => openCorrection(field)}>
+                        Correct
+                      </Button>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleRerunField(field)}>
+                        Rerun Rules
+                      </Button>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleReextract(field.document_id)}>
+                        Re-extract
+                      </Button>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleCreateBadCase(record)}>
+                        To Bad Case
+                      </Button>
+                    </Space>
                   );
                 }
                 const result = record.audit_result;
-                if (!result) {
-                  return null;
+                if (result) {
+                  return (
+                    <Space>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleConfirm(result)}>
+                        Confirm
+                      </Button>
+                      <Button
+                        size="small"
+                        danger
+                        disabled={!canReview}
+                        onClick={() => {
+                          setDismissingResult(result);
+                          dismissForm.setFieldsValue({ actor_name: reviewerName });
+                        }}
+                      >
+                        Dismiss
+                      </Button>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleRerun(result)}>
+                        Rerun
+                      </Button>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleCreateBadCase(record)}>
+                        To Bad Case
+                      </Button>
+                    </Space>
+                  );
                 }
-                return (
-                  <Space>
-                    <Button size="small" disabled={!canReview} onClick={() => void handleConfirm(result)}>
-                      Confirm
-                    </Button>
-                    <Button size="small" danger disabled={!canReview} onClick={() => setDismissingResult(result)}>
-                      Dismiss
-                    </Button>
-                    <Button size="small" disabled={!canReview} onClick={() => void handleRerun(result)}>
-                      Rerun
-                    </Button>
-                  </Space>
-                );
+                const document = record.document;
+                if (document) {
+                  return (
+                    <Space>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleReextract(document.id)}>
+                        Re-extract
+                      </Button>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleCreateBadCase(record)}>
+                        To Bad Case
+                      </Button>
+                    </Space>
+                  );
+                }
+                if (record.agent_step || record.comment) {
+                  return (
+                    <Space>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleMarkReviewed(record)}>
+                        Mark Reviewed
+                      </Button>
+                      <Button size="small" disabled={!canReview} onClick={() => void handleCreateBadCase(record)}>
+                        To Bad Case
+                      </Button>
+                    </Space>
+                  );
+                }
+                return null;
               },
             },
           ]}

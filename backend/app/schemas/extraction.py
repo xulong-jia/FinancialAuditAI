@@ -15,6 +15,9 @@ class LineItem(BaseModel):
     unit: str | None = None
     unit_price: float | None = None
     amount: float | None = None
+    source_page: int | None = None
+    source_bbox: list[float] | None = None
+    source_text: str | None = None
 
 
 class ExtractedFieldValue(BaseModel):
@@ -58,40 +61,62 @@ class ExtractedFieldRead(ExtractedFieldValue):
 class PurchaseRequestExtraction(BaseModel):
     request_no: ExtractedFieldValue
     request_date: ExtractedFieldValue
+    applicant_dept: ExtractedFieldValue
+    requester_name: ExtractedFieldValue
     approval_date: ExtractedFieldValue
     approval_status: ExtractedFieldValue
+    approver_name: ExtractedFieldValue
+    supplier_candidate: ExtractedFieldValue
     item_lines: ExtractedFieldValue
     total_estimated_amount: ExtractedFieldValue
+    budget_code: ExtractedFieldValue
 
 
 class PurchaseContractExtraction(BaseModel):
     contract_no: ExtractedFieldValue
     signing_date: ExtractedFieldValue
+    effective_date: ExtractedFieldValue
+    expiry_date: ExtractedFieldValue
     buyer_name: ExtractedFieldValue
     supplier_name: ExtractedFieldValue
+    supplier_tax_no: ExtractedFieldValue
     item_lines: ExtractedFieldValue
+    amount_excluding_tax: ExtractedFieldValue
+    tax_amount: ExtractedFieldValue
     amount_including_tax: ExtractedFieldValue
     tax_rate: ExtractedFieldValue
     payment_terms: ExtractedFieldValue
+    delivery_terms: ExtractedFieldValue
+    seal_detected: ExtractedFieldValue
+    signature_detected: ExtractedFieldValue
 
 
 class WarehouseReceiptExtraction(BaseModel):
     receipt_no: ExtractedFieldValue
     receipt_date: ExtractedFieldValue
     supplier_name: ExtractedFieldValue
+    warehouse_name: ExtractedFieldValue
+    receiver_name: ExtractedFieldValue
+    quality_status: ExtractedFieldValue
     item_lines: ExtractedFieldValue
     related_contract_no: ExtractedFieldValue
 
 
 class InvoiceExtraction(BaseModel):
     invoice_no: ExtractedFieldValue
+    invoice_code: ExtractedFieldValue
     invoice_date: ExtractedFieldValue
+    invoice_type: ExtractedFieldValue
     seller_name: ExtractedFieldValue
+    seller_tax_no: ExtractedFieldValue
     buyer_name: ExtractedFieldValue
+    buyer_tax_no: ExtractedFieldValue
     item_lines: ExtractedFieldValue
     amount_excluding_tax: ExtractedFieldValue
     tax_amount: ExtractedFieldValue
     amount_including_tax: ExtractedFieldValue
+    tax_rate: ExtractedFieldValue
+    checksum: ExtractedFieldValue
 
 
 class AccountingVoucherExtraction(BaseModel):
@@ -103,6 +128,9 @@ class AccountingVoucherExtraction(BaseModel):
     amount: ExtractedFieldValue
     supplier_name: ExtractedFieldValue
     related_invoice_no: ExtractedFieldValue
+    preparer_name: ExtractedFieldValue
+    reviewer_name: ExtractedFieldValue
+    attachment_count: ExtractedFieldValue
 
 
 class PaymentReceiptExtraction(BaseModel):
@@ -110,6 +138,9 @@ class PaymentReceiptExtraction(BaseModel):
     payment_date: ExtractedFieldValue
     payer_name: ExtractedFieldValue
     payee_name: ExtractedFieldValue
+    payee_account_masked: ExtractedFieldValue
+    bank_name: ExtractedFieldValue
+    bank_serial_no: ExtractedFieldValue
     amount: ExtractedFieldValue
     currency: ExtractedFieldValue
     payment_purpose: ExtractedFieldValue

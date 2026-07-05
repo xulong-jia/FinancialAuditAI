@@ -8,8 +8,16 @@ from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.schemas.document import ClassificationRead, DocumentUpdate
+from app.services import audit_log_service, llm_provider
 
 LOW_CONFIDENCE_THRESHOLD = 0.6
+CLASSIFICATION_CONTRACT_VERSION = "llm-provider-v1"
+DETERMINISTIC_CONTRACT_VERSION = "deterministic-evidence-v2"
+KNOWLEDGE_DOC_TYPES = {
+    "prospectus",
+    "inquiry_letter",
+    "regulation",
+}
 KEYWORDS: dict[str, tuple[str, ...]] = {
     "purchase_request": (
         "purchase request",
@@ -304,6 +312,33 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
         "附件清单",
         "合同编号",
     ),
+    "prospectus": (
+        "prospectus",
+        "offering memorandum",
+        "securities offering",
+        "issuer",
+        "招股说明书",
+        "募集说明书",
+        "发行人",
+    ),
+    "inquiry_letter": (
+        "inquiry letter",
+        "comment letter",
+        "regulatory inquiry",
+        "feedback",
+        "问询函",
+        "监管问询",
+        "反馈意见",
+    ),
+    "regulation": (
+        "regulation",
+        "accounting standard",
+        "standard",
+        "guideline",
+        "法律法规",
+        "会计准则",
+        "监管规定",
+    ),
 }
 DOC_TYPES_BY_SCENARIO = {
     "procurement": {
@@ -313,7 +348,8 @@ DOC_TYPES_BY_SCENARIO = {
         "invoice",
         "accounting_voucher",
         "payment_receipt",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
     "sales": {
         "sales_contract",
         "sales_order",
@@ -322,26 +358,30 @@ DOC_TYPES_BY_SCENARIO = {
         "sales_invoice",
         "receipt_voucher",
         "accounting_voucher",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
     "confirmation": {
         "confirmation",
         "confirmation_request",
         "confirmation_reply",
         "confirmation_adjustment",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
     "interview": {
         "interview_record",
         "interview_outline",
         "interview_signature_page",
         "interview_transcript",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
     "contract_review": {
         "contract_review",
         "material_contract",
         "supplemental_agreement",
         "framework_agreement",
         "contract_attachment",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
 }
 
 
@@ -350,6 +390,7 @@ class ClassificationScore:
     doc_type: str
     confidence: float
     matched_keywords: list[str]
+    structural_signals: list[str]
 
 
 def classify_document(db: Session, document_id: UUID) -> ClassificationRead:
@@ -372,43 +413,45 @@ def classify_document(db: Session, document_id: UUID) -> ClassificationRead:
     text = "\n".join(page.raw_text for page in pages).strip()
     scenario = document.task.scenario if document.task else "procurement"
     scores = _rank_document_types(document.original_filename, text, scenario)
-    if not text:
+    allowed_doc_types = sorted(DOC_TYPES_BY_SCENARIO.get(scenario, DOC_TYPES_BY_SCENARIO["procurement"]))
+    provider = llm_provider.get_llm_provider()
+    provider_result = provider.classify_document(document.original_filename, text, scenario, allowed_doc_types)
+    provider_meta = llm_provider.provider_info(provider_result)
+    llm_classification = _classification_from_llm(provider_result.payload, allowed_doc_types) if provider_result.status == "ok" else None
+    if llm_classification is not None:
+        result_doc_type, confidence, reason, alternative_types = llm_classification
+        reason = f"LLM classification via {provider_result.provider_name}: {reason}"
+    elif not text:
         result_doc_type = "unknown"
         confidence = 0.0
         reason = "OCR text is empty; human review is required before classification."
+        alternative_types = []
     elif not scores or scores[0].confidence < LOW_CONFIDENCE_THRESHOLD:
         best = scores[0] if scores else None
         result_doc_type = "unknown"
         confidence = best.confidence if best else 0.0
         reason = (
-                f"Low confidence classification; best guess is {best.doc_type} "
-                f"from keywords {', '.join(best.matched_keywords)}."
+                f"Low confidence classification under {DETERMINISTIC_CONTRACT_VERSION}; "
+                f"best guess is {best.doc_type} from signals "
+                f"{', '.join(best.matched_keywords + best.structural_signals)}."
             if best
-            else f"No {scenario} classification keywords were found."
+            else f"No {scenario} classification signals were found under {DETERMINISTIC_CONTRACT_VERSION}."
         )
+        alternative_types = _deterministic_alternatives(scores, result_doc_type)
     else:
         best = scores[0]
         result_doc_type = best.doc_type
         confidence = best.confidence
-        reason = f"Matched {best.doc_type} using keywords: {', '.join(best.matched_keywords)}."
-
-    alternative_types = [
-        {
-            "doc_type": score.doc_type,
-            "confidence": score.confidence,
-            "reason": f"Matched keywords: {', '.join(score.matched_keywords)}.",
-        }
-        for score in scores[1:4]
-    ]
-    if result_doc_type == "unknown" and scores:
-        alternative_types.insert(
-            0,
-            {
-                "doc_type": scores[0].doc_type,
-                "confidence": scores[0].confidence,
-                "reason": f"Best low-confidence guess from keywords: {', '.join(scores[0].matched_keywords)}.",
-            },
+        signals = best.matched_keywords + best.structural_signals
+        reason = (
+            f"Matched {best.doc_type} under {DETERMINISTIC_CONTRACT_VERSION} "
+            f"using signals: {', '.join(signals)}."
         )
+        alternative_types = _deterministic_alternatives(scores, result_doc_type)
+    if llm_classification is None:
+        provider_meta["fallback_used"] = "deterministic"
+        if provider_result.status == "ok":
+            provider_meta["fallback_reason"] = "invalid_llm_classification_output"
 
     need_human_review = result_doc_type == "unknown" or confidence < LOW_CONFIDENCE_THRESHOLD
     document.doc_type = result_doc_type
@@ -416,6 +459,19 @@ def classify_document(db: Session, document_id: UUID) -> ClassificationRead:
     document.classification_reason = reason
     document.alternative_types = alternative_types
     document.review_status = "need_review" if need_human_review else "pending"
+    document.metadata_json = {
+        **(document.metadata_json or {}),
+        "classification_provider": provider_meta,
+    }
+    audit_log_service.add_log(
+        db,
+        actor_name=document.uploaded_by_name,
+        task_id=document.task_id,
+        action="document_classified",
+        target_type="document",
+        target_id=document.id,
+        after_value={"doc_type": result_doc_type, "confidence": confidence, "need_human_review": need_human_review},
+    )
     db.commit()
     db.refresh(document)
 
@@ -427,6 +483,66 @@ def classify_document(db: Session, document_id: UUID) -> ClassificationRead:
         alternative_types=alternative_types,
         need_human_review=need_human_review,
     )
+
+
+def _classification_from_llm(payload: dict | None, allowed_doc_types: list[str]) -> tuple[str, float, str, list[dict]] | None:
+    if not isinstance(payload, dict):
+        return None
+    raw_doc_type = payload.get("doc_type")
+    doc_type = str(raw_doc_type) if raw_doc_type is not None else "unknown"
+    if doc_type != "unknown" and doc_type not in allowed_doc_types:
+        return None
+    try:
+        confidence = float(payload.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+    reason = str(payload.get("reason") or "LLM provider returned no reason.")
+    alternatives = []
+    for item in payload.get("alternative_types") or []:
+        if not isinstance(item, dict):
+            continue
+        alternative_doc_type = str(item.get("doc_type") or "")
+        if alternative_doc_type and alternative_doc_type in allowed_doc_types:
+            try:
+                alternative_confidence = float(item.get("confidence") or 0.0)
+            except (TypeError, ValueError):
+                alternative_confidence = 0.0
+            alternatives.append(
+                {
+                    "doc_type": alternative_doc_type,
+                    "confidence": max(0.0, min(1.0, alternative_confidence)),
+                    "reason": str(item.get("reason") or "LLM alternative classification."),
+                }
+            )
+    return doc_type, confidence, reason, alternatives[:3]
+
+
+def _deterministic_alternatives(scores: list[ClassificationScore], result_doc_type: str) -> list[dict]:
+    alternatives = [
+        {
+            "doc_type": score.doc_type,
+            "confidence": score.confidence,
+            "reason": (
+                f"Matched signals under {DETERMINISTIC_CONTRACT_VERSION}: "
+                f"{', '.join(score.matched_keywords + score.structural_signals)}."
+            ),
+        }
+        for score in scores[1:4]
+    ]
+    if result_doc_type == "unknown" and scores:
+        alternatives.insert(
+            0,
+            {
+                "doc_type": scores[0].doc_type,
+                "confidence": scores[0].confidence,
+                "reason": (
+                    f"Best low-confidence guess under {DETERMINISTIC_CONTRACT_VERSION}: "
+                    f"{', '.join(scores[0].matched_keywords + scores[0].structural_signals)}."
+                ),
+            },
+        )
+    return alternatives
 
 
 def update_document_classification(
@@ -448,8 +564,19 @@ def update_document_classification(
     if payload.doc_type != "unknown" and payload.doc_type not in DOC_TYPES_BY_SCENARIO.get(scenario, set()):
         raise HTTPException(status_code=400, detail="Document type is not allowed for task scenario")
 
+    before = {"doc_type": document.doc_type, "review_status": document.review_status}
     document.doc_type = payload.doc_type
     document.review_status = "need_review" if payload.doc_type == "unknown" else "pending"
+    audit_log_service.add_log(
+        db,
+        actor_name=payload.actor_name,
+        task_id=document.task_id,
+        action="document_classification_updated",
+        target_type="document",
+        target_id=document.id,
+        before_value=before,
+        after_value={"doc_type": document.doc_type, "review_status": document.review_status},
+    )
     db.commit()
     db.refresh(document)
     return document
@@ -465,6 +592,7 @@ def _rank_document_types(filename: str, text: str, scenario: str = "procurement"
         if doc_type not in allowed_doc_types:
             continue
         matched: list[str] = []
+        structural_signals: list[str] = []
         score = 0.0
         for keyword in keywords:
             normalized = _normalize(keyword)
@@ -474,6 +602,9 @@ def _rank_document_types(filename: str, text: str, scenario: str = "procurement"
             elif normalized in filename_text:
                 score += 0.08
                 matched.append(f"filename:{keyword}")
+        for signal in _structural_signals(doc_type, body_text):
+            score += 0.04
+            structural_signals.append(signal)
         if scenario in {"confirmation", "interview", "contract_review"} and doc_type not in {
             "confirmation",
             "interview_record",
@@ -481,12 +612,42 @@ def _rank_document_types(filename: str, text: str, scenario: str = "procurement"
         }:
             score += 0.03
 
-        if matched:
+        if matched or structural_signals:
             confidence = min(0.98, 0.18 + score)
-            scores.append(ClassificationScore(doc_type, round(confidence, 4), matched))
+            scores.append(ClassificationScore(doc_type, round(confidence, 4), matched, structural_signals))
 
     return sorted(scores, key=lambda score: score.confidence, reverse=True)
 
 
 def _normalize(value: str) -> str:
     return value.casefold().replace("_", " ").replace("-", " ")
+
+
+def _structural_signals(doc_type: str, body_text: str) -> list[str]:
+    try:
+        from app.services.extraction_service import (
+            SCHEMA_SPECS,
+            CONTRACT_REVIEW_SCHEMA_SPECS,
+            CONFIRMATION_SCHEMA_SPECS,
+            INTERVIEW_SCHEMA_SPECS,
+            SALES_SCHEMA_SPECS,
+        )
+    except ImportError:
+        return []
+
+    all_specs = {
+        **SCHEMA_SPECS,
+        **SALES_SCHEMA_SPECS,
+        **CONFIRMATION_SCHEMA_SPECS,
+        **INTERVIEW_SCHEMA_SPECS,
+        **CONTRACT_REVIEW_SCHEMA_SPECS,
+    }
+    signals: list[str] = []
+    for spec in all_specs.get(doc_type, ()):
+        for alias in spec.aliases:
+            if f"{_normalize(alias)}:" in body_text or f"{_normalize(alias)}：" in body_text:
+                signals.append(f"label:{alias}")
+                break
+        if len(signals) >= 4:
+            break
+    return signals

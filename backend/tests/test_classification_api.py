@@ -94,6 +94,34 @@ def test_classifies_six_procurement_document_types(
     assert isinstance(body["alternative_types"], list)
     assert body["need_human_review"] is False
 
+    document_response = client.get(f"/api/v1/documents/{document['id']}")
+    assert document_response.status_code == 200
+    provider = document_response.json()["metadata"]["classification_provider"]
+    assert provider["provider_kind"] == "deterministic_fallback"
+    assert provider["fallback_used"] == "deterministic"
+
+
+@pytest.mark.parametrize(
+    ("doc_type", "filename", "text"),
+    [
+        ("prospectus", "prospectus.pdf", "Prospectus offering memorandum securities offering issuer"),
+        ("inquiry_letter", "inquiry_letter.pdf", "Regulatory inquiry letter comment letter feedback"),
+        ("regulation", "regulation.pdf", "Accounting standard regulation guideline regulatory provision"),
+    ],
+)
+def test_classifies_knowledge_document_labels(doc_type: str, filename: str, text: str) -> None:
+    task = create_task()
+    document = upload_pdf(task["id"], filename, text)
+    ocr_document(document["id"])
+
+    response = client.post(f"/api/v1/documents/{document['id']}/classify")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["doc_type"] == doc_type
+    assert body["confidence"] >= 0.6
+    assert "deterministic-evidence-v2" in body["classification_reason"]
+
 
 def test_low_confidence_document_is_unknown_and_needs_review() -> None:
     task = create_task()

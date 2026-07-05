@@ -6,6 +6,8 @@ import type {
   AgentStep,
   AuditLogRecord,
   BadCase,
+  BadCaseType,
+  BadCaseFromReviewPayload,
   BadCaseCreatePayload,
   BadCaseUpdatePayload,
   AuditTask,
@@ -33,6 +35,7 @@ import type {
   ReviewComment,
   ReviewCommentPayload,
   ReviewQueueItem,
+  ReextractPayload,
   ReportGeneratePayload,
   ReportRecord,
   KnowledgeBase,
@@ -45,6 +48,7 @@ import type {
   RoleCreatePayload,
   RoleRecord,
   RoleUpdatePayload,
+  TaskRunResult,
   UserCreatePayload,
   UserRecord,
   UserUpdatePayload,
@@ -69,12 +73,19 @@ function authHeaders(extraHeaders: Record<string, string> = {}) {
   return token ? { ...extraHeaders, Authorization: `Bearer ${token}` } : extraHeaders;
 }
 
+function unwrapApiEnvelope<T>(body: unknown): T {
+  if (body && typeof body === "object" && "data" in body && "request_id" in body) {
+    return (body as { data: T }).data;
+  }
+  return body as T;
+}
+
 export async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, { headers: authHeaders() });
   if (!response.ok) {
     throw new Error("Request failed");
   }
-  return response.json() as Promise<T>;
+  return unwrapApiEnvelope<T>(await response.json());
 }
 
 async function sendJson<T>(path: string, method: string, body: unknown): Promise<T> {
@@ -86,7 +97,7 @@ async function sendJson<T>(path: string, method: string, body: unknown): Promise
   if (!response.ok) {
     throw new Error("Request failed");
   }
-  return response.json() as Promise<T>;
+  return unwrapApiEnvelope<T>(await response.json());
 }
 
 export function login(payload: LoginPayload): Promise<LoginResponse> {
@@ -135,6 +146,10 @@ export function listTasks(): Promise<AuditTask[]> {
 
 export function createTask(payload: CreateTaskPayload): Promise<AuditTask> {
   return sendJson<AuditTask>("/api/v1/tasks", "POST", payload);
+}
+
+export function runTask(taskId: string): Promise<TaskRunResult> {
+  return sendJson<TaskRunResult>(`/api/v1/tasks/${taskId}/run`, "POST", {});
 }
 
 export function listDocuments(taskId: string): Promise<DocumentRecord[]> {
@@ -201,6 +216,16 @@ export function listDocumentPages(documentId: string): Promise<DocumentPage[]> {
   return getJson<DocumentPage[]>(`/api/v1/documents/${documentId}/pages`);
 }
 
+export async function fetchPageImage(documentId: string, pageNumber: number): Promise<Blob> {
+  const response = await fetch(`${baseUrl}/api/v1/documents/${documentId}/pages/${pageNumber}/image`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error("Page image failed");
+  }
+  return response.blob();
+}
+
 export function listReviewQueue(taskId?: string): Promise<ReviewQueueItem[]> {
   const query = taskId ? `?task_id=${taskId}` : "";
   return getJson<ReviewQueueItem[]>(`/api/v1/review/queue${query}`);
@@ -229,6 +254,18 @@ export function dismissAuditResult(resultId: string, payload: DismissReviewPaylo
 
 export function rerunAuditResult(resultId: string, payload: ReviewActionPayload): Promise<AuditResult[]> {
   return sendJson<AuditResult[]>(`/api/v1/audit-results/${resultId}/rerun`, "POST", payload);
+}
+
+export function rerunRulesForField(fieldId: string, payload: ReviewActionPayload): Promise<AuditResult[]> {
+  return sendJson<AuditResult[]>(`/api/v1/fields/${fieldId}/rerun-rules`, "POST", payload);
+}
+
+export function reextractDocument(documentId: string, payload: ReextractPayload): Promise<ExtractedField[]> {
+  return sendJson<ExtractedField[]>(`/api/v1/documents/${documentId}/reextract`, "POST", payload);
+}
+
+export function createBadCaseFromReview(payload: BadCaseFromReviewPayload): Promise<BadCase> {
+  return sendJson<BadCase>("/api/v1/review/bad-case", "POST", payload);
 }
 
 export function generateControlTableReport(taskId: string, payload: ReportGeneratePayload): Promise<ReportRecord> {
@@ -276,7 +313,7 @@ export async function uploadDocument(
   if (!response.ok) {
     throw new Error("Upload failed");
   }
-  return response.json() as Promise<DocumentRecord>;
+  return unwrapApiEnvelope<DocumentRecord>(await response.json());
 }
 
 export function listRagDocuments(knowledgeBase?: KnowledgeBase): Promise<RagDocument[]> {
@@ -313,7 +350,7 @@ export async function createRagDocument(payload: {
   if (!response.ok) {
     throw new Error("RAG document create failed");
   }
-  return response.json() as Promise<RagDocument>;
+  return unwrapApiEnvelope<RagDocument>(await response.json());
 }
 
 export function indexRagDocument(documentId: string): Promise<RagIndexResult> {
@@ -340,11 +377,15 @@ export function retryAgentRun(runId: string): Promise<AgentRun> {
   return sendJson<AgentRun>(`/api/v1/agents/runs/${runId}/retry`, "POST", {});
 }
 
+export function resumeAgentRun(runId: string): Promise<AgentRun> {
+  return sendJson<AgentRun>(`/api/v1/agents/runs/${runId}/resume`, "POST", {});
+}
+
 export function createBadCase(payload: BadCaseCreatePayload): Promise<BadCase> {
   return sendJson<BadCase>("/api/v1/bad-cases", "POST", payload);
 }
 
-export function listBadCases(filters: { case_type?: EvalType; status?: string } = {}): Promise<BadCase[]> {
+export function listBadCases(filters: { case_type?: BadCaseType; status?: string } = {}): Promise<BadCase[]> {
   const params = new URLSearchParams();
   if (filters.case_type) {
     params.set("case_type", filters.case_type);

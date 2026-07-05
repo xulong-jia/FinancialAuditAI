@@ -41,8 +41,13 @@ def workbook_sheet_names(data: bytes) -> list[str]:
     return [sheet.attrib["name"] for sheet in workbook.findall(".//main:sheet", namespace)]
 
 
-def create_sales_task() -> dict:
-    response = client.post("/api/v1/tasks", json={"name": "Sales walkthrough", "scenario": "sales"})
+def create_sales_task(period_start: str | None = None, period_end: str | None = None) -> dict:
+    payload = {"name": "Sales walkthrough", "scenario": "sales"}
+    if period_start:
+        payload["period_start"] = period_start
+    if period_end:
+        payload["period_end"] = period_end
+    response = client.post("/api/v1/tasks", json=payload)
     assert response.status_code == 200
     assert response.json()["scenario"] == "sales"
     assert response.json()["task_no"].startswith("SALES-")
@@ -123,8 +128,16 @@ def add_items(task_id: str, document_id: str, quantity: float) -> None:
     )
 
 
-def build_sales_scenario(invoice_amount: float = 1200.0) -> tuple[dict, dict[str, dict]]:
-    task = create_sales_task()
+def build_sales_scenario(
+    invoice_amount: float = 1200.0,
+    *,
+    signed_date: str = "2026-01-06",
+    invoice_date: str = "2026-01-10",
+    voucher_date: str = "2026-01-20",
+    period_start: str | None = None,
+    period_end: str | None = None,
+) -> tuple[dict, dict[str, dict]]:
+    task = create_sales_task(period_start=period_start, period_end=period_end)
     docs = {doc_type: upload_pdf(task["id"], doc_type) for doc_type, _ in SALES_KEYWORDS}
 
     contract = docs["sales_contract"]
@@ -154,7 +167,7 @@ def build_sales_scenario(invoice_amount: float = 1200.0) -> tuple[dict, dict[str
     logistics = docs["logistics_receipt"]
     add_field(task["id"], logistics["id"], "logistics_no", "LG-001")
     add_date(task["id"], logistics["id"], "shipment_date", "2026-01-05")
-    add_date(task["id"], logistics["id"], "signed_date", "2026-01-06")
+    add_date(task["id"], logistics["id"], "signed_date", signed_date)
     add_field(task["id"], logistics["id"], "receiver_name", "Customer Co")
     add_field(task["id"], logistics["id"], "customer_name", "Customer Co", is_required=False)
     add_field(task["id"], logistics["id"], "related_delivery_no", "DO-001", is_required=False)
@@ -162,7 +175,7 @@ def build_sales_scenario(invoice_amount: float = 1200.0) -> tuple[dict, dict[str
 
     invoice = docs["sales_invoice"]
     add_field(task["id"], invoice["id"], "invoice_no", "SINV-001")
-    add_date(task["id"], invoice["id"], "invoice_date", "2026-01-10")
+    add_date(task["id"], invoice["id"], "invoice_date", invoice_date)
     add_field(task["id"], invoice["id"], "seller_name", "Seller Co")
     add_field(task["id"], invoice["id"], "buyer_name", "Customer Co")
     add_items(task["id"], invoice["id"], 10.0)
@@ -182,7 +195,7 @@ def build_sales_scenario(invoice_amount: float = 1200.0) -> tuple[dict, dict[str
 
     voucher = docs["accounting_voucher"]
     add_field(task["id"], voucher["id"], "voucher_no", "AV-001")
-    add_date(task["id"], voucher["id"], "voucher_date", "2026-01-20")
+    add_date(task["id"], voucher["id"], "voucher_date", voucher_date)
     add_field(task["id"], voucher["id"], "summary", "Sales invoice SINV-001")
     add_field(task["id"], voucher["id"], "debit_subject", "Accounts Receivable")
     add_field(task["id"], voucher["id"], "credit_subject", "Revenue")
@@ -249,13 +262,17 @@ def test_sales_walkthrough_links_audits_reviews_and_exports_report() -> None:
         "SALES_AMOUNT_001",
         "SALES_NAME_001",
         "SALES_QTY_001",
+        "SALES_REVENUE_001",
     }
     assert results["SALES_AMOUNT_001"]["status"] == "fail"
     assert results["SALES_AMOUNT_001"]["evidence"]["refs"]
 
     queue_response = client.get(f"/api/v1/review/queue?task_id={task['id']}")
     assert queue_response.status_code == 200
-    assert any(item["audit_result"]["rule_code"] == "SALES_AMOUNT_001" for item in queue_response.json())
+    assert any(
+        item["audit_result"] and item["audit_result"]["rule_code"] == "SALES_AMOUNT_001"
+        for item in queue_response.json()
+    )
 
     report_response = client.post(f"/api/v1/tasks/{task['id']}/reports/control-table")
     assert report_response.status_code == 200
@@ -272,3 +289,33 @@ def test_sales_walkthrough_links_audits_reviews_and_exports_report() -> None:
     download = client.get(f"/api/v1/reports/{report['id']}/download")
     assert download.status_code == 200
     assert "Sales Control Table" in workbook_sheet_names(download.content)
+
+
+def test_sales_revenue_cutoff_flags_cross_period_recognition_and_control_table() -> None:
+    task, _ = build_sales_scenario(
+        invoice_amount=1000.0,
+        signed_date="2026-02-02",
+        invoice_date="2026-01-30",
+        voucher_date="2026-01-30",
+        period_start="2026-01-01",
+        period_end="2026-01-31",
+    )
+    assert client.post(f"/api/v1/tasks/{task['id']}/link-documents").status_code == 200
+
+    audit_response = client.post(f"/api/v1/tasks/{task['id']}/audit")
+    assert audit_response.status_code == 200
+    results = {result["rule_code"]: result for result in audit_response.json()}
+    assert results["SALES_REVENUE_001"]["status"] == "warning"
+    assert results["SALES_REVENUE_001"]["severity"] == "high"
+    assert any(issue["type"] == "cross_period_revenue" for issue in results["SALES_REVENUE_001"]["actual_value"]["issues"])
+
+    queue_response = client.get(f"/api/v1/review/queue?task_id={task['id']}")
+    assert queue_response.status_code == 200
+    assert any(
+        item["audit_result"] and item["audit_result"]["rule_code"] == "SALES_REVENUE_001"
+        for item in queue_response.json()
+    )
+
+    report_response = client.post(f"/api/v1/tasks/{task['id']}/reports/control-table")
+    assert report_response.status_code == 200
+    assert report_response.json()["summary"]["control_table_preview"][0]["revenue_check"] == "warning"

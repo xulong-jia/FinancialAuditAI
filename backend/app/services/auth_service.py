@@ -21,10 +21,57 @@ from app.models.user_role import UserRole
 from app.schemas.auth import RoleCreate, RoleUpdate, UserCreate, UserUpdate
 
 ROLE_SEEDS: dict[str, tuple[str, list[str]]] = {
-    "viewer": ("Viewer", ["read"]),
-    "analyst": ("Analyst", ["read", "task:create", "task:update", "document:upload", "document:process", "audit:run", "agent:run"]),
-    "reviewer": ("Reviewer", ["read", "review:write", "audit:run"]),
-    "manager": ("Manager", ["read", "report:generate", "evaluation:read", "audit_log:read"]),
+    "viewer": ("Viewer", ["read", "read_all", "evaluation:read"]),
+    "analyst": (
+        "Analyst",
+        [
+            "read",
+            "task:create",
+            "task:update",
+            "document:upload",
+            "document:process",
+            "audit:run",
+            "agent:run",
+            "report:generate",
+            "evaluation:read",
+            "field:correct",
+        ],
+    ),
+    "reviewer": (
+        "Reviewer",
+        [
+            "read",
+            "task:create",
+            "task:update",
+            "document:upload",
+            "document:process",
+            "audit:run",
+            "agent:run",
+            "review:write",
+            "report:generate",
+            "evaluation:read",
+        ],
+    ),
+    "manager": (
+        "Manager",
+        [
+            "read",
+            "project:manage",
+            "task:create",
+            "task:update",
+            "document:upload",
+            "document:process",
+            "audit:run",
+            "agent:run",
+            "review:write",
+            "report:generate",
+            "evaluation:read",
+            "quality:manage",
+            "audit_log:read",
+            "rule:manage",
+            "rag:manage",
+        ],
+    ),
     "admin": ("Admin", ["*"]),
 }
 ITERATIONS = 120_000
@@ -35,11 +82,12 @@ def utc_now() -> datetime:
 
 
 def ensure_default_roles(db: Session) -> None:
-    existing = {role.code for role in db.scalars(select(Role))}
     for code, (name, permissions) in ROLE_SEEDS.items():
-        if code in existing:
-            continue
-        db.add(Role(code=code, name=name, description=f"Default {name.lower()} role", permissions=permissions))
+        role = db.scalar(select(Role).where(Role.code == code))
+        if role is None:
+            db.add(Role(code=code, name=name, description=f"Default {name.lower()} role", permissions=permissions))
+        elif set(role.permissions or []) != set(permissions):
+            role.permissions = permissions
     db.commit()
 
 
@@ -274,10 +322,22 @@ def _add_log(
             action=action,
             target_type=target_type,
             target_id=target_id,
-            before_value=redact(before_value),
-            after_value=redact(after_value),
+            before_value=redact(_json_safe(before_value)),
+            after_value=redact(_json_safe(after_value)),
         )
     )
+
+
+def _json_safe(value):
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value
 
 
 def _sign(payload_part: str) -> str:

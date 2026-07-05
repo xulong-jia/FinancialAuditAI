@@ -34,3 +34,8 @@ def list_agent_steps(run_id: UUID, db: Session = Depends(get_db)):
 @router.post("/runs/{run_id}/retry", response_model=AgentRunRead, dependencies=[Depends(require_permission("agent:run"))])
 def retry_agent_run(run_id: UUID, db: Session = Depends(get_db)):
     return agent_service.retry_run(db, run_id)
+
+
+@router.post("/runs/{run_id}/resume", response_model=AgentRunRead, dependencies=[Depends(require_permission("agent:run"))])
+def resume_agent_run(run_id: UUID, db: Session = Depends(get_db)):
+    return agent_service.resume_run(db, run_id)

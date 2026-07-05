@@ -3,26 +3,29 @@ import { useEffect, useState } from "react";
 
 import { createBadCase, listBadCases, updateBadCase } from "../api/client";
 import type { PageProps } from "../routes";
-import type { BadCase, EvalType } from "../types/api";
+import type { BadCase, BadCaseType } from "../types/api";
 import { hasPermission } from "../utils/permissions";
 
 type BadCaseFormValues = {
-  case_type: EvalType;
+  case_type: BadCaseType;
   title: string;
   severity: string;
   owner_name?: string;
   input_json?: string;
   model_output_json?: string;
   expected_output_json?: string;
+  validation_result_json?: string;
+  in_regression?: boolean;
 };
 
-const evalTypeOptions: { label: string; value: EvalType }[] = [
+const badCaseTypeOptions: { label: string; value: BadCaseType }[] = [
   { label: "classification", value: "classification" },
   { label: "ocr", value: "ocr" },
   { label: "extraction", value: "extraction" },
   { label: "rule", value: "rule" },
   { label: "rag", value: "rag" },
   { label: "agent", value: "agent" },
+  { label: "review_dispute", value: "review_dispute" },
   { label: "end_to_end", value: "end_to_end" },
   { label: "regression", value: "regression" },
 ];
@@ -51,7 +54,7 @@ function statusColor(status: string) {
 export function BadCaseCenterPage({ currentUser }: PageProps) {
   const [form] = Form.useForm<BadCaseFormValues>();
   const [cases, setCases] = useState<BadCase[]>([]);
-  const [caseType, setCaseType] = useState<EvalType | undefined>();
+  const [caseType, setCaseType] = useState<BadCaseType | undefined>();
   const [status, setStatus] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const canManageQuality = hasPermission(currentUser, "quality:manage");
@@ -75,6 +78,8 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
         input_payload: parseJson(values.input_json),
         model_output: parseJson(values.model_output_json),
         expected_output: parseJson(values.expected_output_json),
+        validation_result: values.validation_result_json ? parseJson(values.validation_result_json) : undefined,
+        in_regression: values.in_regression,
       });
       form.resetFields();
       await refreshCases();
@@ -111,12 +116,12 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
         <Form<BadCaseFormValues>
           form={form}
           layout="vertical"
-          initialValues={{ case_type: "rule", severity: "medium" }}
+          initialValues={{ case_type: "rule", severity: "medium", in_regression: false }}
           onFinish={(values) => void handleCreate(values)}
         >
           <Space align="start" wrap>
             <Form.Item name="case_type" label="Type" rules={[{ required: true }]}>
-              <Select options={evalTypeOptions} style={{ width: 180 }} />
+              <Select options={badCaseTypeOptions} style={{ width: 180 }} />
             </Form.Item>
             <Form.Item name="title" label="Title" rules={[{ required: true }]}>
               <Input style={{ width: 320 }} />
@@ -135,6 +140,15 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
               <Input style={{ width: 180 }} />
             </Form.Item>
           </Space>
+          <Form.Item name="in_regression" label="Regression Set">
+            <Select
+              style={{ width: 160 }}
+              options={[
+                { label: "no", value: false },
+                { label: "yes", value: true },
+              ]}
+            />
+          </Form.Item>
           <Space align="start" wrap>
             <Form.Item name="input_json" label="Input JSON">
               <Input.TextArea rows={3} style={{ width: 300 }} />
@@ -143,6 +157,9 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
               <Input.TextArea rows={3} style={{ width: 300 }} />
             </Form.Item>
             <Form.Item name="expected_output_json" label="Expected Output JSON">
+              <Input.TextArea rows={3} style={{ width: 300 }} />
+            </Form.Item>
+            <Form.Item name="validation_result_json" label="Validation Result JSON">
               <Input.TextArea rows={3} style={{ width: 300 }} />
             </Form.Item>
           </Space>
@@ -159,7 +176,7 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
             <Select
               allowClear
               placeholder="Type"
-              options={evalTypeOptions}
+              options={badCaseTypeOptions}
               style={{ width: 180 }}
               value={caseType}
               onChange={(value) => {
@@ -199,6 +216,7 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
               render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>,
             },
             { title: "Severity", dataIndex: "severity" },
+            { title: "Regression", dataIndex: "in_regression", render: (value: boolean) => (value ? "yes" : "no") },
             { title: "Owner", dataIndex: "owner_name", render: (value: string | null) => value ?? "-" },
             {
               title: "Expected",

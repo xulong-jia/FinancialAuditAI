@@ -36,6 +36,25 @@ def list_steps(run_id: str) -> list[dict]:
     return response.json()
 
 
+def seed_rule_evidence() -> None:
+    response = client.post(
+        "/api/v1/rag/documents",
+        data={
+            "knowledge_base": "regulation",
+            "title": "Procurement Rule Evidence",
+            "source_type": "synthetic_text",
+            "content_text": (
+                "PROC_TIME_001 PROC_QTY_001 PROC_AMOUNT_001 PROC_NAME_001 "
+                "PROC_ITEM_001 PROC_TAX_001 PROC_MISSING_001 procurement rule evidence."
+            ),
+            "created_by": "agent_test",
+        },
+    )
+    assert response.status_code == 200
+    index_response = client.post(f"/api/v1/rag/documents/{response.json()['id']}/index")
+    assert index_response.status_code == 200
+
+
 def test_state_transition_validation() -> None:
     agent_service.validate_transition("DRAFT", "FILES_UPLOADED")
     try:
@@ -49,6 +68,7 @@ def test_state_transition_validation() -> None:
 
 def test_agent_run_creates_steps_and_report_without_bypassing_rule_engine() -> None:
     task, _ = make_agent_ready_scenario()
+    seed_rule_evidence()
 
     run = create_agent_run(task["id"])
     steps = list_steps(run["id"])
@@ -57,10 +77,11 @@ def test_agent_run_creates_steps_and_report_without_bypassing_rule_engine() -> N
     assert run["current_state"] == "COMPLETED"
     assert run["output_refs"]["report_id"]
     assert "run_rule_engine" in {step["tool_name"] for step in steps}
+    assert "route_review_queue" in {step["tool_name"] for step in steps}
     assert "generate_control_table" in {step["tool_name"] for step in steps}
     with SessionLocal() as db:
         results = db.query(AuditResult).filter(AuditResult.task_id == task["id"]).all()
-        assert len(results) == 6
+        assert len(results) == 7
         assert {result.status for result in results} == {"pass"}
 
 
@@ -97,13 +118,17 @@ def test_high_risk_exception_routes_to_review_without_auto_confirming() -> None:
         tax_amount=109.09,
         amount_including_tax=1200.0,
     )
+    seed_rule_evidence()
 
     run = create_agent_run(task["id"])
     steps = list_steps(run["id"])
 
-    assert run["status"] == "completed"
+    assert run["status"] == "waiting_review"
+    assert run["current_state"] == "HUMAN_REVIEW_REQUIRED"
     assert run["output_refs"]["review_result_ids"]
     assert "create_review_ticket" in {step["tool_name"] for step in steps}
+    assert "route_review_queue" in {step["tool_name"] for step in steps}
+    assert "generate_control_table" not in {step["tool_name"] for step in steps}
     with SessionLocal() as db:
         amount_result = (
             db.query(AuditResult)
@@ -115,6 +140,22 @@ def test_high_risk_exception_routes_to_review_without_auto_confirming() -> None:
         assert amount_result.review_status == "pending"
         assert amount_result.reviewed_at is None
 
+    queue_response = client.get(f"/api/v1/review/queue?task_id={task['id']}")
+    assert queue_response.status_code == 200
+    for item in queue_response.json():
+        if item["audit_result_id"]:
+            confirm_response = client.post(
+                f"/api/v1/audit-results/{item['audit_result_id']}/confirm",
+                json={"actor_name": "reviewer", "reason": "Confirmed in agent review test."},
+            )
+            assert confirm_response.status_code == 200
+    resume_response = client.post(f"/api/v1/agents/runs/{run['id']}/resume")
+    assert resume_response.status_code == 200
+    resumed = resume_response.json()
+    assert resumed["status"] == "completed"
+    assert resumed["current_state"] == "COMPLETED"
+    assert resumed["output_refs"]["report_id"]
+
 
 def test_no_citation_does_not_generate_evidence_conclusion_and_payload_is_referenced() -> None:
     task, _ = make_agent_ready_scenario()
@@ -123,6 +164,10 @@ def test_no_citation_does_not_generate_evidence_conclusion_and_payload_is_refere
     steps = list_steps(run["id"])
     evidence_step = next(step for step in steps if step["tool_name"] == "retrieve_evidence")
 
+    assert run["status"] == "waiting_review"
+    assert run["current_state"] == "HUMAN_REVIEW_REQUIRED"
+    assert not run["output_refs"].get("report_id")
+    assert run["output_refs"]["review_queue"]["item_type_counts"]["agent_step"] >= 1
     assert evidence_step["output_payload"]["status"] == "no_answer"
     assert evidence_step["output_payload"]["evidence_insufficient"] is True
     assert evidence_step["output_payload"]["conclusion_generated"] is False

@@ -34,6 +34,13 @@ class Settings(BaseModel):
     )
     embedding_provider: str = "deterministic-local"
     embedding_dimensions: int = 32
+    llm_provider: str = "deterministic-fallback"
+    llm_api_url: str | None = None
+    llm_api_key: str | None = None
+    llm_model: str = "financialauditai-local"
+    llm_timeout_seconds: float = 20.0
+    rag_rerank_provider: str = "deterministic-fallback"
+    rag_answer_provider: str = "deterministic-fallback"
     auth_secret_key: str = "change-me-local-auth-secret"
     access_token_minutes: int = 480
 
@@ -57,6 +64,13 @@ def get_settings() -> Settings:
         ),
         embedding_provider=os.getenv("EMBEDDING_PROVIDER", "deterministic-local"),
         embedding_dimensions=int(os.getenv("EMBEDDING_DIMENSIONS", "32")),
+        llm_provider=os.getenv("LLM_PROVIDER", "deterministic-fallback"),
+        llm_api_url=os.getenv("LLM_API_URL") or None,
+        llm_api_key=os.getenv("LLM_API_KEY") or None,
+        llm_model=os.getenv("LLM_MODEL", "financialauditai-local"),
+        llm_timeout_seconds=float(os.getenv("LLM_TIMEOUT_SECONDS", "20")),
+        rag_rerank_provider=os.getenv("RAG_RERANK_PROVIDER", "deterministic-fallback"),
+        rag_answer_provider=os.getenv("RAG_ANSWER_PROVIDER", "deterministic-fallback"),
         auth_secret_key=os.getenv("AUTH_SECRET_KEY", "change-me-local-auth-secret"),
         access_token_minutes=int(os.getenv("ACCESS_TOKEN_MINUTES", "480")),
     )

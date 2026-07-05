@@ -1,9 +1,11 @@
 import { Alert, Button, Card, Drawer, Empty, List, Select, Space, Spin, Table, Tag, Typography, message } from "antd";
+import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 
 import {
   confirmAuditResult,
   dismissAuditResult,
+  fetchPageImage,
   listAuditResults,
   listDocumentPages,
   listDocuments,
@@ -22,6 +24,7 @@ type EvidenceRef = {
   doc_type?: string | null;
   field_name?: string | null;
   source_text?: string | null;
+  source_bbox?: number[] | null;
   value?: unknown;
   confidence?: number | null;
 };
@@ -83,6 +86,24 @@ function renderHighlightedText(rawText: string, evidenceText: string | null) {
   );
 }
 
+function evidenceBoxStyle(page: DocumentPage, bbox: number[] | null): CSSProperties | null {
+  if (!bbox || bbox.length !== 4 || !page.width || !page.height) {
+    return null;
+  }
+  const [x0, y0, x1, y1] = bbox;
+  return {
+    position: "absolute",
+    left: `${Math.max(0, (x0 / page.width) * 100)}%`,
+    top: `${Math.max(0, (y0 / page.height) * 100)}%`,
+    width: `${Math.max(0, ((x1 - x0) / page.width) * 100)}%`,
+    height: `${Math.max(0, ((y1 - y0) / page.height) * 100)}%`,
+    border: "2px solid #faad14",
+    background: "rgba(250, 173, 20, 0.18)",
+    boxShadow: "0 0 0 1px rgba(0,0,0,0.35)",
+    pointerEvents: "none",
+  };
+}
+
 export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
   const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
@@ -94,6 +115,9 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
   const [selectedPageNumber, setSelectedPageNumber] = useState<number | null>(null);
   const [pendingPageNumber, setPendingPageNumber] = useState<number | null>(null);
   const [activeEvidenceText, setActiveEvidenceText] = useState<string | null>(null);
+  const [activeEvidenceBBox, setActiveEvidenceBBox] = useState<number[] | null>(null);
+  const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
+  const [loadingPageImage, setLoadingPageImage] = useState(false);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loadingTasks, setLoadingTasks] = useState(false);
@@ -235,6 +259,54 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
     };
   }, [selectedDocumentId]);
 
+  useEffect(() => {
+    if (!selectedDocumentId || !selectedPageNumber) {
+      setPageImageUrl(null);
+      return;
+    }
+
+    const page = pages.find((item) => item.page_number === selectedPageNumber);
+    if (!page?.image_path) {
+      setPageImageUrl(null);
+      return;
+    }
+
+    let active = true;
+    let objectUrl: string | null = null;
+    const documentId = selectedDocumentId;
+    const pageNumber = selectedPageNumber;
+
+    async function loadPageImage() {
+      setLoadingPageImage(true);
+      try {
+        const blob = await fetchPageImage(documentId, pageNumber);
+        objectUrl = window.URL.createObjectURL(blob);
+        if (active) {
+          setPageImageUrl(objectUrl);
+        } else {
+          window.URL.revokeObjectURL(objectUrl);
+        }
+      } catch {
+        if (active) {
+          setPageImageUrl(null);
+          message.error("Failed to load page image");
+        }
+      } finally {
+        if (active) {
+          setLoadingPageImage(false);
+        }
+      }
+    }
+
+    void loadPageImage();
+    return () => {
+      active = false;
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [pages, selectedDocumentId, selectedPageNumber]);
+
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId) ?? null;
   const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
@@ -243,13 +315,19 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
     ? auditResults.filter((result) => result.business_key === selectedDocument.business_key)
     : auditResults;
 
-  function jumpToEvidence(documentId: string | null | undefined, pageNumber: number | null, sourceText: string | null) {
+  function jumpToEvidence(
+    documentId: string | null | undefined,
+    pageNumber: number | null,
+    sourceText: string | null,
+    sourceBBox?: number[] | null,
+  ) {
     if (!documentId) {
       message.warning("Evidence does not include a document reference");
       return;
     }
 
     setActiveEvidenceText(sourceText);
+    setActiveEvidenceBBox(sourceBBox ?? null);
     if (documentId === selectedDocumentId) {
       setSelectedPageNumber(pageNumber ?? selectedPageNumber);
       return;
@@ -260,7 +338,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
   }
 
   function jumpToField(field: ExtractedField) {
-    jumpToEvidence(field.document_id, field.source_page, field.source_text ?? field.value_text);
+    jumpToEvidence(field.document_id, field.source_page, field.source_text ?? field.value_text, field.source_bbox);
   }
 
   function findFieldForEvidence(ref: EvidenceRef) {
@@ -286,8 +364,9 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
     const matchedField = findFieldForEvidence(ref);
     const sourceText =
       matchedField?.source_text ?? ref.source_text ?? (typeof ref.value === "string" ? ref.value : null);
+    const sourceBBox = matchedField?.source_bbox ?? ref.source_bbox ?? null;
 
-    jumpToEvidence(ref.document_id ?? matchedField?.document_id, matchedField?.source_page ?? null, sourceText);
+    jumpToEvidence(ref.document_id ?? matchedField?.document_id, matchedField?.source_page ?? null, sourceText, sourceBBox);
   }
 
   async function refreshReviewData() {
@@ -302,7 +381,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
     try {
       await updateField(field.id, {
         value_text: nextValue,
-        actor_name: "reviewer",
+        actor_name: currentUser.full_name,
         comment: "Corrected in Audit Workbench.",
       });
       await refreshReviewData();
@@ -315,7 +394,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
   async function handleConfirmResult(result: AuditResult) {
     try {
       await confirmAuditResult(result.id, {
-        actor_name: "reviewer",
+        actor_name: currentUser.full_name,
         reason: "Confirmed in Audit Workbench.",
       });
       await refreshReviewData();
@@ -333,7 +412,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
     }
     try {
       await dismissAuditResult(result.id, {
-        actor_name: "reviewer",
+        actor_name: currentUser.full_name,
         reason,
       });
       await refreshReviewData();
@@ -345,7 +424,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
 
   async function handleRerunResult(result: AuditResult) {
     try {
-      const nextResults = await rerunAuditResult(result.id, { actor_name: "reviewer" });
+      const nextResults = await rerunAuditResult(result.id, { actor_name: currentUser.full_name });
       setAuditResults(nextResults);
       await refreshReviewData();
       message.success("Rules rerun");
@@ -417,6 +496,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                       onClick={() => {
                         setSelectedDocumentId(document.id);
                         setActiveEvidenceText(null);
+                        setActiveEvidenceBBox(null);
                       }}
                       style={{
                         cursor: "pointer",
@@ -495,6 +575,30 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                     }
                   />
                 ) : null}
+                {loadingPageImage ? <Spin /> : null}
+                {pageImageUrl ? (
+                  <div
+                    style={{
+                      position: "relative",
+                      width: "100%",
+                      overflow: "auto",
+                      background: "#f5f5f5",
+                      border: "1px solid #f0f0f0",
+                    }}
+                  >
+                    <img
+                      src={pageImageUrl}
+                      alt={`Page ${selectedPage.page_number}`}
+                      style={{ display: "block", width: "100%", height: "auto" }}
+                    />
+                    {(() => {
+                      const overlayStyle = evidenceBoxStyle(selectedPage, activeEvidenceBBox);
+                      return overlayStyle ? <div style={overlayStyle} /> : null;
+                    })()}
+                  </div>
+                ) : selectedPage.image_path ? null : (
+                  <Alert type="info" showIcon message="Page image is unavailable for this OCR result" />
+                )}
                 <pre
                   style={{
                     minHeight: 520,

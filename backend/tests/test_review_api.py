@@ -1,7 +1,11 @@
 from uuid import UUID
 
 from app.db.session import SessionLocal
+from app.models.agent_run import AgentRun
+from app.models.agent_step import AgentStep
 from app.models.audit_log import AuditLog
+from app.models.document import Document
+from app.models.document_page import DocumentPage
 from app.models.extracted_field import ExtractedField
 from app.models.review_comment import ReviewComment
 from test_rule_engine_api import build_scenario, client, run_audit
@@ -163,3 +167,133 @@ def test_field_correction_then_rerun_uses_rule_engine() -> None:
         log = db.query(AuditLog).filter(AuditLog.action == "audit_result_rerun").one()
         assert log.before_value["rule_code"] == "PROC_MISSING_001"
         assert log.after_value["statuses"]["PROC_MISSING_001"] == "pass"
+
+
+def test_review_queue_covers_agent_manual_items_and_can_resolve_them() -> None:
+    task, _ = build_scenario()
+    with SessionLocal() as db:
+        run = AgentRun(
+            task_id=UUID(task["id"]),
+            workflow_name="procurement_agent_v1",
+            status="waiting_review",
+            current_state="HUMAN_REVIEW_REQUIRED",
+            input_refs={},
+            output_refs={},
+        )
+        db.add(run)
+        db.flush()
+        step = AgentStep(
+            run_id=run.id,
+            step_name="retrieve_evidence:regulation",
+            step_order=1,
+            tool_name="retrieve_evidence",
+            status="completed",
+            input_payload={},
+            output_payload={"evidence_insufficient": True},
+            error=None,
+            duration_ms=1,
+        )
+        db.add(step)
+        db.commit()
+        step_id = step.id
+
+    manual_response = client.post(
+        "/api/v1/review/comments",
+        json={
+            "task_id": task["id"],
+            "comment_type": "manual_review",
+            "content": "User marked this item for review.",
+        },
+    )
+    assert manual_response.status_code == 200
+    manual_comment_id = manual_response.json()["id"]
+    assert manual_response.json()["author_id"]
+
+    queue_response = client.get(f"/api/v1/review/queue?task_id={task['id']}")
+    assert queue_response.status_code == 200
+    item_types = {item["item_type"] for item in queue_response.json()}
+    assert "agent_step" in item_types
+    assert "comment" in item_types
+
+    agent_resolved = client.post(
+        "/api/v1/review/comments",
+        json={
+            "task_id": task["id"],
+            "comment_type": "agent_step_reviewed",
+            "content": "RAG insufficiency reviewed.",
+            "after_value": {"agent_step_id": str(step_id), "resolved": True},
+        },
+    )
+    assert agent_resolved.status_code == 200
+    manual_resolved = client.post(
+        "/api/v1/review/comments",
+        json={
+            "task_id": task["id"],
+            "comment_type": "manual_review_resolved",
+            "content": "Manual review resolved.",
+            "after_value": {"comment_id": manual_comment_id, "resolved": True},
+        },
+    )
+    assert manual_resolved.status_code == 200
+
+    next_queue = client.get(f"/api/v1/review/queue?task_id={task['id']}").json()
+    assert "agent_step" not in {item["item_type"] for item in next_queue}
+    assert "comment" not in {item["item_type"] for item in next_queue}
+
+
+def test_review_actions_reextract_rerun_field_and_create_bad_case() -> None:
+    task, docs = build_scenario(omit=("invoice", "tax_amount"))
+    invoice = docs["invoice"][0]
+    field = field_by_name(invoice["id"], "tax_amount")
+
+    rerun_response = client.post(
+        f"/api/v1/fields/{field.id}/rerun-rules",
+        json={"actor_name": "reviewer", "reason": "Field reviewed."},
+    )
+    assert rerun_response.status_code == 200
+    assert any(result["rule_code"] == "PROC_MISSING_001" for result in rerun_response.json())
+
+    bad_case_response = client.post(
+        "/api/v1/review/bad-case",
+        json={
+            "task_id": task["id"],
+            "document_id": invoice["id"],
+            "field_id": str(field.id),
+            "case_type": "extraction",
+            "title": "Missing tax amount review case",
+            "severity": "medium",
+        },
+    )
+    assert bad_case_response.status_code == 200
+    assert bad_case_response.json()["title"] == "Missing tax amount review case"
+
+    with SessionLocal() as db:
+        document = db.get(Document, UUID(invoice["id"]))
+        assert document is not None
+        document.ocr_status = "completed"
+        document.extraction_status = "completed"
+        document.page_count = 1
+        db.add(
+            DocumentPage(
+                document_id=document.id,
+                page_number=1,
+                raw_text=(
+                    "Invoice No: INV-001\nInvoice Date: 2026-02-01\n"
+                    "Seller Name: Supplier Co\nBuyer Name: Buyer Co\n"
+                    "Item: Material A Qty: 10 Unit Price: 100\n"
+                    "Amount Excluding Tax: 1000\nTax Amount: 130\n"
+                    "Amount Including Tax: 1130\nTax Rate: 13%"
+                ),
+                ocr_blocks=[],
+                table_blocks=[],
+                ocr_engine="test_fixture",
+            )
+        )
+        db.commit()
+
+    reextract_response = client.post(
+        f"/api/v1/documents/{invoice['id']}/reextract",
+        json={"actor_name": "reviewer", "reason": "Retry extraction from Review Center."},
+    )
+    assert reextract_response.status_code == 200, reextract_response.text
+    assert isinstance(reextract_response.json(), list)

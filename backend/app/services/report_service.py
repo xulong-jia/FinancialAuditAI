@@ -1,4 +1,5 @@
 from collections import Counter, defaultdict
+import csv
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -16,7 +17,7 @@ from app.models.document import Document
 from app.models.extracted_field import ExtractedField
 from app.models.report import Report
 from app.models.review_comment import ReviewComment
-from app.services import rule_engine_service
+from app.services import audit_log_service, rule_engine_service
 from app.services.xlsx_writer import write_xlsx
 
 SHEET_NAMES = [
@@ -42,6 +43,9 @@ CONTROL_COLUMNS = [
     "voucher_date",
     "payment_date",
     "item_summary",
+    "contract_qty",
+    "receipt_qty",
+    "invoice_qty",
     "contract_amount",
     "invoice_amount",
     "payment_amount",
@@ -49,6 +53,7 @@ CONTROL_COLUMNS = [
     "quantity_check",
     "amount_check",
     "name_check",
+    "item_check",
     "tax_check",
     "missing_field_check",
     "overall_status",
@@ -78,6 +83,7 @@ SALES_CONTROL_COLUMNS = [
     "quantity_check",
     "amount_check",
     "name_check",
+    "revenue_check",
     "missing_field_check",
     "overall_status",
     "evidence_refs",
@@ -141,6 +147,7 @@ CONTRACT_REVIEW_COLUMNS = [
     "breach_terms",
     "dispute_resolution",
     "special_clauses",
+    "special_clause_check",
     "signature_seal_check",
     "key_terms_check",
     "period_check",
@@ -157,6 +164,7 @@ RULE_CHECK_COLUMNS = {
     "PROC_QTY_001": "quantity_check",
     "PROC_AMOUNT_001": "amount_check",
     "PROC_NAME_001": "name_check",
+    "PROC_ITEM_001": "item_check",
     "PROC_TAX_001": "tax_check",
     "PROC_MISSING_001": "missing_field_check",
     "SALES_TIME_001": "time_check",
@@ -164,6 +172,7 @@ RULE_CHECK_COLUMNS = {
     "SALES_AMOUNT_001": "amount_check",
     "SALES_NAME_001": "name_check",
     "SALES_MISSING_001": "missing_field_check",
+    "SALES_REVENUE_001": "revenue_check",
     "CONF_DATE_001": "date_check",
     "CONF_AMOUNT_001": "amount_check",
     "CONF_NAME_001": "name_check",
@@ -193,7 +202,7 @@ def reports_root() -> Path:
 
 
 def generate_control_table_report(
-    db: Session, task_id: UUID, generated_by: str | None = None
+    db: Session, task_id: UUID, generated_by: str | None = None, file_format: str = "xlsx"
 ) -> Report:
     task = db.get(AuditTask, task_id)
     if task is None:
@@ -224,8 +233,22 @@ def generate_control_table_report(
     summary = _summary(task, documents, results, control_rows, generated_at)
     sheets = _sheets(task, documents, fields, results, comments, rules, control_rows, summary)
     report_id = uuid4()
-    file_path = reports_root() / str(task_id) / f"{report_id}.xlsx"
-    write_xlsx(file_path, sheets)
+    if file_format == "csv":
+        file_path = reports_root() / str(task_id) / f"{report_id}.csv"
+        control_sheet = "Procurement Control Table"
+        if task.scenario == "sales":
+            control_sheet = "Sales Control Table"
+        elif task.scenario == "confirmation":
+            control_sheet = "Confirmation Results"
+        elif task.scenario == "interview":
+            control_sheet = "Interview Evidence"
+        elif task.scenario == "contract_review":
+            control_sheet = "Contract Review"
+        _write_csv(file_path, sheets[control_sheet])
+    else:
+        file_format = "xlsx"
+        file_path = reports_root() / str(task_id) / f"{report_id}.xlsx"
+        write_xlsx(file_path, sheets)
 
     if task.scenario == "sales":
         report_type = "sales_control_table"
@@ -248,16 +271,32 @@ def generate_control_table_report(
         report_type=report_type,
         title=report_title,
         status="completed",
-        file_format="xlsx",
+        file_format=file_format,
         storage_path=str(file_path.relative_to(project_root())),
         summary=summary,
         generated_by=generated_by,
         generated_at=generated_at,
     )
     db.add(report)
+    audit_log_service.add_log(
+        db,
+        actor_name=generated_by,
+        task_id=task_id,
+        action="report_generated",
+        target_type="report",
+        target_id=report.id,
+        after_value={"report_type": report.report_type, "file_format": report.file_format},
+    )
     db.commit()
     db.refresh(report)
     return report
+
+
+def _write_csv(path: Path, rows: list[list[object | None]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerows(rows)
 
 
 def list_reports(db: Session, task_id: UUID) -> list[Report]:
@@ -324,9 +363,15 @@ def _build_control_rows(
         group_results = results_by_key.get(business_key, [])
         statuses = {RULE_CHECK_COLUMNS[result.rule_code]: result.status for result in group_results if result.rule_code in RULE_CHECK_COLUMNS}
         evidence_refs = [
-            {"rule_code": result.rule_code, "evidence": result.evidence}
+            {
+                "type": "audit_result",
+                "audit_result_id": str(result.id),
+                "rule_code": result.rule_code,
+                "status": result.status,
+                "evidence": result.evidence,
+            }
             for result in group_results
-        ]
+        ] + _field_evidence_refs(group_docs, fields_by_document)
         field_ids = {
             str(field.id)
             for document in group_docs
@@ -350,9 +395,10 @@ def _build_control_rows(
             "business_key": business_key,
             "date_check": statuses.get("date_check", "-"),
             "time_check": statuses.get("time_check", "-"),
-            "quantity_check": statuses.get("quantity_check", "-"),
-            "amount_check": statuses.get("amount_check", "-"),
-            "name_check": statuses.get("name_check", "-"),
+                "quantity_check": statuses.get("quantity_check", "-"),
+                "amount_check": statuses.get("amount_check", "-"),
+                "name_check": statuses.get("name_check", "-"),
+                "item_check": statuses.get("item_check", "-"),
             "seal_sign_check": statuses.get("seal_sign_check", "-"),
             "signature_check": statuses.get("signature_check", "-"),
             "signature_seal_check": statuses.get("signature_seal_check", "-"),
@@ -360,6 +406,7 @@ def _build_control_rows(
             "period_check": statuses.get("period_check", "-"),
             "key_terms_check": statuses.get("key_terms_check", "-"),
             "special_clause_check": statuses.get("special_clause_check", "-"),
+            "revenue_check": statuses.get("revenue_check", "-"),
             "missing_field_check": statuses.get("missing_field_check", "-"),
             "overall_status": _overall_status([result.status for result in group_results]),
             "evidence_refs": _json(evidence_refs),
@@ -435,6 +482,9 @@ def _build_control_rows(
                 "voucher_date": _first_text(group_docs, fields_by_document, (("accounting_voucher", "voucher_date"),)),
                 "payment_date": _first_text(group_docs, fields_by_document, (("payment_receipt", "payment_date"),)),
                 "item_summary": _first_text(group_docs, fields_by_document, (("purchase_contract", "item_lines"), ("invoice", "item_lines"))),
+                "contract_qty": _sum_quantities(group_docs, fields_by_document, "purchase_contract"),
+                "receipt_qty": _sum_quantities(group_docs, fields_by_document, "warehouse_receipt"),
+                "invoice_qty": _sum_quantities(group_docs, fields_by_document, "invoice"),
                 "contract_amount": _sum_amounts(group_docs, fields_by_document, "purchase_contract", "amount_including_tax"),
                 "invoice_amount": _sum_amounts(group_docs, fields_by_document, "invoice", "amount_including_tax"),
                 "payment_amount": _sum_amounts(group_docs, fields_by_document, "payment_receipt", "amount"),
@@ -473,7 +523,7 @@ def _sheets(
         "Summary": _summary_rows(summary),
         control_sheet_name: [control_columns] + [[row[column] for column in control_columns] for row in control_rows],
         "Exceptions": _exception_rows(results),
-        "Evidence Index": _evidence_rows(documents, fields),
+        "Evidence Index": _evidence_rows(documents, fields, results),
         "Field Corrections": _correction_rows(comments),
         "Rule Definitions": _rule_rows(rules, results),
     }
@@ -554,36 +604,91 @@ def _exception_rows(results: list[AuditResult]) -> list[list[object | None]]:
     return rows
 
 
-def _evidence_rows(documents: list[Document], fields: list[ExtractedField]) -> list[list[object | None]]:
+def _evidence_rows(
+    documents: list[Document],
+    fields: list[ExtractedField],
+    results: list[AuditResult],
+) -> list[list[object | None]]:
     document_by_id = {document.id: document for document in documents}
-    rows = [["document_id", "original_filename", "doc_type", "field_name", "value_text", "source_page", "source_text"]]
+    rows = [[
+        "reference_type",
+        "document_id",
+        "original_filename",
+        "doc_type",
+        "field_id",
+        "field_name",
+        "audit_result_id",
+        "rule_code",
+        "value_text",
+        "source_page",
+        "source_bbox",
+        "source_text",
+    ]]
     for field in fields:
         document = document_by_id.get(field.document_id)
         rows.append([
+            "extracted_field",
             str(field.document_id),
             document.original_filename if document else "",
             document.doc_type if document else "",
+            str(field.id),
             field.field_name,
+            "",
+            "",
             field.value_text,
             field.source_page,
+            _json(field.source_bbox),
             field.source_text,
         ])
+    for result in results:
+        for ref in (result.evidence or {}).get("refs", []):
+            document_id = ref.get("document_id")
+            document = document_by_id.get(UUID(document_id)) if document_id else None
+            rows.append([
+                "audit_result",
+                document_id or "",
+                document.original_filename if document else "",
+                ref.get("doc_type") or "",
+                "",
+                ref.get("field_name") or "",
+                str(result.id),
+                result.rule_code,
+                _json(ref.get("value")),
+                "",
+                _json(ref.get("source_bbox")),
+                ref.get("source_text") or "",
+            ])
     return rows
 
 
 def _correction_rows(comments: list[ReviewComment]) -> list[list[object | None]]:
-    rows = [["field_id", "field_name", "before_value", "after_value", "content / reason", "created_at"]]
+    rows = [[
+        "comment_type",
+        "document_id",
+        "field_id",
+        "audit_result_id",
+        "author_name",
+        "field_name",
+        "before_value",
+        "after_value",
+        "content / reason",
+        "attachment_path",
+        "created_at",
+    ]]
     for comment in comments:
-        if comment.comment_type != "field_correction":
-            continue
         before = comment.before_value or {}
         after = comment.after_value or {}
         rows.append([
+            comment.comment_type,
+            str(comment.document_id) if comment.document_id else "",
             str(comment.field_id) if comment.field_id else "",
+            str(comment.audit_result_id) if comment.audit_result_id else "",
+            comment.author_name or "",
             before.get("field_name") or after.get("field_name") or "",
             _json(comment.before_value),
             _json(comment.after_value),
             comment.content,
+            comment.attachment_path or "",
             comment.created_at.isoformat(),
         ])
     return rows
@@ -591,17 +696,32 @@ def _correction_rows(comments: list[ReviewComment]) -> list[list[object | None]]
 
 def _rule_rows(rules: list[AuditRule], results: list[AuditResult]) -> list[list[object | None]]:
     severity_by_rule = {result.rule_code: result.severity for result in results}
-    rows = [["rule_code", "name", "scenario", "category", "severity", "version", "enabled", "parameters"]]
+    rows = [[
+        "rule_code",
+        "name",
+        "scenario",
+        "category",
+        "severity",
+        "expression",
+        "required_fields",
+        "version",
+        "enabled",
+        "parameters",
+        "created_by",
+    ]]
     for rule in rules:
         rows.append([
             rule.rule_code,
             rule.name,
+            rule.scenario,
             rule.category,
-            f"{rule.category}_walkthrough",
-            severity_by_rule.get(rule.rule_code, ""),
+            severity_by_rule.get(rule.rule_code, rule.severity),
+            rule.expression,
+            _json(rule.required_fields),
             rule.version,
             rule.enabled,
             _json(rule.parameters),
+            rule.created_by,
         ])
     return rows
 
@@ -675,6 +795,49 @@ def _sum_amounts_for(
     return sum(_sum_amounts(documents, fields_by_document, doc_type, field_name) for doc_type, field_name in lookups)
 
 
+def _sum_quantities(
+    documents: list[Document],
+    fields_by_document: dict[UUID, dict[str, ExtractedField]],
+    doc_type: str,
+) -> float:
+    total = 0.0
+    for document in documents:
+        if document.doc_type != doc_type:
+            continue
+        field = fields_by_document.get(document.id, {}).get("item_lines")
+        if not field or not field.value_normalized:
+            continue
+        items = field.value_normalized.get("items")
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and item.get("quantity") is not None:
+                total += float(item["quantity"])
+    return total
+
+
+def _field_evidence_refs(
+    documents: list[Document],
+    fields_by_document: dict[UUID, dict[str, ExtractedField]],
+) -> list[dict]:
+    refs = []
+    for document in documents:
+        for field in fields_by_document.get(document.id, {}).values():
+            refs.append(
+                {
+                    "type": "extracted_field",
+                    "document_id": str(document.id),
+                    "doc_type": document.doc_type,
+                    "field_id": str(field.id),
+                    "field_name": field.field_name,
+                    "source_page": field.source_page,
+                    "source_bbox": field.source_bbox,
+                    "source_text": field.source_text,
+                }
+            )
+    return refs
+
+
 def _special_clause_text(
     documents: list[Document],
     fields_by_document: dict[UUID, dict[str, ExtractedField]],
@@ -683,6 +846,7 @@ def _special_clause_text(
         "auto_renewal_clause",
         "exclusivity_clause",
         "repurchase_clause",
+        "minimum_guarantee_clause",
         "price_adjustment_clause",
         "related_party_clause",
         "variable_consideration_clause",

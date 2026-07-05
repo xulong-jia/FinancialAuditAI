@@ -9,23 +9,21 @@ from sqlalchemy.orm import Session
 from app.models.audit_task import AuditTask
 from app.models.document import Document
 from app.schemas.document import DocumentDocType
+from app.services import audit_log_service
 
-ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "docx", "xlsx"}
+ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg"}
 ALLOWED_CONTENT_TYPES = {
     "pdf": {"application/pdf"},
     "png": {"image/png"},
     "jpg": {"image/jpeg"},
     "jpeg": {"image/jpeg"},
-    "docx": {
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/octet-stream",
-    },
-    "xlsx": {
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/octet-stream",
-    },
 }
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024
+KNOWLEDGE_DOC_TYPES = {
+    "prospectus",
+    "inquiry_letter",
+    "regulation",
+}
 DOC_TYPES_BY_SCENARIO = {
     "procurement": {
         "purchase_request",
@@ -34,7 +32,8 @@ DOC_TYPES_BY_SCENARIO = {
         "invoice",
         "accounting_voucher",
         "payment_receipt",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
     "sales": {
         "sales_contract",
         "sales_order",
@@ -43,26 +42,30 @@ DOC_TYPES_BY_SCENARIO = {
         "sales_invoice",
         "receipt_voucher",
         "accounting_voucher",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
     "confirmation": {
         "confirmation",
         "confirmation_request",
         "confirmation_reply",
         "confirmation_adjustment",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
     "interview": {
         "interview_record",
         "interview_outline",
         "interview_signature_page",
         "interview_transcript",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
     "contract_review": {
         "contract_review",
         "material_contract",
         "supplemental_agreement",
         "framework_agreement",
         "contract_attachment",
-    },
+    }
+    | KNOWLEDGE_DOC_TYPES,
 }
 
 
@@ -93,6 +96,7 @@ async def save_document(
     file: UploadFile,
     doc_type_hint: DocumentDocType | None = None,
     actor_name: str | None = None,
+    uploaded_by: UUID | None = None,
 ) -> Document:
     task = db.get(AuditTask, task_id)
     if task is None:
@@ -127,6 +131,7 @@ async def save_document(
     document = Document(
         id=document_id,
         task_id=task_id,
+        uploaded_by=uploaded_by,
         uploaded_by_name=actor_name,
         original_filename=filename,
         file_ext=extension,
@@ -135,10 +140,25 @@ async def save_document(
         file_hash=file_hash,
         storage_path=str(storage_path.relative_to(Path(__file__).resolve().parents[3])),
         doc_type=doc_type_hint,
+        metadata_json={},
     )
     task.status = "uploaded"
     try:
         db.add(document)
+        audit_log_service.add_log(
+            db,
+            actor_name=actor_name,
+            task_id=task_id,
+            action="document_uploaded",
+            target_type="document",
+            target_id=document.id,
+            after_value={
+                "original_filename": filename,
+                "doc_type": doc_type_hint,
+                "file_ext": extension,
+                "file_size": len(data),
+            },
+        )
         db.commit()
     except Exception:
         db.rollback()
@@ -148,13 +168,35 @@ async def save_document(
     return document
 
 
+def delete_document(db: Session, document_id: UUID) -> None:
+    document = get_document(db, document_id)
+    before = {
+        "id": str(document.id),
+        "task_id": str(document.task_id),
+        "original_filename": document.original_filename,
+        "storage_path": document.storage_path,
+    }
+    path = uploads_root().parents[1] / document.storage_path
+    db.delete(document)
+    audit_log_service.add_log(
+        db,
+        actor_name=document.uploaded_by_name,
+        task_id=document.task_id,
+        action="document_deleted",
+        target_type="document",
+        target_id=document.id,
+        before_value=before,
+    )
+    db.commit()
+    if path.exists():
+        path.unlink()
+
+
 def _has_expected_signature(extension: str, data: bytes) -> bool:
     signatures = {
         "pdf": (b"%PDF",),
         "png": (b"\x89PNG\r\n\x1a\n",),
         "jpg": (b"\xff\xd8\xff",),
         "jpeg": (b"\xff\xd8\xff",),
-        "docx": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),
-        "xlsx": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),
     }
     return any(data.startswith(signature) for signature in signatures.get(extension, ()))

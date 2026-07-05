@@ -60,7 +60,11 @@ def test_rag_document_index_query_and_citation_schema() -> None:
     result = query_rag("revenue recognition contract evidence")
 
     assert result["status"] == "answer"
+    assert "Revenue Guidance" in result["answer"]
+    assert "Revenue recognition requires documented contract evidence" in result["answer"]
     assert result["citations"]
+    assert result["provider_info"]["embedding_provider_kind"] == "deterministic_fallback"
+    assert result["provider_info"]["answer_provider_kind"] == "deterministic_fallback"
     citation = result["citations"][0]
     assert citation["chunk_id"]
     assert citation["document_id"] == document["id"]

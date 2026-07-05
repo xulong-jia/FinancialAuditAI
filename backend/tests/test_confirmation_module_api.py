@@ -230,3 +230,16 @@ def test_confirmation_amount_difference_with_adjustment_passes_or_warns() -> Non
     assert response.status_code == 200
     results = {result["rule_code"]: result for result in response.json()}
     assert results["CONF_AMOUNT_001"]["status"] in {"pass", "warning"}
+
+
+def test_confirmation_name_checks_book_counterparty_evidence() -> None:
+    task, docs = build_confirmation_scenario(confirmed_amount=1000.0)
+    add_field(task["id"], docs["confirmation_request"]["id"], "customer_name", "Different Customer Co", is_required=False)
+    assert client.post(f"/api/v1/tasks/{task['id']}/link-documents").status_code == 200
+
+    response = client.post(f"/api/v1/tasks/{task['id']}/audit")
+
+    assert response.status_code == 200
+    results = {result["rule_code"]: result for result in response.json()}
+    assert results["CONF_NAME_001"]["status"] == "warning"
+    assert "Different Customer Co" in results["CONF_NAME_001"]["actual_value"]["names"]

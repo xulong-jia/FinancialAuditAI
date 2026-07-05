@@ -18,6 +18,9 @@ class Document(Base):
     task_id: Mapped[UUID] = mapped_column(
         ForeignKey("audit_tasks.id", ondelete="CASCADE"), index=True
     )
+    uploaded_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     uploaded_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     original_filename: Mapped[str] = mapped_column(String(255))
     file_ext: Mapped[str] = mapped_column(String(16), index=True)
@@ -31,6 +34,7 @@ class Document(Base):
     classification_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     alternative_types: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     original_classification: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     upload_status: Mapped[str] = mapped_column(String(32), default="uploaded")
     ocr_status: Mapped[str] = mapped_column(String(32), default="pending")

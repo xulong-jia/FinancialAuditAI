@@ -215,6 +215,8 @@ export function AdminCenterPage({ currentUser }: PageProps) {
           columns={[
             { title: "Created", dataIndex: "created_at" },
             { title: "Actor", dataIndex: "actor_name", render: (value: string | null) => value ?? "-" },
+            { title: "User ID", dataIndex: "user_id", render: (value: string | null) => value ?? "-" },
+            { title: "IP", dataIndex: "ip_address", render: (value: string | null) => value ?? "-" },
             { title: "Action", dataIndex: "action" },
             { title: "Target", dataIndex: "target_type" },
             {

@@ -24,6 +24,7 @@ class DocumentPage(Base):
     raw_text: Mapped[str] = mapped_column(Text, default="")
     ocr_blocks: Mapped[list[dict]] = mapped_column(JSON, default=list)
     table_blocks: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    image_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ocr_engine: Mapped[str] = mapped_column(Text, default="pymupdf")

@@ -4,6 +4,18 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+BadCaseType = Literal[
+    "classification",
+    "ocr",
+    "extraction",
+    "rule",
+    "rag",
+    "agent",
+    "review_dispute",
+    "end_to_end",
+    "regression",
+]
+
 EvalType = Literal[
     "classification",
     "ocr",
@@ -19,7 +31,7 @@ EvalType = Literal[
 class BadCaseCreate(BaseModel):
     task_id: UUID | None = None
     document_id: UUID | None = None
-    case_type: EvalType
+    case_type: BadCaseType
     title: str = Field(min_length=1, max_length=255)
     input_payload: dict = Field(default_factory=dict)
     model_output: dict = Field(default_factory=dict)
@@ -29,6 +41,8 @@ class BadCaseCreate(BaseModel):
     status: str = Field(default="open", min_length=1, max_length=32)
     severity: str = Field(default="medium", min_length=1, max_length=32)
     owner_name: str | None = Field(default=None, max_length=120)
+    in_regression: bool = False
+    validation_result: dict | None = None
 
 
 class BadCaseUpdate(BaseModel):
@@ -41,6 +55,8 @@ class BadCaseUpdate(BaseModel):
     status: str | None = Field(default=None, min_length=1, max_length=32)
     severity: str | None = Field(default=None, min_length=1, max_length=32)
     owner_name: str | None = Field(default=None, max_length=120)
+    in_regression: bool | None = None
+    validation_result: dict | None = None
 
 
 class BadCaseRead(BaseModel):
@@ -59,6 +75,9 @@ class BadCaseRead(BaseModel):
     status: str
     severity: str
     owner_name: str | None
+    in_regression: bool
+    validation_result: dict | None
+    validated_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

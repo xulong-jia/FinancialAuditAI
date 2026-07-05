@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -31,6 +31,9 @@ class BadCase(Base):
     status: Mapped[str] = mapped_column(String(32), default="open", index=True)
     severity: Mapped[str] = mapped_column(String(32), default="medium", index=True)
     owner_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    in_regression: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    validation_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now

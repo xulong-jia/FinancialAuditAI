@@ -19,37 +19,59 @@ EXPECTED_SCHEMA_FIELDS = {
     "purchase_request": [
         "request_no",
         "request_date",
+        "applicant_dept",
+        "requester_name",
         "approval_date",
         "approval_status",
+        "approver_name",
+        "supplier_candidate",
         "item_lines",
         "total_estimated_amount",
+        "budget_code",
     ],
     "purchase_contract": [
         "contract_no",
         "signing_date",
+        "effective_date",
+        "expiry_date",
         "buyer_name",
         "supplier_name",
+        "supplier_tax_no",
         "item_lines",
+        "amount_excluding_tax",
+        "tax_amount",
         "amount_including_tax",
         "tax_rate",
         "payment_terms",
+        "delivery_terms",
+        "seal_detected",
+        "signature_detected",
     ],
     "warehouse_receipt": [
         "receipt_no",
         "receipt_date",
         "supplier_name",
+        "warehouse_name",
+        "receiver_name",
+        "quality_status",
         "item_lines",
         "related_contract_no",
     ],
     "invoice": [
         "invoice_no",
+        "invoice_code",
         "invoice_date",
+        "invoice_type",
         "seller_name",
+        "seller_tax_no",
         "buyer_name",
+        "buyer_tax_no",
         "item_lines",
         "amount_excluding_tax",
         "tax_amount",
         "amount_including_tax",
+        "tax_rate",
+        "checksum",
     ],
     "accounting_voucher": [
         "voucher_no",
@@ -60,12 +82,18 @@ EXPECTED_SCHEMA_FIELDS = {
         "amount",
         "supplier_name",
         "related_invoice_no",
+        "preparer_name",
+        "reviewer_name",
+        "attachment_count",
     ],
     "payment_receipt": [
         "payment_no",
         "payment_date",
         "payer_name",
         "payee_name",
+        "payee_account_masked",
+        "bank_name",
+        "bank_serial_no",
         "amount",
         "currency",
         "payment_purpose",
@@ -165,11 +193,18 @@ def test_extract_api_normalizes_dates_amounts_and_line_items() -> None:
     }
     assert fields["item_lines"]["value_normalized"]["items"][0]["item_name"] == "Audit Service"
     assert fields["item_lines"]["value_normalized"]["items"][0]["quantity"] == 2.0
+    assert fields["item_lines"]["source_bbox"]
+    assert fields["item_lines"]["value_normalized"]["items"][0]["source_page"] == 1
+    assert fields["item_lines"]["value_normalized"]["items"][0]["source_bbox"]
+    assert fields["item_lines"]["value_normalized"]["items"][0]["source_text"].startswith("Item:")
     assert fields["invoice_no"]["source_page"] == 1
     assert fields["invoice_no"]["source_text"] == "Invoice No: INV-001"
+    assert fields["invoice_no"]["source_bbox"]
+    assert fields["invoice_no"]["extraction_method"] == "regex_fallback"
 
     document_response = client.get(f"/api/v1/documents/{document['id']}")
     assert document_response.json()["extraction_status"] == "completed"
+    assert document_response.json()["metadata"]["extraction_provider"]["provider_kind"] == "deterministic_fallback"
 
 
 def test_missing_required_field_outputs_null_and_warning() -> None:

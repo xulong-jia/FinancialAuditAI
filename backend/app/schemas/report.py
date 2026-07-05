@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -6,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ReportGenerateRequest(BaseModel):
     generated_by: str | None = Field(default=None, max_length=120)
+    file_format: Literal["xlsx", "csv"] = "xlsx"
 
 
 class ReportRead(BaseModel):

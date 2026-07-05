@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.control_table_row import ControlTableRow
+from app.models.document import Document
 from app.models.extracted_field import ExtractedField
 
 
@@ -119,6 +120,18 @@ def add_money(task_id: str, document_id: str, field_name: str, amount: float, *,
     )
 
 
+def add_items(task_id: str, document_id: str, quantity: float) -> None:
+    add_field(
+        task_id,
+        document_id,
+        "item_lines",
+        f"Item: Demo goods; Quantity: {quantity}; Unit: pcs",
+        normalized={"items": [{"item_name": "Demo goods", "quantity": quantity, "unit": "pcs"}]},
+        field_type="line_items",
+        is_required=False,
+    )
+
+
 def build_contract_review_scenario() -> tuple[dict, dict[str, dict]]:
     task = create_contract_review_task()
     docs = {doc_type: upload_pdf(task["id"], doc_type) for doc_type in ("contract_review", "contract_attachment")}
@@ -139,6 +152,7 @@ def build_contract_review_scenario() -> tuple[dict, dict[str, dict]]:
     add_field(task["id"], contract["id"], "dispute_resolution", "Arbitration")
     add_field(task["id"], contract["id"], "auto_renewal_clause", "Automatically renews for one year", is_required=False)
     add_field(task["id"], contract["id"], "price_adjustment_clause", "Price may adjust quarterly", is_required=False)
+    add_field(task["id"], contract["id"], "minimum_guarantee_clause", "Minimum purchase guarantee applies", is_required=False)
     add_field(task["id"], contract["id"], "signature_detected", "no", field_type="status", is_required=False)
     add_field(task["id"], contract["id"], "seal_detected", "no", field_type="status", is_required=False)
     add_money(task["id"], contract["id"], "invoice_amount", 1300.0, is_required=False)
@@ -185,6 +199,7 @@ def test_extracts_contract_review_fields_and_clause_evidence() -> None:
                 "Breach Terms: Penalty applies",
                 "Dispute Resolution: Arbitration",
                 "Auto Renewal Clause: Automatically renews for one year",
+                "Minimum Guarantee Clause: Minimum purchase guarantee applies",
                 "Signature Detected: yes",
                 "Seal Detected: yes",
             ]
@@ -200,6 +215,7 @@ def test_extracts_contract_review_fields_and_clause_evidence() -> None:
     assert fields["amount_including_tax"]["value_normalized"]["amount"] == 1000.0
     assert fields["payment_terms"]["source_text"].startswith("Payment Terms:")
     assert fields["auto_renewal_clause"]["value_text"] == "Automatically renews for one year"
+    assert fields["minimum_guarantee_clause"]["value_text"] == "Minimum purchase guarantee applies"
 
 
 def test_contract_review_rules_enter_review_and_export_report() -> None:
@@ -218,6 +234,10 @@ def test_contract_review_rules_enter_review_and_export_report() -> None:
     assert results["CONTRACT_COUNTERPARTY_001"]["status"] in {"warning", "need_review"}
     assert results["CONTRACT_SIGNATURE_SEAL_001"]["status"] == "need_review"
     assert results["CONTRACT_SPECIAL_CLAUSE_001"]["evidence"]["refs"]
+    assert any(
+        item["field_name"] == "minimum_guarantee_clause"
+        for item in results["CONTRACT_SPECIAL_CLAUSE_001"]["actual_value"]["special_clauses"]
+    )
 
     queue_response = client.get(f"/api/v1/review/queue?task_id={task['id']}")
     assert queue_response.status_code == 200
@@ -239,3 +259,35 @@ def test_contract_review_rules_enter_review_and_export_report() -> None:
     sheet_names = workbook_sheet_names(download.content)
     assert "Contract Review" in sheet_names
     assert "Special Clauses" in sheet_names
+
+
+def test_contract_amount_rule_compares_available_item_quantities() -> None:
+    task = create_contract_review_task()
+    contract = upload_pdf(task["id"], "contract_review")
+    invoice = upload_pdf(task["id"], "contract_attachment")
+    with SessionLocal() as db:
+        db_document = db.get(Document, UUID(invoice["id"]))
+        assert db_document is not None
+        db_document.doc_type = "invoice"
+        db.commit()
+    add_field(task["id"], contract["id"], "contract_no", "CR-QTY")
+    add_field(task["id"], contract["id"], "contract_name", "Quantity Contract")
+    add_date(task["id"], contract["id"], "signing_date", "2026-01-01")
+    add_date(task["id"], contract["id"], "effective_date", "2026-01-01")
+    add_date(task["id"], contract["id"], "expiry_date", "2026-12-31")
+    add_field(task["id"], contract["id"], "party_a", "Demo Buyer Co")
+    add_field(task["id"], contract["id"], "party_b", "Demo Supplier Co")
+    add_field(task["id"], contract["id"], "counterparty_name", "Demo Supplier Co")
+    add_money(task["id"], contract["id"], "amount_including_tax", 1000.0)
+    add_items(task["id"], contract["id"], 10.0)
+    add_field(task["id"], invoice["id"], "related_contract_no", "CR-QTY", is_required=False)
+    add_money(task["id"], invoice["id"], "invoice_amount", 1000.0, is_required=False)
+    add_items(task["id"], invoice["id"], 8.0)
+    assert client.post(f"/api/v1/tasks/{task['id']}/link-documents").status_code == 200
+
+    response = client.post(f"/api/v1/tasks/{task['id']}/audit")
+
+    assert response.status_code == 200
+    results = {result["rule_code"]: result for result in response.json()}
+    assert results["CONTRACT_AMOUNT_001"]["status"] == "warning"
+    assert results["CONTRACT_AMOUNT_001"]["actual_value"]["quantity_failures"]["demogoods"]["contract_quantity"] == 10.0

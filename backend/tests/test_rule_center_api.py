@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 from app.db.session import SessionLocal
@@ -43,7 +44,7 @@ def test_rule_can_be_disabled_and_excluded_from_audit() -> None:
     results = run_audit(task["id"])
 
     assert "PROC_AMOUNT_001" not in results
-    assert len(results) == 5
+    assert len(results) == 6
 
 
 def test_rule_create_rejects_non_registry_code() -> None:
@@ -53,7 +54,87 @@ def test_rule_create_rejects_non_registry_code() -> None:
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "Rule code is not in Python registry"
+    assert response.json()["detail"] == "Rule expression is not supported"
+
+
+def test_rule_create_and_evaluate_dsl_expression() -> None:
+    task, _ = build_scenario()
+    expression = "dsl:" + json.dumps(
+        {
+            "operation": "compare",
+            "left": "purchase_contract.amount_including_tax",
+            "operator": "eq",
+            "right": "invoice.amount_including_tax",
+            "tolerance": 1.0,
+        }
+    )
+
+    create_response = client.post(
+        "/api/v1/rules",
+        json={
+            "rule_code": "PROC_DSL_AMOUNT_001",
+            "name": "Custom DSL amount compare",
+            "scenario": "procurement",
+            "category": "amount",
+            "severity": "high",
+            "expression": expression,
+        },
+    )
+    assert create_response.status_code == 200, create_response.text
+
+    evaluate_response = client.post(
+        f"/api/v1/rules/{create_response.json()['id']}/evaluate",
+        json={"task_id": task["id"]},
+    )
+    assert evaluate_response.status_code == 200
+    body = evaluate_response.json()[0]
+    assert body["rule_code"] == "PROC_DSL_AMOUNT_001"
+    assert body["status"] == "fail"
+    assert body["actual_value"]["left"] == 1000.0
+    assert body["actual_value"]["right"] == 800.0
+
+
+def test_rule_dsl_missing_field_outputs_need_review() -> None:
+    task, _ = build_scenario(omit=("purchase_contract", "supplier_name"))
+    expression = "dsl:" + json.dumps(
+        {
+            "operation": "all_present",
+            "all_present": ["purchase_contract.supplier_name", "invoice.seller_name"],
+        }
+    )
+    create_response = client.post(
+        "/api/v1/rules",
+        json={
+            "rule_code": "PROC_DSL_PRESENT_001",
+            "name": "Custom DSL presence check",
+            "scenario": "procurement",
+            "category": "missing_field",
+            "severity": "medium",
+            "expression": expression,
+        },
+    )
+    assert create_response.status_code == 200, create_response.text
+
+    evaluate_response = client.post(
+        f"/api/v1/rules/{create_response.json()['id']}/evaluate",
+        json={"task_id": task["id"]},
+    )
+    assert evaluate_response.status_code == 200
+    body = evaluate_response.json()[0]
+    assert body["status"] == "need_review"
+    assert body["actual_value"]["missing_fields"] == ["purchase_contract.supplier_name"]
+
+
+def test_rule_update_rejects_invalid_expression_contract() -> None:
+    amount_rule = rule_by_code("PROC_AMOUNT_001")
+
+    response = client.patch(
+        f"/api/v1/rules/{amount_rule['id']}",
+        json={"expression": "python:PROC_QTY_001"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Rule expression is not supported"
 
 
 def test_amount_tolerance_parameter_changes_rule_result_and_version_is_recorded() -> None:

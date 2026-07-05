@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Empty, Space, Table, Tag, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 
-import { createAgentRun, getAgentRun, listAgentSteps, retryAgentRun } from "../api/client";
+import { createAgentRun, getAgentRun, listAgentSteps, resumeAgentRun, retryAgentRun } from "../api/client";
 import type { AgentRun, AgentStep } from "../types/api";
 
 type AgentStateTimelineProps = {
@@ -18,6 +18,9 @@ function statusColor(status: string) {
   }
   if (status === "running") {
     return "blue";
+  }
+  if (status === "waiting_review" || status === "HUMAN_REVIEW_REQUIRED") {
+    return "gold";
   }
   return "gold";
 }
@@ -77,6 +80,23 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
     }
   }
 
+  async function handleResume() {
+    if (!run) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const nextRun = await resumeAgentRun(run.id);
+      setRun(nextRun);
+      await refreshSteps(nextRun.id);
+      message.success("Agent workflow resumed");
+    } catch {
+      message.error("Human review queue is not cleared");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <Card
       title="Agent State Timeline"
@@ -86,6 +106,11 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
           {run?.status === "failed" ? (
             <Button onClick={() => void handleRetry()} loading={loading} disabled={!canRunAgent}>
               Retry Failed Step
+            </Button>
+          ) : null}
+          {run?.status === "waiting_review" ? (
+            <Button onClick={() => void handleResume()} loading={loading} disabled={!canRunAgent}>
+              Resume After Review
             </Button>
           ) : null}
           <Button type="primary" onClick={() => void handleStart()} loading={loading} disabled={!taskId || !canRunAgent}>

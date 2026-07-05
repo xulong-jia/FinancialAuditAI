@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 
 import { AuditWorkbenchPage } from "../pages/AuditWorkbenchPage";
 import { BadCaseCenterPage } from "../pages/BadCaseCenterPage";
+import { DashboardPage } from "../pages/DashboardPage";
 import { EvaluationCenterPage } from "../pages/EvaluationCenterPage";
 import { KnowledgeCenterPage } from "../pages/KnowledgeCenterPage";
 import { ReportCenterPage } from "../pages/ReportCenterPage";
@@ -12,6 +13,7 @@ import { AdminCenterPage } from "../pages/AdminCenterPage";
 import type { UserRecord } from "../types/api";
 
 export type PageKey =
+  | "dashboard"
   | "task-center"
   | "audit-workbench"
   | "review-center"
@@ -35,6 +37,7 @@ type AppRoute = {
 };
 
 export const routes: AppRoute[] = [
+  { key: "dashboard", label: "Dashboard", Component: DashboardPage, permission: "read" },
   { key: "task-center", label: "Task Center", Component: TaskCenterPage, permission: "read" },
   { key: "audit-workbench", label: "Audit Workbench", Component: AuditWorkbenchPage, permission: "read" },
   { key: "review-center", label: "Review Center", Component: ReviewCenterPage, permission: "read" },

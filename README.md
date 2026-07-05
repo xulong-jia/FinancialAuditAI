@@ -4,6 +4,8 @@ FinancialAuditAI is a financial document review platform that started with a pro
 
 This MVP is for learning, portfolio, and local demonstration only. It does not provide audit, legal, investment, or compliance advice.
 
+Final project status: Phase 0 through Phase 20 are complete in the project tracker. The repository is intended as a reproducible local portfolio version, not a production deployment.
+
 ## MVP Scope
 
 Implemented:
@@ -218,3 +220,19 @@ The project source of truth is:
 - `docs/project_status.json`
 
 Features not listed in those files are not part of the current implementation scope.
+
+## Documentation Map
+
+- `docs/api_reference.md`: actual API surface, permissions, and errors.
+- `docs/architecture.md`: system layers and module relationships.
+- `docs/database_schema.md`: core tables and relationships.
+- `docs/rule_engine.md`: deterministic rules and rule configuration.
+- `docs/rag_design.md`: four knowledge bases, citations, and no-answer handling.
+- `docs/agent_workflow.md`: state machine, whitelisted tools, and retry.
+- `docs/review_center.md`: human review and before/after records.
+- `docs/evaluation.md`: Bad Case and Evaluation Center.
+- `docs/security.md`: RBAC, upload safety, redaction, and repository safety.
+- `docs/demo_script.md`: local demo walkthrough.
+- `docs/final_acceptance.md`: final acceptance checklist.
+- `docs/portfolio_summary.md`: portfolio-safe project description.
+- `docs/screenshots/README.md`: screenshot checklist without fake or sensitive screenshots.

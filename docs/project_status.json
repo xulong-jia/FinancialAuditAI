@@ -1546,7 +1546,7 @@
       "phase_id": 20,
       "name": "最终验收、文档整理、作品集展示材料",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         11,
         12,
@@ -1571,55 +1571,55 @@
           "id": "P20-BE-001",
           "title": "清理 API、确认错误处理和 migration 可复现",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Confirmed actual FastAPI route set, documented API surface, kept existing routes because no safe dead route deletion was required, and verified migrations/demo path through Phase 20 validation.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P20-FE-001",
           "title": "整理演示路径、截图、空状态和基础响应式",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Documented demo path and screenshot checklist for Login, Task Center, Audit Workbench, Review Center, Report Center, Knowledge Center, Rule Center, Agent Timeline, Bad Case Center, Evaluation Center, and Admin Center without adding pages or fake screenshots.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P20-DB-001",
           "title": "输出数据库结构文档并确认 demo 数据安全",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Added database_schema.md covering MVP and Post-MVP tables, relationships, pgvector/RAG tables, RBAC tables, and synthetic demo data boundaries; confirmed local_storage and generated artifacts are ignored.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P20-API-001",
           "title": "输出 API reference 并确认接口一致",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Updated api_reference.md with actual route groups, error response shape, RBAC roles, and permission requirements for protected endpoints.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P20-TEST-001",
           "title": "运行完整 pytest、E2E demo、Post-MVP smoke 和安全 checklist",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Phase 20 verification covers alembic upgrade head, pytest, frontend build, JSON validation, docker compose config, PostgreSQL health, demo smoke coverage, Post-MVP smoke tests, and danger_check.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P20-DOC-001",
           "title": "整理 README、架构、API、数据库、规则、RAG、Agent、Review、Evaluation 和作品集材料",
           "area": "docs",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Created final docs set: architecture, database schema, rule engine, RAG design, agent workflow, review center, evaluation, security, demo script, final acceptance, portfolio summary, and screenshots checklist.",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         }
       ],
       "acceptance_criteria": [
@@ -1629,9 +1629,9 @@
         "作品集材料清楚说明使用模拟或公开数据",
         "最终验收 checklist 全部完成"
       ],
-      "notes": "",
+      "notes": "Phase 20 completed final acceptance and documentation materials. README, API reference, architecture, database, rule engine, RAG, Agent, Review, Evaluation, Security, demo script, final acceptance, portfolio summary, and screenshot checklist are complete. No business logic, new modules, fake screenshots, production deployment, or tracker-outside features were added.",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-05"
     }
   ]
 }

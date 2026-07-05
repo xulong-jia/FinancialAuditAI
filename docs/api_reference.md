@@ -2,7 +2,7 @@
 
 Base URL: `http://localhost:8000/api/v1`
 
-Responses use JSON unless the endpoint is a report download. Errors use FastAPI's standard `{"detail": ...}` shape.
+Responses use JSON unless the endpoint is a report download. Expected errors use FastAPI's standard `{"detail": ...}` shape. Protected endpoints return 401 for missing/invalid tokens and 403 for insufficient permission.
 
 ## System
 
@@ -31,6 +31,27 @@ Default roles:
 - `reviewer`: review queue operations, field correction, exception confirm/dismiss, and rule rerun.
 - `manager`: report generation, evaluation result viewing, and audit-log viewing.
 - `admin`: all permissions, including Rule Center, RAG management, user and role management, and system configuration.
+
+Permission summary:
+
+| Permission | Typical Endpoints |
+| --- | --- |
+| public | `GET /health`, `GET /api/v1/config`, `POST /auth/login` |
+| `read` | list/get tasks, documents, fields, pages, audit results, reports, RAG documents/chunks/query, agent runs |
+| `task:create` | `POST /tasks` |
+| `task:update` | `PATCH /tasks/{task_id}` |
+| `document:upload` | `POST /tasks/{task_id}/documents` |
+| `document:process` | link documents, OCR, classify, extract, manual document type update |
+| `audit:run` | `POST /tasks/{task_id}/audit` |
+| `review:write` | review comments, field correction, confirm, dismiss, rerun |
+| `report:generate` | `POST /tasks/{task_id}/reports/control-table` |
+| `rag:manage` | create/index RAG documents |
+| `rule:manage` | create/update/evaluate rules |
+| `agent:run` | create/retry agent runs |
+| `evaluation:read` | list/get bad cases and evaluation results |
+| `quality:manage` | create/update bad cases and run evaluations |
+| `user:manage` | user and role management |
+| `audit_log:read` | `GET /audit-logs` |
 
 ## Tasks
 

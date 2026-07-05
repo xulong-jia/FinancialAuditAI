@@ -11,6 +11,19 @@ export type TaskStatus =
   | "completed"
   | "failed";
 
+export type SystemConfig = {
+  app_name: string;
+  environment: string;
+  api_prefix: string;
+  llm_provider: string;
+  llm_model: string;
+  llm_api_url_status: string;
+  llm_api_key_status: string;
+  embedding_provider: string;
+  rag_rerank_provider: string;
+  rag_answer_provider: string;
+};
+
 export type ProcurementDocType =
   | "purchase_request"
   | "purchase_contract"

@@ -161,6 +161,7 @@ export function RuleCenterPage({ currentUser }: PageProps) {
           />
         </Space>
       </Card>
+      {!canManageRules ? <Alert type="info" showIcon message="Read-only permissions" /> : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(360px, 440px) minmax(520px, 1fr)", gap: 16 }}>
         <Card title="Rules" loading={loading}>

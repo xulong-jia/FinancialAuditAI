@@ -39,4 +39,4 @@ Review basis: the final execution-manual review found the project partially comp
 | P1 | Provider/accountability compatibility and task-run RAG status | resolved |
 | Final backend high-risk | RAG index invocation logging, Agent four-knowledge-base evidence retrieval, Bad Case task scope | resolved |
 | RBAC matrix | Viewer task scope and analyst field-correction stage limit | resolved |
-| P2 | Delivery wording and frontend permission affordances | pending |
+| P2 | Delivery wording and frontend permission affordances | resolved |

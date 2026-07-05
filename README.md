@@ -82,7 +82,7 @@ Post-MVP Phase 19 implemented:
 - Basic login with hashed passwords and signed bearer tokens.
 - Fixed RBAC roles: `viewer`, `analyst`, `reviewer`, `manager`, and `admin`.
 - Permission checks for processing, review, report generation, Rule Center, RAG management, Agent runs, quality actions, user/role management, and audit-log access.
-- Admin Center for users, roles, permissions, and audit log review.
+- Admin Center for users, roles, permissions, read-only model/provider configuration status, and audit log review.
 - Audit log redaction, stronger upload content signature checks, and repository danger scan.
 - Historical nullable `actor_name` and user-related fields remain compatible; no enterprise SSO, multi-tenant billing, or production KMS is implemented.
 

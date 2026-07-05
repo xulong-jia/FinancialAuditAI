@@ -48,6 +48,7 @@ import type {
   RoleCreatePayload,
   RoleRecord,
   RoleUpdatePayload,
+  SystemConfig,
   TaskRunResult,
   UserCreatePayload,
   UserRecord,
@@ -106,6 +107,10 @@ export function login(payload: LoginPayload): Promise<LoginResponse> {
 
 export function getCurrentUser(): Promise<UserRecord> {
   return getJson<UserRecord>("/api/v1/auth/me");
+}
+
+export function getConfig(): Promise<SystemConfig> {
+  return getJson<SystemConfig>("/api/v1/config");
 }
 
 export function logout(): Promise<{ status: string }> {

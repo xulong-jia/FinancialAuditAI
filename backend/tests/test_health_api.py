@@ -22,6 +22,8 @@ def test_config() -> None:
     body = response.json()
     assert body["app_name"] == "FinancialAuditAI"
     assert body["api_prefix"] == "/api/v1"
+    assert body["llm_api_key_status"] in {"configured", "not_configured"}
+    assert body["embedding_provider"]
 
 
 def test_api_response_envelope_by_default() -> None:

@@ -29,4 +29,11 @@ def read_config() -> dict[str, str]:
         "app_name": settings.app_name,
         "environment": settings.environment,
         "api_prefix": settings.api_v1_prefix,
+        "llm_provider": settings.llm_provider,
+        "llm_model": settings.llm_model,
+        "llm_api_url_status": "configured" if settings.llm_api_url else "not_configured",
+        "llm_api_key_status": "configured" if settings.llm_api_key else "not_configured",
+        "embedding_provider": settings.embedding_provider,
+        "rag_rerank_provider": settings.rag_rerank_provider,
+        "rag_answer_provider": settings.rag_answer_provider,
     }

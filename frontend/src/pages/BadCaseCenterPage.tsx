@@ -1,4 +1,4 @@
-import { Button, Card, Form, Input, Select, Space, Table, Tag, Typography, message } from "antd";
+import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 
 import { createBadCase, listBadCases, updateBadCase } from "../api/client";
@@ -111,6 +111,7 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
           Bad Case Center
         </Typography.Title>
       </Card>
+      {!canManageQuality ? <Alert type="info" showIcon message="Read-only permissions" /> : null}
 
       <Card title="Create Bad Case">
         <Form<BadCaseFormValues>

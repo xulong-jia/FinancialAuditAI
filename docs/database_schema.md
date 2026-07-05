@@ -1,6 +1,6 @@
 # Database Schema
 
-This document summarizes the core tables managed by Alembic migrations `0001` through `0021`.
+This document summarizes the core tables managed by Alembic migrations `0001` through `0022`.
 
 ## MVP Tables
 
@@ -49,5 +49,6 @@ This document summarizes the core tables managed by Alembic migrations `0001` th
 ## Data Safety
 
 - Uploaded files, generated reports, and local vector files are not stored in Git.
-- Historical user-like fields remain nullable strings where originally designed, with `actor_name` as fallback.
+- Historical user-like fields remain nullable strings where originally designed: `actor_name`, `created_by`, `reviewed_by`, `corrected_by`, `generated_by`, and similar display labels preserve older records and imported/demo data.
+- Request-scoped accountability is recorded through `audit_logs.user_id` when an authenticated API action creates the log.
 - Demo data under `samples/` is synthetic metadata only.

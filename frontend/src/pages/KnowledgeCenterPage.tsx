@@ -134,6 +134,7 @@ export function KnowledgeCenterPage({ currentUser }: PageProps) {
           />
         </Space>
       </Card>
+      {!canManageRag ? <Alert type="info" showIcon message="Read-only permissions" /> : null}
 
       <Card title="Add Knowledge Document">
         <Form<UploadFormValues>

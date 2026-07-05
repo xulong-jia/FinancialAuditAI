@@ -43,7 +43,7 @@ Supported eval types:
 - end-to-end smoke success
 - regression pass/fail counts
 
-Metrics identify the dataset kind and include limitations when sample size is small or the dataset is a built-in sample set. They are not production performance claims unless a real evaluation dataset is supplied.
+Metrics identify the dataset kind and include limitations when sample size is small or the dataset is a built-in sample set. Built-in evaluations set `is_production_evaluation` to `false`; they are not production performance claims unless a real evaluation dataset is supplied and explicitly labeled.
 
 ## Regression
 

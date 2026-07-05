@@ -1,9 +1,9 @@
 import { Button, Card, Form, Input, Select, Space, Table, Tag, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 
-import { createRole, createUser, listAuditLogs, listRoles, listUsers, updateUser } from "../api/client";
+import { createRole, createUser, getConfig, listAuditLogs, listRoles, listUsers, updateUser } from "../api/client";
 import type { PageProps } from "../routes";
-import type { AuditLogRecord, RoleCreatePayload, RoleRecord, UserCreatePayload, UserRecord } from "../types/api";
+import type { AuditLogRecord, RoleCreatePayload, RoleRecord, SystemConfig, UserCreatePayload, UserRecord } from "../types/api";
 
 function formatJson(value: Record<string, unknown> | null) {
   return value ? JSON.stringify(value) : "-";
@@ -24,15 +24,17 @@ export function AdminCenterPage({ currentUser }: PageProps) {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
+  const [config, setConfig] = useState<SystemConfig | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function refresh() {
     setLoading(true);
     try {
-      const [nextUsers, nextRoles, nextLogs] = await Promise.all([listUsers(), listRoles(), listAuditLogs()]);
+      const [nextUsers, nextRoles, nextLogs, nextConfig] = await Promise.all([listUsers(), listRoles(), listAuditLogs(), getConfig()]);
       setUsers(nextUsers);
       setRoles(nextRoles);
       setAuditLogs(nextLogs);
+      setConfig(nextConfig);
     } catch {
       message.error("Failed to load admin data");
     } finally {
@@ -100,6 +102,24 @@ export function AdminCenterPage({ currentUser }: PageProps) {
           <Typography.Text type="secondary">
             Signed in as {currentUser.full_name} ({currentUser.email})
           </Typography.Text>
+        </Space>
+      </Card>
+
+      <Card title="Model Configuration">
+        <Space wrap>
+          {[
+            { label: "LLM", value: config?.llm_provider },
+            { label: "Model", value: config?.llm_model },
+            { label: "API URL", value: config?.llm_api_url_status },
+            { label: "API Key", value: config?.llm_api_key_status },
+            { label: "Embedding", value: config?.embedding_provider },
+            { label: "Rerank", value: config?.rag_rerank_provider },
+            { label: "RAG Answer", value: config?.rag_answer_provider },
+          ].map((item) => (
+            <Tag key={item.label}>
+              {item.label}: {item.value ?? "-"}
+            </Tag>
+          ))}
         </Space>
       </Card>
 

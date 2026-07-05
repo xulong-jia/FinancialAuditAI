@@ -1,6 +1,6 @@
 # FinancialAuditAI Final Compliance Fix Report
 
-## Current Round: RBAC matrix compliance
+## Current Round: P2 delivery and frontend closure
 
 Status: resolved
 
@@ -34,9 +34,9 @@ Status: resolved
 | P1 | resolved |
 | Latest re-review backend high-risk gaps | resolved |
 | RBAC matrix gaps | resolved |
-| P2 | pending |
+| P2 | resolved |
 
-P0, P1, latest re-review backend high-risk gaps, and RBAC matrix gaps are resolved. P2 is not claimed complete in this report.
+P0, P1, latest re-review backend high-risk gaps, RBAC matrix gaps, and P2 closure items are resolved.
 
 ## Resolved P1 Items
 
@@ -61,3 +61,12 @@ P0, P1, latest re-review backend high-risk gaps, and RBAC matrix gaps are resolv
 | --- | --- | --- |
 | Viewer cannot read cross-task task records through `read_all` | resolved | `backend/app/services/auth_service.py`, `backend/tests/test_auth_rbac_security_api.py` |
 | Analyst field correction is blocked after the task enters review-stage statuses | resolved | `backend/app/api/review.py`, `backend/tests/test_auth_rbac_security_api.py` |
+
+## Resolved P2 Items
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Database actor/responsibility-field compatibility wording | resolved | `docs/database_schema.md` |
+| Evaluation synthetic/non-production boundary wording | resolved | `docs/evaluation.md` |
+| Frontend permission affordances for read-only users | resolved | `frontend/src/pages/BadCaseCenterPage.tsx`, `frontend/src/pages/KnowledgeCenterPage.tsx`, `frontend/src/pages/ReportCenterPage.tsx`, `frontend/src/pages/RuleCenterPage.tsx` |
+| Admin Center model/provider configuration visibility | resolved | `backend/app/api/router.py`, `frontend/src/pages/AdminCenterPage.tsx`, `README.md` |

@@ -226,6 +226,7 @@ export function ReportCenterPage({ currentUser }: PageProps) {
           </Button>
         </Space>
       </Card>
+      {!canGenerateReport ? <Alert type="info" showIcon message="Read-only permissions" /> : null}
 
       <Card title="Report Status">
         {latestReport ? (

@@ -60,12 +60,20 @@ const interviewDocTypes: { label: string; value: DocumentDocType }[] = [
   { label: "访谈签字页", value: "interview_signature_page" },
   { label: "访谈转写文本", value: "interview_transcript" },
 ];
+const contractReviewDocTypes: { label: string; value: DocumentDocType }[] = [
+  { label: "合同审核文档", value: "contract_review" },
+  { label: "重大合同", value: "material_contract" },
+  { label: "补充协议", value: "supplemental_agreement" },
+  { label: "框架协议", value: "framework_agreement" },
+  { label: "合同附件", value: "contract_attachment" },
+];
 
 const classificationDocTypes: { label: string; value: ClassificationDocType }[] = [
   ...procurementDocTypes,
   ...salesDocTypes.filter((option) => option.value !== "accounting_voucher"),
   ...confirmationDocTypes,
   ...interviewDocTypes,
+  ...contractReviewDocTypes,
   { label: "未知 / 需要复核", value: "unknown" },
 ];
 
@@ -347,7 +355,9 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
         ? confirmationDocTypes
         : selectedTask?.scenario === "interview"
           ? interviewDocTypes
-          : procurementDocTypes;
+          : selectedTask?.scenario === "contract_review"
+            ? contractReviewDocTypes
+            : procurementDocTypes;
   const selectedPage = pages.find((page) => page.page_number === selectedPageNumber) ?? null;
   const documentNameById = Object.fromEntries(
     documents.map((document) => [document.id, document.original_filename]),
@@ -378,6 +388,7 @@ export function TaskCenterPage({ onNavigate }: PageProps) {
                 { label: "Sales", value: "sales" },
                 { label: "Confirmation", value: "confirmation" },
                 { label: "Interview", value: "interview" },
+                { label: "Contract Review", value: "contract_review" },
               ]}
             />
           </Form.Item>

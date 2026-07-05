@@ -246,6 +246,64 @@ KEYWORDS: dict[str, tuple[str, ...]] = {
         "转写文本",
         "访谈纪要",
     ),
+    "contract_review": (
+        "contract review",
+        "contract no",
+        "contract name",
+        "payment terms",
+        "delivery terms",
+        "acceptance terms",
+        "special clauses",
+        "合同审核",
+        "重大合同",
+        "合同编号",
+        "付款条款",
+        "交付条款",
+        "验收条款",
+        "特殊条款",
+    ),
+    "material_contract": (
+        "material contract",
+        "major contract",
+        "party a",
+        "party b",
+        "amount including tax",
+        "contract no",
+        "重大合同",
+        "甲方",
+        "乙方",
+        "含税金额",
+        "合同编号",
+    ),
+    "supplemental_agreement": (
+        "supplemental agreement",
+        "price adjustment",
+        "related party",
+        "contract no",
+        "补充协议",
+        "价格调整",
+        "关联交易",
+        "合同编号",
+    ),
+    "framework_agreement": (
+        "framework agreement",
+        "auto renewal",
+        "exclusivity",
+        "payment terms",
+        "框架协议",
+        "自动续期",
+        "排他",
+        "付款条款",
+    ),
+    "contract_attachment": (
+        "contract attachment",
+        "attachment list",
+        "attachment",
+        "contract no",
+        "合同附件",
+        "附件清单",
+        "合同编号",
+    ),
 }
 DOC_TYPES_BY_SCENARIO = {
     "procurement": {
@@ -276,6 +334,13 @@ DOC_TYPES_BY_SCENARIO = {
         "interview_outline",
         "interview_signature_page",
         "interview_transcript",
+    },
+    "contract_review": {
+        "contract_review",
+        "material_contract",
+        "supplemental_agreement",
+        "framework_agreement",
+        "contract_attachment",
     },
 }
 
@@ -409,7 +474,11 @@ def _rank_document_types(filename: str, text: str, scenario: str = "procurement"
             elif normalized in filename_text:
                 score += 0.08
                 matched.append(f"filename:{keyword}")
-        if scenario in {"confirmation", "interview"} and doc_type not in {"confirmation", "interview_record"}:
+        if scenario in {"confirmation", "interview", "contract_review"} and doc_type not in {
+            "confirmation",
+            "interview_record",
+            "contract_review",
+        }:
             score += 0.03
 
         if matched:

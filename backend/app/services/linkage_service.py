@@ -310,6 +310,8 @@ def _fallback_groups(
                 "buyer_name",
                 "payer_name",
                 "counterparty_name",
+                "party_a",
+                "party_b",
                 "interviewee_name",
                 "company_name",
                 "mentioned_counterparties",
@@ -343,6 +345,8 @@ def _fallback_groups(
                 "sent_date",
                 "replied_date",
                 "interview_date",
+                "effective_date",
+                "expiry_date",
             ),
         )
         supplier_value = _field_value(supplier)
@@ -432,6 +436,11 @@ def _anchor_document(documents: list[Document]) -> Document:
         "interview_transcript": 1,
         "interview_signature_page": 2,
         "interview_outline": 3,
+        "contract_review": 0,
+        "material_contract": 1,
+        "framework_agreement": 2,
+        "supplemental_agreement": 3,
+        "contract_attachment": 4,
     }
     return sorted(documents, key=lambda document: priority.get(document.doc_type or "", 99))[0]
 

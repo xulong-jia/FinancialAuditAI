@@ -76,6 +76,13 @@ DEFAULT_RULES = {
     "INTERVIEW_SIGNATURE_001": ("访谈签字检查", {}),
     "INTERVIEW_AMOUNT_001": ("访谈提及金额差异提示", {"tolerance_amount": 1.0, "tolerance_ratio": 0.0}),
     "INTERVIEW_COUNTERPARTY_001": ("访谈提及主体匹配提示", {"supplier_aliases": {}}),
+    "CONTRACT_MISSING_001": ("合同核心字段缺失检查", {}),
+    "CONTRACT_PERIOD_001": ("合同有效期覆盖检查", {}),
+    "CONTRACT_AMOUNT_001": ("合同金额与任务内金额基础比对", {"tolerance_amount": 1.0, "tolerance_ratio": 0.0}),
+    "CONTRACT_COUNTERPARTY_001": ("合同主体与任务内主体基础比对", {"supplier_aliases": {}}),
+    "CONTRACT_KEY_TERMS_001": ("合同关键条款缺失检查", {}),
+    "CONTRACT_SPECIAL_CLAUSE_001": ("合同特殊条款风险提示", {}),
+    "CONTRACT_SIGNATURE_SEAL_001": ("合同签字盖章缺失提示", {}),
 }
 ALLOWED_PARAMETER_KEYS = {
     "tolerance",
@@ -1392,6 +1399,343 @@ def rule_interview_counterparty(context: RuleContext) -> RuleResult:
     )
 
 
+CONTRACT_DOC_TYPES = (
+    "contract_review",
+    "material_contract",
+    "supplemental_agreement",
+    "framework_agreement",
+    "contract_attachment",
+)
+CONTRACT_KEY_TERM_FIELDS = (
+    "payment_terms",
+    "delivery_terms",
+    "acceptance_terms",
+    "breach_terms",
+    "dispute_resolution",
+)
+CONTRACT_SPECIAL_CLAUSE_FIELDS = (
+    "auto_renewal_clause",
+    "exclusivity_clause",
+    "repurchase_clause",
+    "price_adjustment_clause",
+    "related_party_clause",
+    "variable_consideration_clause",
+)
+
+
+def rule_contract_missing_required(context: RuleContext) -> RuleResult:
+    base = rule_missing_required(context)
+    return RuleResult(
+        rule_code="CONTRACT_MISSING_001",
+        business_key=context.business_key,
+        status=base.status,
+        severity=base.severity,
+        message=base.message.replace("procurement", "contract review"),
+        expected_value=base.expected_value,
+        actual_value=base.actual_value,
+        evidence=base.evidence,
+    )
+
+
+def rule_contract_period(context: RuleContext) -> RuleResult:
+    effective_field, effective_doc = _first_contract_field(context, ("effective_date", "signing_date"))
+    expiry_field, expiry_doc = _first_contract_field(context, ("expiry_date",))
+    effective_date = _date_value(effective_field)
+    expiry_date = _date_value(expiry_field)
+    evidence = []
+    if effective_field is not None and effective_doc is not None:
+        evidence.append(_evidence_ref(effective_doc, effective_field))
+    if expiry_field is not None and expiry_doc is not None:
+        evidence.append(_evidence_ref(expiry_doc, expiry_field))
+
+    missing = []
+    if effective_date is None:
+        missing.append(_missing_ref(effective_doc, "effective_date", effective_field, "contract_review"))
+    if expiry_date is None:
+        missing.append(_missing_ref(expiry_doc, "expiry_date", expiry_field, "contract_review"))
+    if missing:
+        return _result(
+            context,
+            "CONTRACT_PERIOD_001",
+            "need_review",
+            "medium",
+            "Missing contract period fields prevent coverage check.",
+            {"task_period_covered": True},
+            {"missing_fields": [ref.field_name for ref in missing]},
+            missing,
+        )
+    if context.period_start is None or context.period_end is None:
+        return _result(
+            context,
+            "CONTRACT_PERIOD_001",
+            "need_review",
+            "medium",
+            "Task period is missing; contract coverage needs manual review.",
+            {"task_period_covered": True},
+            {"effective_date": effective_date.isoformat(), "expiry_date": expiry_date.isoformat()},
+            evidence,
+        )
+    if effective_date > context.period_start or expiry_date < context.period_end:
+        return _result(
+            context,
+            "CONTRACT_PERIOD_001",
+            "warning",
+            "medium",
+            "Contract period does not fully cover the task period; manual review is required.",
+            {"period_start": context.period_start.isoformat(), "period_end": context.period_end.isoformat()},
+            {"effective_date": effective_date.isoformat(), "expiry_date": expiry_date.isoformat()},
+            evidence,
+        )
+    return _result(
+        context,
+        "CONTRACT_PERIOD_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Contract period covers the task period.",
+        {"period_start": context.period_start.isoformat(), "period_end": context.period_end.isoformat()},
+        {"effective_date": effective_date.isoformat(), "expiry_date": expiry_date.isoformat()},
+        evidence,
+    )
+
+
+def rule_contract_amount(context: RuleContext) -> RuleResult:
+    contract_amounts = _amounts_from(
+        context,
+        tuple((doc_type, "amount_including_tax") for doc_type in CONTRACT_DOC_TYPES),
+    )
+    references = _amount_fields_by_name(
+        context,
+        {
+            "invoice_amount",
+            "payment_amount",
+            "book_amount",
+            "confirmed_amount",
+            "amount",
+            "amount_excluding_tax",
+            "total_estimated_amount",
+        },
+    )
+    evidence = _amount_evidence(contract_amounts + references)
+    if not contract_amounts:
+        return _result(
+            context,
+            "CONTRACT_AMOUNT_001",
+            "need_review",
+            "medium",
+            "Missing contract amount prevents contract amount check.",
+            {"contract_amount": "present"},
+            {"contract_amount": None},
+            evidence or [_missing_ref(None, "amount_including_tax", doc_type="contract_review")],
+        )
+    if not references:
+        return _result(
+            context,
+            "CONTRACT_AMOUNT_001",
+            "need_review",
+            "medium",
+            "No task amount evidence is available for contract amount cross-check.",
+            {"reference_amount": "available"},
+            {"contract_amount": contract_amounts[0][0]},
+            evidence,
+        )
+
+    contract_amount = contract_amounts[0][0]
+    tolerance = _tolerance_amount(context.parameters, TOLERANCE)
+    tolerance_ratio = float(context.parameters.get("tolerance_ratio", 0) or 0)
+    mismatches = []
+    for amount, field, _ in references:
+        allowed = tolerance + abs(contract_amount) * tolerance_ratio
+        if abs(amount - contract_amount) > allowed:
+            mismatches.append({"field_name": field.field_name, "amount": amount})
+    if mismatches:
+        return _result(
+            context,
+            "CONTRACT_AMOUNT_001",
+            "warning",
+            "medium",
+            "Contract amount differs from available task amount evidence; manual review is required.",
+            {"contract_amount": contract_amount, "tolerance": tolerance, "tolerance_ratio": tolerance_ratio},
+            {"mismatches": mismatches},
+            evidence,
+        )
+    return _result(
+        context,
+        "CONTRACT_AMOUNT_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Contract amount matches available task amount evidence.",
+        {"contract_amount": contract_amount, "tolerance": tolerance, "tolerance_ratio": tolerance_ratio},
+        {"reference_amounts": [amount for amount, _, _ in references]},
+        evidence,
+    )
+
+
+def rule_contract_counterparty(context: RuleContext) -> RuleResult:
+    contract_parties = _text_fields_by_name(context, {"party_b", "counterparty_name"})
+    references = _text_fields_by_name(
+        context,
+        {
+            "supplier_name",
+            "seller_name",
+            "payee_name",
+            "customer_name",
+            "buyer_name",
+            "payer_name",
+            "mentioned_counterparties",
+            "company_name",
+        },
+    )
+    evidence = [_evidence_ref(document, field) for _, field, document in contract_parties + references]
+    if not contract_parties:
+        return _result(
+            context,
+            "CONTRACT_COUNTERPARTY_001",
+            "need_review",
+            "medium",
+            "Missing contract counterparty fields prevent counterparty check.",
+            {"contract_counterparty": "present"},
+            {"contract_counterparty": None},
+            evidence or [_missing_ref(None, "counterparty_name", doc_type="contract_review")],
+        )
+    if not references:
+        return _result(
+            context,
+            "CONTRACT_COUNTERPARTY_001",
+            "need_review",
+            "medium",
+            "No task party evidence is available for contract counterparty cross-check.",
+            {"reference_counterparty": "available"},
+            {"contract_counterparties": [value for value, _, _ in contract_parties]},
+            evidence,
+        )
+
+    aliases = context.parameters.get("supplier_aliases")
+    contract_names = {_normalize_name(value, aliases) for value, _, _ in contract_parties}
+    unmatched = [value for value, _, _ in references if _normalize_name(value, aliases) not in contract_names]
+    if unmatched:
+        return _result(
+            context,
+            "CONTRACT_COUNTERPARTY_001",
+            "warning",
+            "medium",
+            "Contract counterparty differs from available task party evidence.",
+            {"counterparty_consistent": True},
+            {"unmatched": unmatched},
+            evidence,
+        )
+    return _result(
+        context,
+        "CONTRACT_COUNTERPARTY_001",
+        _pass_or_warning(evidence),
+        _severity_for_pass(evidence),
+        "Contract counterparty matches available task party evidence.",
+        {"counterparty_consistent": True},
+        {"contract_counterparties": [value for value, _, _ in contract_parties]},
+        evidence,
+    )
+
+
+def rule_contract_key_terms(context: RuleContext) -> RuleResult:
+    missing: list[EvidenceRef] = []
+    present: list[EvidenceRef] = []
+    for field_name in CONTRACT_KEY_TERM_FIELDS:
+        field, document = _first_contract_field(context, (field_name,))
+        if field is None or document is None or _is_missing(field):
+            missing.append(_missing_ref(document, field_name, field, "contract_review"))
+        else:
+            present.append(_evidence_ref(document, field))
+    if missing:
+        return _result(
+            context,
+            "CONTRACT_KEY_TERMS_001",
+            "need_review",
+            "medium",
+            "Contract key terms are missing and require human review.",
+            {"required_terms": list(CONTRACT_KEY_TERM_FIELDS)},
+            {"missing_terms": [ref.field_name for ref in missing]},
+            missing + present,
+        )
+    return _result(
+        context,
+        "CONTRACT_KEY_TERMS_001",
+        _pass_or_warning(present),
+        _severity_for_pass(present),
+        "Contract key terms are present.",
+        {"required_terms": list(CONTRACT_KEY_TERM_FIELDS)},
+        {"missing_terms": []},
+        present,
+    )
+
+
+def rule_contract_special_clause(context: RuleContext) -> RuleResult:
+    present = []
+    for field_name in CONTRACT_SPECIAL_CLAUSE_FIELDS:
+        field, document = _first_contract_field(context, (field_name,))
+        value = _text_value(field)
+        if field is not None and document is not None and value and not _is_negative(value):
+            present.append((field_name, value, field, document))
+    evidence = [_evidence_ref(document, field) for _, _, field, document in present]
+    if present:
+        return _result(
+            context,
+            "CONTRACT_SPECIAL_CLAUSE_001",
+            "warning",
+            "high",
+            "Contract contains special clauses; this is a risk prompt only and not a legal opinion.",
+            {"special_clauses": "review_if_present"},
+            {"special_clauses": [{"field_name": name, "value": value} for name, value, _, _ in present]},
+            evidence,
+        )
+    return _result(
+        context,
+        "CONTRACT_SPECIAL_CLAUSE_001",
+        "pass",
+        "info",
+        "No configured special clauses were detected.",
+        {"special_clauses": "review_if_present"},
+        {"special_clauses": []},
+        [_task_ref(context, "special_clauses")],
+    )
+
+
+def rule_contract_signature_seal(context: RuleContext) -> RuleResult:
+    signature_field, signature_doc = _first_contract_field(context, ("signature_detected",))
+    seal_field, seal_doc = _first_contract_field(context, ("seal_detected",))
+    signature_value = _text_value(signature_field)
+    seal_value = _text_value(seal_field)
+    evidence = []
+    if signature_field is not None and signature_doc is not None:
+        evidence.append(_evidence_ref(signature_doc, signature_field))
+    else:
+        evidence.append(_missing_ref(signature_doc, "signature_detected", signature_field, "contract_review"))
+    if seal_field is not None and seal_doc is not None:
+        evidence.append(_evidence_ref(seal_doc, seal_field))
+    else:
+        evidence.append(_missing_ref(seal_doc, "seal_detected", seal_field, "contract_review"))
+
+    if _is_affirmative(signature_value) and _is_affirmative(seal_value):
+        return _result(
+            context,
+            "CONTRACT_SIGNATURE_SEAL_001",
+            _pass_or_warning(evidence),
+            _severity_for_pass(evidence),
+            "Contract signature and seal evidence are present; authenticity is not judged.",
+            {"signature_and_seal": "present"},
+            {"signature_detected": signature_value, "seal_detected": seal_value},
+            evidence,
+        )
+    return _result(
+        context,
+        "CONTRACT_SIGNATURE_SEAL_001",
+        "need_review",
+        "medium",
+        "Contract signature or seal evidence is missing or marked absent; authenticity is not judged.",
+        {"signature_and_seal": "present"},
+        {"signature_detected": signature_value, "seal_detected": seal_value},
+        evidence,
+    )
+
+
 RULE_REGISTRY: dict[str, Callable[[RuleContext], RuleResult]] = {
     "PROC_MISSING_001": rule_missing_required,
     "PROC_TIME_001": rule_time_order,
@@ -1414,6 +1758,13 @@ RULE_REGISTRY: dict[str, Callable[[RuleContext], RuleResult]] = {
     "INTERVIEW_SIGNATURE_001": rule_interview_signature,
     "INTERVIEW_AMOUNT_001": rule_interview_amount,
     "INTERVIEW_COUNTERPARTY_001": rule_interview_counterparty,
+    "CONTRACT_MISSING_001": rule_contract_missing_required,
+    "CONTRACT_PERIOD_001": rule_contract_period,
+    "CONTRACT_AMOUNT_001": rule_contract_amount,
+    "CONTRACT_COUNTERPARTY_001": rule_contract_counterparty,
+    "CONTRACT_KEY_TERMS_001": rule_contract_key_terms,
+    "CONTRACT_SPECIAL_CLAUSE_001": rule_contract_special_clause,
+    "CONTRACT_SIGNATURE_SEAL_001": rule_contract_signature_seal,
 }
 
 
@@ -1512,6 +1863,19 @@ def _first_interview_field(
 ) -> tuple[ExtractedField | None, Document | None]:
     for document in context.documents:
         if document.doc_type not in INTERVIEW_DOC_TYPES:
+            continue
+        for field_name in field_names:
+            field = context.fields.get(document.id, {}).get(field_name)
+            if field is not None and not _is_missing(field):
+                return field, document
+    return None, None
+
+
+def _first_contract_field(
+    context: RuleContext, field_names: tuple[str, ...]
+) -> tuple[ExtractedField | None, Document | None]:
+    for document in context.documents:
+        if document.doc_type not in CONTRACT_DOC_TYPES:
             continue
         for field_name in field_names:
             field = context.fields.get(document.id, {}).get(field_name)
@@ -1740,6 +2104,20 @@ def _normalize_name(value: str, aliases: object = None) -> str:
     return normalized
 
 
+def _is_affirmative(value: str | None) -> bool:
+    if value is None:
+        return False
+    normalized = value.strip().casefold()
+    return normalized in {"yes", "true", "signed", "detected", "present", "sealed", "有", "是", "已签署", "已盖章"}
+
+
+def _is_negative(value: str | None) -> bool:
+    if value is None:
+        return True
+    normalized = value.strip().casefold()
+    return normalized in {"no", "false", "none", "n/a", "not applicable", "absent", "无", "否", "不适用"}
+
+
 def _mapped_item_name(value: str, mappings: object = None) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "", value.casefold())
     if not isinstance(mappings, dict):
@@ -1775,6 +2153,8 @@ def _rule_matches_scenario(rule_code: str, scenario: str) -> bool:
         return rule_code.startswith("CONF_")
     if scenario == "interview":
         return rule_code.startswith("INTERVIEW_")
+    if scenario == "contract_review":
+        return rule_code.startswith("CONTRACT_")
     return rule_code.startswith("PROC_")
 
 

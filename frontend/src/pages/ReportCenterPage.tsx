@@ -62,6 +62,20 @@ const interviewPreviewColumns = [
   "overall_status",
   "reviewer_comment",
 ];
+const contractReviewPreviewColumns = [
+  "business_key",
+  "contract_no",
+  "contract_name",
+  "counterparty_name",
+  "amount_including_tax",
+  "payment_terms",
+  "delivery_terms",
+  "special_clauses",
+  "signature_seal_check",
+  "key_terms_check",
+  "overall_status",
+  "reviewer_comment",
+];
 
 function statusColor(status: string) {
   if (status === "completed" || status === "pass") {
@@ -149,7 +163,9 @@ export function ReportCenterPage(_props: PageProps) {
         ? confirmationPreviewColumns
         : selectedTask?.scenario === "interview"
           ? interviewPreviewColumns
-          : procurementPreviewColumns;
+          : selectedTask?.scenario === "contract_review"
+            ? contractReviewPreviewColumns
+            : procurementPreviewColumns;
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>

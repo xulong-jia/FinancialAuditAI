@@ -34,7 +34,14 @@ InterviewDocType = Literal[
     "interview_signature_page",
     "interview_transcript",
 ]
-DocumentDocType = ProcurementDocType | SalesDocType | ConfirmationDocType | InterviewDocType
+ContractReviewDocType = Literal[
+    "contract_review",
+    "material_contract",
+    "supplemental_agreement",
+    "framework_agreement",
+    "contract_attachment",
+]
+DocumentDocType = ProcurementDocType | SalesDocType | ConfirmationDocType | InterviewDocType | ContractReviewDocType
 UnknownDocType = Literal["unknown"]
 ClassificationDocType = DocumentDocType | UnknownDocType
 

@@ -22,6 +22,8 @@ from app.services.xlsx_writer import write_xlsx
 SHEET_NAMES = [
     "Summary",
     "Procurement Control Table",
+    "Contract Review",
+    "Special Clauses",
     "Exceptions",
     "Evidence Index",
     "Field Corrections",
@@ -121,6 +123,34 @@ INTERVIEW_CONTROL_COLUMNS = [
     "evidence_refs",
     "reviewer_comment",
 ]
+CONTRACT_REVIEW_COLUMNS = [
+    "task_no",
+    "business_key",
+    "contract_name",
+    "contract_no",
+    "party_a",
+    "party_b",
+    "counterparty_name",
+    "signing_date",
+    "effective_date",
+    "expiry_date",
+    "amount_including_tax",
+    "payment_terms",
+    "delivery_terms",
+    "acceptance_terms",
+    "breach_terms",
+    "dispute_resolution",
+    "special_clauses",
+    "signature_seal_check",
+    "key_terms_check",
+    "period_check",
+    "amount_check",
+    "counterparty_check",
+    "missing_field_check",
+    "overall_status",
+    "evidence_refs",
+    "reviewer_comment",
+]
 
 RULE_CHECK_COLUMNS = {
     "PROC_TIME_001": "time_check",
@@ -144,6 +174,13 @@ RULE_CHECK_COLUMNS = {
     "INTERVIEW_AMOUNT_001": "amount_check",
     "INTERVIEW_COUNTERPARTY_001": "counterparty_check",
     "INTERVIEW_MISSING_001": "missing_field_check",
+    "CONTRACT_PERIOD_001": "period_check",
+    "CONTRACT_AMOUNT_001": "amount_check",
+    "CONTRACT_COUNTERPARTY_001": "counterparty_check",
+    "CONTRACT_KEY_TERMS_001": "key_terms_check",
+    "CONTRACT_SPECIAL_CLAUSE_001": "special_clause_check",
+    "CONTRACT_SIGNATURE_SEAL_001": "signature_seal_check",
+    "CONTRACT_MISSING_001": "missing_field_check",
 }
 
 
@@ -199,6 +236,9 @@ def generate_control_table_report(
     elif task.scenario == "interview":
         report_type = "interview_evidence_report"
         report_title = f"{task.task_no} Interview Evidence Report"
+    elif task.scenario == "contract_review":
+        report_type = "contract_review_report"
+        report_title = f"{task.task_no} Contract Review Report"
     else:
         report_type = "procurement_control_table"
         report_title = f"{task.task_no} Procurement Control Table"
@@ -315,7 +355,11 @@ def _build_control_rows(
             "name_check": statuses.get("name_check", "-"),
             "seal_sign_check": statuses.get("seal_sign_check", "-"),
             "signature_check": statuses.get("signature_check", "-"),
+            "signature_seal_check": statuses.get("signature_seal_check", "-"),
             "counterparty_check": statuses.get("counterparty_check", "-"),
+            "period_check": statuses.get("period_check", "-"),
+            "key_terms_check": statuses.get("key_terms_check", "-"),
+            "special_clause_check": statuses.get("special_clause_check", "-"),
             "missing_field_check": statuses.get("missing_field_check", "-"),
             "overall_status": _overall_status([result.status for result in group_results]),
             "evidence_refs": _json(evidence_refs),
@@ -362,6 +406,24 @@ def _build_control_rows(
                 "mentioned_amounts": _sum_amounts_for(group_docs, fields_by_document, (("interview_record", "mentioned_amounts"), ("interview_transcript", "mentioned_amounts"))),
                 "mentioned_counterparties": _first_text(group_docs, fields_by_document, (("interview_record", "mentioned_counterparties"), ("interview_transcript", "mentioned_counterparties"))),
             }
+        elif task.scenario == "contract_review":
+            row = common | {
+                "contract_name": _first_text(group_docs, fields_by_document, (("contract_review", "contract_name"), ("material_contract", "contract_name"), ("framework_agreement", "contract_name"), ("supplemental_agreement", "contract_name"))),
+                "contract_no": _first_text(group_docs, fields_by_document, (("contract_review", "contract_no"), ("material_contract", "contract_no"), ("framework_agreement", "contract_no"), ("supplemental_agreement", "contract_no"), ("contract_attachment", "contract_no"))),
+                "party_a": _first_text(group_docs, fields_by_document, (("contract_review", "party_a"), ("material_contract", "party_a"), ("framework_agreement", "party_a"), ("supplemental_agreement", "party_a"))),
+                "party_b": _first_text(group_docs, fields_by_document, (("contract_review", "party_b"), ("material_contract", "party_b"), ("framework_agreement", "party_b"), ("supplemental_agreement", "party_b"))),
+                "counterparty_name": _first_text(group_docs, fields_by_document, (("contract_review", "counterparty_name"), ("material_contract", "counterparty_name"), ("framework_agreement", "counterparty_name"), ("supplemental_agreement", "counterparty_name"))),
+                "signing_date": _first_text(group_docs, fields_by_document, (("contract_review", "signing_date"), ("material_contract", "signing_date"), ("framework_agreement", "signing_date"), ("supplemental_agreement", "signing_date"))),
+                "effective_date": _first_text(group_docs, fields_by_document, (("contract_review", "effective_date"), ("material_contract", "effective_date"), ("framework_agreement", "effective_date"), ("supplemental_agreement", "effective_date"))),
+                "expiry_date": _first_text(group_docs, fields_by_document, (("contract_review", "expiry_date"), ("material_contract", "expiry_date"), ("framework_agreement", "expiry_date"), ("supplemental_agreement", "expiry_date"))),
+                "amount_including_tax": _sum_amounts_for(group_docs, fields_by_document, (("contract_review", "amount_including_tax"), ("material_contract", "amount_including_tax"), ("framework_agreement", "amount_including_tax"), ("supplemental_agreement", "amount_including_tax"))),
+                "payment_terms": _first_text(group_docs, fields_by_document, (("contract_review", "payment_terms"), ("material_contract", "payment_terms"), ("framework_agreement", "payment_terms"))),
+                "delivery_terms": _first_text(group_docs, fields_by_document, (("contract_review", "delivery_terms"), ("material_contract", "delivery_terms"), ("framework_agreement", "delivery_terms"))),
+                "acceptance_terms": _first_text(group_docs, fields_by_document, (("contract_review", "acceptance_terms"), ("material_contract", "acceptance_terms"), ("framework_agreement", "acceptance_terms"))),
+                "breach_terms": _first_text(group_docs, fields_by_document, (("contract_review", "breach_terms"), ("material_contract", "breach_terms"), ("framework_agreement", "breach_terms"))),
+                "dispute_resolution": _first_text(group_docs, fields_by_document, (("contract_review", "dispute_resolution"), ("material_contract", "dispute_resolution"), ("framework_agreement", "dispute_resolution"))),
+                "special_clauses": _special_clause_text(group_docs, fields_by_document),
+            }
         else:
             row = common | {
                 "supplier_name": _first_text(group_docs, fields_by_document, (("purchase_contract", "supplier_name"), ("invoice", "seller_name"), ("payment_receipt", "payee_name"))),
@@ -401,10 +463,13 @@ def _sheets(
     elif task.scenario == "interview":
         control_columns = INTERVIEW_CONTROL_COLUMNS
         control_sheet_name = "Interview Evidence"
+    elif task.scenario == "contract_review":
+        control_columns = CONTRACT_REVIEW_COLUMNS
+        control_sheet_name = "Contract Review"
     else:
         control_columns = CONTROL_COLUMNS
         control_sheet_name = "Procurement Control Table"
-    return {
+    sheets = {
         "Summary": _summary_rows(summary),
         control_sheet_name: [control_columns] + [[row[column] for column in control_columns] for row in control_rows],
         "Exceptions": _exception_rows(results),
@@ -412,6 +477,17 @@ def _sheets(
         "Field Corrections": _correction_rows(comments),
         "Rule Definitions": _rule_rows(rules, results),
     }
+    if task.scenario == "contract_review":
+        sheets = {
+            "Summary": sheets["Summary"],
+            "Contract Review": sheets["Contract Review"],
+            "Special Clauses": _special_clause_rows(control_rows),
+            "Exceptions": sheets["Exceptions"],
+            "Evidence Index": sheets["Evidence Index"],
+            "Field Corrections": sheets["Field Corrections"],
+            "Rule Definitions": sheets["Rule Definitions"],
+        }
+    return sheets
 
 
 def _summary(
@@ -597,6 +673,50 @@ def _sum_amounts_for(
     lookups: tuple[tuple[str, str], ...],
 ) -> float:
     return sum(_sum_amounts(documents, fields_by_document, doc_type, field_name) for doc_type, field_name in lookups)
+
+
+def _special_clause_text(
+    documents: list[Document],
+    fields_by_document: dict[UUID, dict[str, ExtractedField]],
+) -> str:
+    clause_fields = (
+        "auto_renewal_clause",
+        "exclusivity_clause",
+        "repurchase_clause",
+        "price_adjustment_clause",
+        "related_party_clause",
+        "variable_consideration_clause",
+    )
+    values = []
+    for document in documents:
+        if document.doc_type not in {
+            "contract_review",
+            "material_contract",
+            "framework_agreement",
+            "supplemental_agreement",
+        }:
+            continue
+        document_fields = fields_by_document.get(document.id, {})
+        for field_name in clause_fields:
+            field = document_fields.get(field_name)
+            if field and field.value_text:
+                values.append(f"{field_name}: {field.value_text}")
+    return "; ".join(values)
+
+
+def _special_clause_rows(control_rows: list[dict]) -> list[list[object | None]]:
+    rows = [["business_key", "contract_no", "clause_type", "clause_text"]]
+    for row in control_rows:
+        raw = str(row.get("special_clauses") or "")
+        if not raw:
+            continue
+        for item in raw.split("; "):
+            if ": " in item:
+                clause_type, clause_text = item.split(": ", 1)
+            else:
+                clause_type, clause_text = "special_clause", item
+            rows.append([row.get("business_key"), row.get("contract_no"), clause_type, clause_text])
+    return rows
 
 
 def _amount(field: ExtractedField | None) -> float | None:

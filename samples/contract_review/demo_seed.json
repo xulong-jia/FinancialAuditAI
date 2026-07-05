@@ -1,0 +1,37 @@
+{
+  "scenario": "contract_review",
+  "description": "Synthetic contract review sample metadata. No real contract or customer data.",
+  "documents": [
+    {
+      "doc_type": "contract_review",
+      "original_filename": "synthetic_contract_review.pdf",
+      "fields": {
+        "contract_no": "CR-001",
+        "contract_name": "Synthetic Supply Agreement",
+        "signing_date": "2026-01-10",
+        "effective_date": "2026-01-15",
+        "expiry_date": "2026-12-31",
+        "party_a": "Demo Buyer Co",
+        "party_b": "Demo Supplier Co",
+        "counterparty_name": "Demo Supplier Co",
+        "amount_including_tax": 1000.0,
+        "payment_terms": "Pay within 30 days after acceptance",
+        "delivery_terms": "Deliver to demo warehouse",
+        "acceptance_terms": "Acceptance after inspection",
+        "breach_terms": "Penalty applies for delayed delivery",
+        "dispute_resolution": "Arbitration",
+        "auto_renewal_clause": "Automatically renews for one year unless terminated",
+        "signature_detected": "yes",
+        "seal_detected": "yes"
+      }
+    },
+    {
+      "doc_type": "contract_attachment",
+      "original_filename": "synthetic_contract_attachment.pdf",
+      "fields": {
+        "contract_no": "CR-001",
+        "attachment_list": "Technical specifications; delivery schedule"
+      }
+    }
+  ]
+}

@@ -29,7 +29,19 @@ export type InterviewDocType =
   | "interview_signature_page"
   | "interview_transcript";
 
-export type DocumentDocType = ProcurementDocType | SalesDocType | ConfirmationDocType | InterviewDocType;
+export type ContractReviewDocType =
+  | "contract_review"
+  | "material_contract"
+  | "supplemental_agreement"
+  | "framework_agreement"
+  | "contract_attachment";
+
+export type DocumentDocType =
+  | ProcurementDocType
+  | SalesDocType
+  | ConfirmationDocType
+  | InterviewDocType
+  | ContractReviewDocType;
 export type ClassificationDocType = DocumentDocType | "unknown";
 
 export type AlternativeDocType = {
@@ -78,7 +90,7 @@ export type AuditTask = {
   id: string;
   task_no: string;
   name: string;
-  scenario: "procurement" | "sales" | "confirmation" | "interview";
+  scenario: "procurement" | "sales" | "confirmation" | "interview" | "contract_review";
   project_name: string | null;
   company_name: string | null;
   fiscal_year: number | null;
@@ -320,7 +332,7 @@ export type DocumentUpdatePayload = {
 
 export type CreateTaskPayload = {
   name: string;
-  scenario: "procurement" | "sales" | "confirmation" | "interview";
+  scenario: "procurement" | "sales" | "confirmation" | "interview" | "contract_review";
   project_name?: string;
   company_name?: string;
   fiscal_year?: number;

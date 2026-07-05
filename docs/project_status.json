@@ -1385,7 +1385,7 @@
       "phase_id": 18,
       "name": "合同审核模块扩展",
       "category": "POST_MVP",
-      "status": "TODO",
+      "status": "DONE",
       "dependencies": [
         10
       ],
@@ -1400,46 +1400,46 @@
           "id": "P18-BE-001",
           "title": "定义合同字段和条款 Schema、抽取和规则",
           "area": "backend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "已定义 contract_review 场景、五类合同审核 doc_type、合同字段/关键条款 Schema、合同分类关键词和七条 CONTRACT_* 确定性规则；特殊条款只输出 warning 与 evidence，不生成法律意见。",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P18-FE-001",
           "title": "支持条款展示、来源片段和风险复核",
           "area": "frontend",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "Task Center 支持创建 contract_review 任务和上传合同审核文档；现有 Workbench/Review Center 复用字段、source_text、规则结果和复核队列；Report Center 支持合同审核预览。",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P18-DB-001",
           "title": "优先复用 extracted_fields 和 JSONB 条款结构",
           "area": "database",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "未新增 contract_* 专用表；合同条款复用 extracted_fields.value_normalized/source_text/source_page，规则和报告复用 audit_rules、audit_results、reports、control_table_rows。",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P18-API-001",
           "title": "复用文档处理、抽取、规则、复核和报告 API",
           "area": "api",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "复用现有 task/document/OCR/classify/extract/link/audit/review/report API；POST /tasks 支持 scenario=contract_review，report API 可生成 contract_review_report。",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         },
         {
           "id": "P18-TEST-001",
           "title": "添加基础字段、缺失条款、特殊条款和 evidence 测试",
           "area": "test",
-          "status": "TODO",
-          "notes": "",
+          "status": "DONE",
+          "notes": "新增合同审核端到端 API 测试，覆盖任务创建、五类合同文档分类、字段抽取、关键条款缺失、特殊条款、主体/金额差异、签章缺失、Review Queue 和 xlsx 导出。",
           "blocked_reason": "",
-          "updated_at": null
+          "updated_at": "2026-07-05"
         }
       ],
       "acceptance_criteria": [
@@ -1448,9 +1448,9 @@
         "条款风险能进入 Review Center",
         "报告包含条款证据"
       ],
-      "notes": "",
+      "notes": "Phase 18 完成 contract_review 场景横向扩展。复用现有 task/document/OCR/classification/extraction/linkage/audit/review/report/evaluation 基础框架，新增合同审核 doc_type、合同字段与关键条款 Schema、分类关键词、contract_no 归集、七条 CONTRACT_* 规则、Contract Review + Special Clauses xlsx 导出、Task Center contract_review 创建/上传、Report Center contract_review 预览、synthetic contract review sample data 和后端合同审核端到端测试。未新增 contract_* 专用表，未实现法律意见、合同自动审批、电子签章真伪鉴定、公章真伪鉴定、律师工作流、RBAC 或 Phase 19 功能。",
       "blocked_reason": "",
-      "updated_at": null
+      "updated_at": "2026-07-05"
     },
     {
       "phase_id": 19,

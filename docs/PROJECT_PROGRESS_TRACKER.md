@@ -45,7 +45,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 | Phase 15 | 销售穿行扩展 | Post-MVP | DONE | 销售穿行 Schema、规则、控制表 |
 | Phase 16 | 函证模块扩展 | Post-MVP | DONE | 函证字段抽取、差异比对、复核 |
 | Phase 17 | 访谈模块扩展 | Post-MVP | DONE | 访谈字段、关键回答、底稿交叉验证 |
-| Phase 18 | 合同审核模块扩展 | Post-MVP | TODO | 合同条款抽取、风险提示、证据索引 |
+| Phase 18 | 合同审核模块扩展 | Post-MVP | DONE | 合同条款抽取、风险提示、证据索引 |
 | Phase 19 | RBAC、审计、安全、工程化完善 | Post-MVP | TODO | 用户角色权限、安全、审计、异步工程化 |
 | Phase 20 | 最终验收、文档整理、作品集展示材料 | Post-MVP | TODO | 最终验收清单、文档、截图、展示材料 |
 
@@ -1473,7 +1473,12 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 - Phase 名称：合同审核模块扩展
 - 是否属于 MVP：否
-- Status: TODO
+- Status: DONE
+- Updated At: 2026-07-05
+
+### Notes
+
+- 2026-07-05: Phase 18 完成 contract_review 场景横向扩展。复用现有 task/document/OCR/classification/extraction/linkage/audit/review/report/evaluation 基础框架，新增合同审核 doc_type、合同字段与关键条款 Schema、分类关键词、contract_no 归集、七条 CONTRACT_* 规则、Contract Review + Special Clauses xlsx 导出、Task Center contract_review 创建/上传、Report Center contract_review 预览、synthetic contract review sample data 和后端合同审核端到端测试。未新增 contract_* 专用表，未实现法律意见、合同自动审批、电子签章真伪鉴定、公章真伪鉴定、律师工作流、RBAC 或 Phase 19 功能。
 
 ### 阶段目标
 
@@ -1481,63 +1486,63 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 
 ### 后端任务
 
-- [ ] 定义 contract_review 场景。
-- [ ] 定义合同字段和条款 Schema。
-- [ ] 抽取主体、金额、期限、付款、交付、验收、违约、争议解决。
-- [ ] 识别自动续期、排他、回购、价格调整等特殊条款。
-- [ ] 实现关键条款缺失规则。
+- [x] 定义 contract_review 场景。
+- [x] 定义合同字段和条款 Schema。
+- [x] 抽取主体、金额、期限、付款、交付、验收、违约、争议解决。
+- [x] 识别自动续期、排他、回购、价格调整等特殊条款。
+- [x] 实现关键条款缺失规则。
 
 ### 前端任务
 
-- [ ] Task Center 支持 contract_review 场景。
-- [ ] Workbench 支持条款结构化展示。
-- [ ] 展示条款来源片段。
-- [ ] Review Center 支持条款风险复核。
-- [ ] Report Center 支持合同审核报告。
+- [x] Task Center 支持 contract_review 场景。
+- [x] Workbench 支持条款结构化展示。
+- [x] 展示条款来源片段。
+- [x] Review Center 支持条款风险复核。
+- [x] Report Center 支持合同审核报告。
 
 ### 数据库 / Migration 任务
 
-- [ ] 优先复用 `extracted_fields` 和 JSONB line_items/clauses。
-- [ ] 如需独立 clause 表，先补充 tracker 后再开发。
+- [x] 优先复用 `extracted_fields` 和 JSONB line_items/clauses。
+- [x] 如需独立 clause 表，先补充 tracker 后再开发。
 
 ### API 任务
 
-- [ ] 复用文档处理和抽取 API。
-- [ ] 复用规则和复核 API。
-- [ ] 复用报告 API。
+- [x] 复用文档处理和抽取 API。
+- [x] 复用规则和复核 API。
+- [x] 复用报告 API。
 
 ### 测试任务
 
-- [ ] 合同基础字段抽取测试。
-- [ ] 付款条款缺失测试。
-- [ ] 特殊条款识别测试。
-- [ ] 条款 evidence 测试。
+- [x] 合同基础字段抽取测试。
+- [x] 付款条款缺失测试。
+- [x] 特殊条款识别测试。
+- [x] 条款 evidence 测试。
 
 ### 验收标准
 
-- [ ] 能抽取合同基础字段和关键条款。
-- [ ] 能识别缺失条款和特殊条款。
-- [ ] 条款风险能进入 Review Center。
-- [ ] 报告包含条款证据。
+- [x] 能抽取合同基础字段和关键条款。
+- [x] 能识别缺失条款和特殊条款。
+- [x] 条款风险能进入 Review Center。
+- [x] 报告包含条款证据。
 
 ### 交付物
 
-- [ ] 合同审核 Schema。
-- [ ] 合同规则。
-- [ ] 合同审核报告。
-- [ ] 合同样例数据。
+- [x] 合同审核 Schema。
+- [x] 合同规则。
+- [x] 合同审核报告。
+- [x] 合同样例数据。
 
 ### 风险点
 
-- [ ] 合同文本长且结构不统一。
-- [ ] 特殊条款解释需要专业复核。
-- [ ] 补充协议可能改变主合同条款。
+- [x] 合同文本长且结构不统一。
+- [x] 特殊条款解释需要专业复核。
+- [x] 补充协议可能改变主合同条款。
 
 ### 不允许额外扩展的边界说明
 
-- [ ] 不提供法律意见。
-- [ ] 不做合同自动审批。
-- [ ] 不替代律师或审计人员判断。
+- [x] 不提供法律意见。
+- [x] 不做合同自动审批。
+- [x] 不替代律师或审计人员判断。
 
 ## Phase 19: RBAC、审计、安全、工程化完善
 
@@ -1727,7 +1732,7 @@ MVP 中允许保留证据索引、规则 evidence、基础测试、demo data、P
 - [x] Phase 15 销售穿行扩展完成。
 - [x] Phase 16 函证模块扩展完成。
 - [x] Phase 17 访谈模块扩展完成。
-- [ ] Phase 18 合同审核模块扩展完成。
+- [x] Phase 18 合同审核模块扩展完成。
 - [ ] Phase 19 RBAC、审计、安全、工程化完善完成。
 - [x] RAG 输出包含 citation 和 no-answer handling。
 - [ ] Agent 不绕过 Rule Engine。

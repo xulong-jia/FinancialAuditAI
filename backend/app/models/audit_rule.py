@@ -34,6 +34,8 @@ class AuditRule(Base):
             return "confirmation"
         if self.rule_code.startswith("INTERVIEW_"):
             return "interview"
+        if self.rule_code.startswith("CONTRACT_"):
+            return "contract_review"
         return "procurement"
 
     @property
@@ -46,5 +48,7 @@ class AuditRule(Base):
             "CONF_DATE_001",
             "CONF_AMOUNT_001",
             "INTERVIEW_AMOUNT_001",
+            "CONTRACT_AMOUNT_001",
+            "CONTRACT_SPECIAL_CLAUSE_001",
         }
         return "high" if self.rule_code in high_rules else "medium"

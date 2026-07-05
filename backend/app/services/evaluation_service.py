@@ -81,6 +81,7 @@ def _evaluate_classification() -> tuple[int, dict, list[dict]]:
         ("sales-order.pdf", "sales order\norder no: SO-1\ncustomer: Demo Co", "sales_order", "sales"),
         ("confirmation-reply.pdf", "confirmation reply\nconfirmation no: CF-1\nreplied date\nconfirmed amount\nseal\nsignatory", "confirmation_reply", "confirmation"),
         ("interview-record.pdf", "interview record\ninterview date\ninterviewee\nkey answers\nmentioned amounts", "interview_record", "interview"),
+        ("contract-review.pdf", "contract review\ncontract no\npayment terms\ndelivery terms", "contract_review", "contract_review"),
     ]
     failed = []
     for filename, text, expected, scenario in samples:

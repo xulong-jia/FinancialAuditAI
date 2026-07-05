@@ -273,6 +273,55 @@ class InterviewTranscriptExtraction(BaseModel):
     source_paragraphs: ExtractedFieldValue
 
 
+class ContractReviewExtraction(BaseModel):
+    contract_no: ExtractedFieldValue
+    contract_name: ExtractedFieldValue
+    signing_date: ExtractedFieldValue
+    effective_date: ExtractedFieldValue
+    expiry_date: ExtractedFieldValue
+    party_a: ExtractedFieldValue
+    party_b: ExtractedFieldValue
+    counterparty_name: ExtractedFieldValue
+    amount_including_tax: ExtractedFieldValue
+    tax_rate: ExtractedFieldValue
+    item_summary: ExtractedFieldValue
+    payment_terms: ExtractedFieldValue
+    delivery_terms: ExtractedFieldValue
+    acceptance_terms: ExtractedFieldValue
+    breach_terms: ExtractedFieldValue
+    dispute_resolution: ExtractedFieldValue
+    auto_renewal_clause: ExtractedFieldValue
+    exclusivity_clause: ExtractedFieldValue
+    repurchase_clause: ExtractedFieldValue
+    price_adjustment_clause: ExtractedFieldValue
+    related_party_clause: ExtractedFieldValue
+    variable_consideration_clause: ExtractedFieldValue
+    attachment_list: ExtractedFieldValue
+    signature_detected: ExtractedFieldValue
+    seal_detected: ExtractedFieldValue
+
+
+class SupplementalAgreementExtraction(BaseModel):
+    contract_no: ExtractedFieldValue
+    contract_name: ExtractedFieldValue
+    signing_date: ExtractedFieldValue
+    effective_date: ExtractedFieldValue
+    expiry_date: ExtractedFieldValue
+    party_a: ExtractedFieldValue
+    party_b: ExtractedFieldValue
+    counterparty_name: ExtractedFieldValue
+    amount_including_tax: ExtractedFieldValue
+    price_adjustment_clause: ExtractedFieldValue
+    related_party_clause: ExtractedFieldValue
+    variable_consideration_clause: ExtractedFieldValue
+    attachment_list: ExtractedFieldValue
+
+
+class ContractAttachmentExtraction(BaseModel):
+    contract_no: ExtractedFieldValue
+    attachment_list: ExtractedFieldValue
+
+
 DOCUMENT_EXTRACTION_SCHEMAS = {
     "purchase_request": PurchaseRequestExtraction,
     "purchase_contract": PurchaseContractExtraction,
@@ -306,6 +355,14 @@ INTERVIEW_DOCUMENT_EXTRACTION_SCHEMAS = {
     "interview_transcript": InterviewTranscriptExtraction,
 }
 
+CONTRACT_REVIEW_DOCUMENT_EXTRACTION_SCHEMAS = {
+    "contract_review": ContractReviewExtraction,
+    "material_contract": ContractReviewExtraction,
+    "framework_agreement": ContractReviewExtraction,
+    "supplemental_agreement": SupplementalAgreementExtraction,
+    "contract_attachment": ContractAttachmentExtraction,
+}
+
 
 def validate_document_extraction(
     doc_type: DocumentDocType,
@@ -317,6 +374,7 @@ def validate_document_extraction(
         "sales": SALES_DOCUMENT_EXTRACTION_SCHEMAS,
         "confirmation": CONFIRMATION_DOCUMENT_EXTRACTION_SCHEMAS,
         "interview": INTERVIEW_DOCUMENT_EXTRACTION_SCHEMAS,
+        "contract_review": CONTRACT_REVIEW_DOCUMENT_EXTRACTION_SCHEMAS,
     }.get(scenario, DOCUMENT_EXTRACTION_SCHEMAS)
     try:
         schemas[doc_type].model_validate(payload)

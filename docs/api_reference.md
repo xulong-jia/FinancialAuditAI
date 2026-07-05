@@ -16,7 +16,7 @@ Responses use JSON unless the endpoint is a report download. Errors use FastAPI'
 - `GET /tasks/{task_id}`
 - `PATCH /tasks/{task_id}`
 
-Supported task scenarios: `procurement`, `sales`, `confirmation`, `interview`.
+Supported task scenarios: `procurement`, `sales`, `confirmation`, `interview`, `contract_review`.
 
 ## Documents
 
@@ -76,12 +76,21 @@ Supported interview doc types:
 - `interview_transcript`
 - `unknown`
 
+Supported contract review doc types:
+
+- `contract_review`
+- `material_contract`
+- `supplemental_agreement`
+- `framework_agreement`
+- `contract_attachment`
+- `unknown`
+
 ## Document Linkage
 
 - `POST /tasks/{task_id}/link-documents`
 - `GET /tasks/{task_id}/document-relations`
 
-Procurement, sales, confirmation, and interview all reuse this API. Sales linkage prioritizes explicit contract/order/delivery/invoice references; low-confidence customer bridges are marked for review. Confirmation linkage prioritizes `confirmation_no`; interview linkage uses `interviewee_name` across interview documents and keeps relation evidence reviewable.
+Procurement, sales, confirmation, interview, and contract review all reuse this API. Sales linkage prioritizes explicit contract/order/delivery/invoice references; low-confidence customer bridges are marked for review. Confirmation linkage prioritizes `confirmation_no`; interview linkage uses `interviewee_name` across interview documents. Contract review linkage prioritizes explicit `contract_no` across contracts, supplemental agreements, framework agreements, and attachments. Relation evidence remains reviewable.
 
 ## Rule Engine
 
@@ -126,6 +135,16 @@ Interview rule codes:
 - `INTERVIEW_AMOUNT_001`
 - `INTERVIEW_COUNTERPARTY_001`
 
+Contract review rule codes:
+
+- `CONTRACT_MISSING_001`
+- `CONTRACT_PERIOD_001`
+- `CONTRACT_AMOUNT_001`
+- `CONTRACT_COUNTERPARTY_001`
+- `CONTRACT_KEY_TERMS_001`
+- `CONTRACT_SPECIAL_CLAUSE_001`
+- `CONTRACT_SIGNATURE_SEAL_001`
+
 Rule configuration stays inside the Python rule registry. `POST /rules` only accepts rule codes already present in the registry. `PATCH /rules/{rule_id}` supports enabled status, version, description, and approved parameters such as `tolerance_amount`, `tolerance_ratio`, `allowed_tax_rates`, `supplier_aliases`, `item_mappings`, `prepayment_allowed`, and `date_tolerance_days`. Rule updates write `audit_logs`; audit results include `rule_version`. `POST /rules/{rule_id}/evaluate` is a dry run and does not persist `audit_results`.
 
 ## Review
@@ -148,7 +167,7 @@ Dismiss requires a non-empty `reason`.
 
 Report files are xlsx only in MVP. Generated files are stored under ignored `local_storage/reports`.
 
-Procurement reports include `Procurement Control Table`. Sales reports include `Sales Control Table`. Confirmation reports include `Confirmation Results`. Interview reports include `Interview Evidence`. All keep Summary, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
+Procurement reports include `Procurement Control Table`. Sales reports include `Sales Control Table`. Confirmation reports include `Confirmation Results`. Interview reports include `Interview Evidence`. Contract review reports include `Contract Review` and `Special Clauses`. All keep Summary, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
 
 ## RAG Knowledge Base
 

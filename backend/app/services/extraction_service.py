@@ -307,12 +307,101 @@ INTERVIEW_SCHEMA_SPECS: dict[str, tuple[FieldSpec, ...]] = {
     ),
 }
 
+CONTRACT_REVIEW_COMMON_SPECS: tuple[FieldSpec, ...] = (
+    FieldSpec("contract_no", "Contract No", "text", ("contract no", "contract_no", "合同编号")),
+    FieldSpec("contract_name", "Contract Name", "text", ("contract name", "contract_name", "合同名称")),
+    FieldSpec("signing_date", "Signing Date", "date", ("signing date", "signed date", "签署日期", "签订日期")),
+    FieldSpec("effective_date", "Effective Date", "date", ("effective date", "生效日期"), False),
+    FieldSpec("expiry_date", "Expiry Date", "date", ("expiry date", "expiration date", "到期日期", "失效日期"), False),
+    FieldSpec("party_a", "Party A", "name", ("party a", "甲方")),
+    FieldSpec("party_b", "Party B", "name", ("party b", "乙方")),
+    FieldSpec("counterparty_name", "Counterparty Name", "name", ("counterparty name", "counterparty", "交易对手")),
+    FieldSpec(
+        "amount_including_tax",
+        "Amount Including Tax",
+        "money",
+        ("amount including tax", "total with tax", "contract amount", "含税金额", "合同金额"),
+    ),
+    FieldSpec("tax_rate", "Tax Rate", "tax_rate", ("tax rate", "税率"), False),
+    FieldSpec("item_summary", "Item Summary", "text", ("item summary", "subject matter", "标的", "项目摘要"), False),
+    FieldSpec("payment_terms", "Payment Terms", "text", ("payment terms", "付款条款", "付款条件")),
+    FieldSpec("delivery_terms", "Delivery Terms", "text", ("delivery terms", "交付条款", "交付条件")),
+    FieldSpec("acceptance_terms", "Acceptance Terms", "text", ("acceptance terms", "验收条款", "验收条件")),
+    FieldSpec("breach_terms", "Breach Terms", "text", ("breach terms", "breach liability", "违约责任", "违约条款")),
+    FieldSpec("dispute_resolution", "Dispute Resolution", "text", ("dispute resolution", "争议解决", "仲裁")),
+    FieldSpec("auto_renewal_clause", "Auto Renewal Clause", "text", ("auto renewal clause", "auto renewal", "自动续期"), False),
+    FieldSpec("exclusivity_clause", "Exclusivity Clause", "text", ("exclusivity clause", "exclusivity", "排他"), False),
+    FieldSpec("repurchase_clause", "Repurchase Clause", "text", ("repurchase clause", "repurchase", "回购"), False),
+    FieldSpec(
+        "price_adjustment_clause",
+        "Price Adjustment Clause",
+        "text",
+        ("price adjustment clause", "price adjustment", "价格调整"),
+        False,
+    ),
+    FieldSpec("related_party_clause", "Related Party Clause", "text", ("related party clause", "related party", "关联交易"), False),
+    FieldSpec(
+        "variable_consideration_clause",
+        "Variable Consideration Clause",
+        "text",
+        ("variable consideration clause", "variable consideration", "可变对价"),
+        False,
+    ),
+    FieldSpec("attachment_list", "Attachment List", "text", ("attachment list", "attachments", "附件清单"), False),
+    FieldSpec("signature_detected", "Signature Detected", "status", ("signature detected", "signature", "签字"), False),
+    FieldSpec("seal_detected", "Seal Detected", "status", ("seal detected", "seal", "盖章", "公章"), False),
+)
+
+CONTRACT_REVIEW_SCHEMA_SPECS: dict[str, tuple[FieldSpec, ...]] = {
+    "contract_review": CONTRACT_REVIEW_COMMON_SPECS,
+    "material_contract": CONTRACT_REVIEW_COMMON_SPECS,
+    "framework_agreement": CONTRACT_REVIEW_COMMON_SPECS,
+    "supplemental_agreement": (
+        FieldSpec("contract_no", "Contract No", "text", ("contract no", "contract_no", "合同编号")),
+        FieldSpec("contract_name", "Contract Name", "text", ("contract name", "contract_name", "合同名称"), False),
+        FieldSpec("signing_date", "Signing Date", "date", ("signing date", "signed date", "签署日期", "签订日期"), False),
+        FieldSpec("effective_date", "Effective Date", "date", ("effective date", "生效日期"), False),
+        FieldSpec("expiry_date", "Expiry Date", "date", ("expiry date", "expiration date", "到期日期", "失效日期"), False),
+        FieldSpec("party_a", "Party A", "name", ("party a", "甲方"), False),
+        FieldSpec("party_b", "Party B", "name", ("party b", "乙方"), False),
+        FieldSpec("counterparty_name", "Counterparty Name", "name", ("counterparty name", "counterparty", "交易对手"), False),
+        FieldSpec(
+            "amount_including_tax",
+            "Amount Including Tax",
+            "money",
+            ("amount including tax", "total with tax", "contract amount", "含税金额", "合同金额"),
+            False,
+        ),
+        FieldSpec(
+            "price_adjustment_clause",
+            "Price Adjustment Clause",
+            "text",
+            ("price adjustment clause", "price adjustment", "价格调整"),
+            False,
+        ),
+        FieldSpec("related_party_clause", "Related Party Clause", "text", ("related party clause", "related party", "关联交易"), False),
+        FieldSpec(
+            "variable_consideration_clause",
+            "Variable Consideration Clause",
+            "text",
+            ("variable consideration clause", "variable consideration", "可变对价"),
+            False,
+        ),
+        FieldSpec("attachment_list", "Attachment List", "text", ("attachment list", "attachments", "附件清单"), False),
+    ),
+    "contract_attachment": (
+        FieldSpec("contract_no", "Contract No", "text", ("contract no", "contract_no", "合同编号")),
+        FieldSpec("attachment_list", "Attachment List", "text", ("attachment list", "attachments", "附件清单"), False),
+    ),
+}
+
 
 def schema_specs_for(scenario: str, doc_type: str) -> tuple[FieldSpec, ...]:
     specs = {
         "sales": SALES_SCHEMA_SPECS,
         "confirmation": CONFIRMATION_SCHEMA_SPECS,
         "interview": INTERVIEW_SCHEMA_SPECS,
+        "contract_review": CONTRACT_REVIEW_SCHEMA_SPECS,
     }.get(scenario, SCHEMA_SPECS)
     return specs.get(doc_type, ())
 

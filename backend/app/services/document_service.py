@@ -56,6 +56,13 @@ DOC_TYPES_BY_SCENARIO = {
         "interview_signature_page",
         "interview_transcript",
     },
+    "contract_review": {
+        "contract_review",
+        "material_contract",
+        "supplemental_agreement",
+        "framework_agreement",
+        "contract_attachment",
+    },
 }
 
 

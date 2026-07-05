@@ -1,6 +1,6 @@
 # FinancialAuditAI
 
-FinancialAuditAI is a financial document review platform that started with a procurement walkthrough MVP and now includes sales walkthrough, confirmation, and interview extensions. It covers the slice from task creation to document parsing, classification, extraction, linkage, deterministic rule checks, human review, quality evaluation, and xlsx report export.
+FinancialAuditAI is a financial document review platform that started with a procurement walkthrough MVP and now includes sales walkthrough, confirmation, interview, and contract review extensions. It covers the slice from task creation to document parsing, classification, extraction, linkage, deterministic rule checks, human review, quality evaluation, and xlsx report export.
 
 This MVP is for learning, portfolio, and local demonstration only. It does not provide audit, legal, investment, or compliance advice.
 
@@ -67,13 +67,21 @@ Post-MVP Phase 17 implemented:
 - Interview xlsx export with Summary, Interview Evidence, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
 - Key answers, mentioned amounts, and mentioned counterparties are evidence-backed review prompts only; the system does not perform speech recognition or final factual adjudication.
 
+Post-MVP Phase 18 implemented:
+
+- Contract review extension using the existing OCR, classification, extraction, linkage, Rule Engine, Review Center, Report Center, RAG, Agent, and Evaluation foundations.
+- Contract review document types: `contract_review`, `material_contract`, `supplemental_agreement`, `framework_agreement`, and `contract_attachment`.
+- Contract review rules: `CONTRACT_MISSING_001`, `CONTRACT_PERIOD_001`, `CONTRACT_AMOUNT_001`, `CONTRACT_COUNTERPARTY_001`, `CONTRACT_KEY_TERMS_001`, `CONTRACT_SPECIAL_CLAUSE_001`, and `CONTRACT_SIGNATURE_SEAL_001`.
+- Contract review xlsx export with Summary, Contract Review, Special Clauses, Exceptions, Evidence Index, Field Corrections, and Rule Definitions sheets.
+- Contract terms and special clauses are evidence-backed risk prompts only; the system does not provide legal opinions, automatic approval, signature authenticity checks, or seal authenticity checks.
+
 Not implemented:
 
 - Full RBAC, Dashboard, PDF reports.
-- Contract review or other remaining Post-MVP scenarios.
 - Complex revenue recognition, sales forecasting, cash-flow forecasting, or customer credit assessment.
 - External confirmation sending, email delivery, bank interfaces, seal authenticity checks, signature authenticity checks, or final confirmation authenticity judgments.
 - Audio upload, speech recognition, identity document recognition, external fact checking, or automatic final interview conclusions.
+- Legal opinions, contract automatic approval, contract negotiation systems, automatic contract generation, signature authenticity checks, seal authenticity checks, or lawyer workflow.
 
 ## Local Setup
 
@@ -157,7 +165,7 @@ python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.js
 ## Demo Path
 
 1. Open Task Center.
-2. Create a procurement, sales, confirmation, or interview task.
+2. Create a procurement, sales, confirmation, interview, or contract review task.
 3. Upload the supported documents for that scenario.
 4. Run OCR, classification, extraction, linkage, and audit rules.
 5. Open Audit Workbench to inspect documents, fields, rule results, and evidence.
@@ -174,7 +182,7 @@ alembic upgrade head
 python ../scripts/seed_demo_data.py
 ```
 
-The seed script uses only synthetic procurement data from `samples/procurement/demo_seed.json`. Phase 15 sales sample metadata lives in `samples/sales/demo_seed.json`; Phase 16 confirmation sample metadata lives in `samples/confirmation/demo_seed.json`; Phase 17 interview sample metadata lives in `samples/interview/demo_seed.json`. These files are synthetic and do not include real documents.
+The seed script uses only synthetic procurement data from `samples/procurement/demo_seed.json`. Phase 15 sales sample metadata lives in `samples/sales/demo_seed.json`; Phase 16 confirmation sample metadata lives in `samples/confirmation/demo_seed.json`; Phase 17 interview sample metadata lives in `samples/interview/demo_seed.json`; Phase 18 contract review sample metadata lives in `samples/contract_review/demo_seed.json`. These files are synthetic and do not include real documents.
 
 ## Data And Safety
 

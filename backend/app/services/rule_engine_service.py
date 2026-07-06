@@ -18,7 +18,7 @@ from app.models.audit_task import AuditTask
 from app.models.document import Document
 from app.models.extracted_field import ExtractedField
 from app.schemas.rag import KnowledgeBase
-from app.services import audit_log_service, rag_service
+from app.services import audit_log_service, llm_provider, model_invocation_service, rag_service
 from app.services.extraction_service import schema_specs_for
 
 
@@ -2051,8 +2051,86 @@ def _rag_citations_for_result(db: Session, result: AuditResult) -> list[dict] | 
         for citation in rag_result["citations"]:
             citations.append(_json_citation(citation))
             if len(citations) >= 3:
-                return citations
+                break
+        if len(citations) >= 3:
+            break
+    _attach_explanation(db, result, query_text, citations)
     return citations
+
+
+def _attach_explanation(db: Session, result: AuditResult, query_text: str, citations: list[dict]) -> None:
+    if not citations:
+        model_invocation_service.add_invocation(
+            db,
+            provider="not-called",
+            model_name="not-called",
+            invocation_type="explain",
+            task_id=result.task_id,
+            prompt_version="audit-explain-v1",
+            output_schema="AuditResultExplanation",
+            status="skipped",
+            input_text=query_text,
+            cost_estimate={"currency": "USD", "amount": None, "basis": "not_called_no_citations"},
+        )
+        _store_explanation(
+            result,
+            {
+                "status": "no_citations",
+                "provider_kind": "not_called",
+                "provider_name": "not-called",
+                "explanation": "Evidence insufficient. No citation was available for grounded exception explanation.",
+                "limitations": ["No RAG citation was available."],
+            },
+        )
+        return
+
+    provider = llm_provider.get_llm_provider("explain")
+    provider_result = provider.explain_audit_result(result.rule_code, result.message, result.severity, citations)
+    model_invocation_service.add_invocation(
+        db,
+        provider=provider_result.provider_name,
+        model_name=provider_result.model_name or provider_result.provider_name,
+        invocation_type="explain",
+        task_id=result.task_id,
+        prompt_version="audit-explain-v1",
+        output_schema="AuditResultExplanation",
+        status="success" if provider_result.status == "ok" else "fallback",
+        latency_ms=provider_result.latency_ms,
+        input_text=query_text,
+        token_usage=provider_result.token_usage,
+        error={"message": provider_result.error} if provider_result.error else None,
+    )
+    explanation, limitations = _explanation_from_provider(provider_result, result, citations)
+    _store_explanation(
+        result,
+        {
+            **llm_provider.provider_info(provider_result),
+            "explanation": explanation,
+            "limitations": limitations,
+        },
+    )
+
+
+def _explanation_from_provider(
+    provider_result: llm_provider.ProviderResult,
+    result: AuditResult,
+    citations: list[dict],
+) -> tuple[str, list[str]]:
+    if provider_result.status == "ok" and isinstance(provider_result.payload, dict):
+        explanation = provider_result.payload.get("explanation")
+        if isinstance(explanation, str) and explanation.strip():
+            limitations = provider_result.payload.get("limitations")
+            return explanation.strip(), [str(item) for item in limitations] if isinstance(limitations, list) else []
+    citation_titles = ", ".join(str(citation.get("title")) for citation in citations[:3])
+    return (
+        f"{result.rule_code} remains {result.status}: {result.message} Citations: {citation_titles}.",
+        ["Explanation used deterministic fallback because no real/local explain provider returned grounded JSON."],
+    )
+
+
+def _store_explanation(result: AuditResult, explanation: dict) -> None:
+    actual_value = result.actual_value if isinstance(result.actual_value, dict) else {}
+    result.actual_value = actual_value | {"explanation": explanation}
 
 
 def _json_citation(citation: dict) -> dict:

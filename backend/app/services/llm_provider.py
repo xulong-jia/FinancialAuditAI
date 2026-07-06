@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+from time import perf_counter
 import urllib.error
 import urllib.request
 
@@ -13,8 +14,11 @@ class ProviderResult:
     status: str
     provider_kind: str
     provider_name: str
+    model_name: str | None = None
     payload: dict | None = None
     raw_text: str | None = None
+    latency_ms: int | None = None
+    token_usage: dict | None = None
     error: str | None = None
 
 
@@ -34,11 +38,15 @@ class LlmProvider:
     def rerank_citations(self, query_text: str, citations: list[dict]) -> ProviderResult:
         return self._unavailable()
 
+    def explain_audit_result(self, rule_code: str, message: str, severity: str, citations: list[dict]) -> ProviderResult:
+        return self._unavailable()
+
     def _unavailable(self) -> ProviderResult:
         return ProviderResult(
             status="unavailable",
             provider_kind=self.provider_kind,
             provider_name=self.provider_name,
+            model_name=self.provider_name,
             error="No real or local LLM provider is configured.",
         )
 
@@ -105,6 +113,22 @@ class OpenAICompatibleLlmProvider(LlmProvider):
         }
         return self._json_chat(prompt)
 
+    def explain_audit_result(self, rule_code: str, message: str, severity: str, citations: list[dict]) -> ProviderResult:
+        prompt = {
+            "task": "explain_audit_exception_with_citations",
+            "rule_code": rule_code,
+            "severity": severity,
+            "message": message,
+            "citations": citations[:5],
+            "required_json_schema": {"explanation": "string grounded in citations", "limitations": ["strings"]},
+            "rules": [
+                "Do not change the deterministic rule result.",
+                "Use only provided citations.",
+                "If citations are insufficient, say evidence is insufficient.",
+            ],
+        }
+        return self._json_chat(prompt)
+
     def rerank_citations(self, query_text: str, citations: list[dict]) -> ProviderResult:
         prompt = {
             "task": "rerank_rag_citations",
@@ -124,24 +148,30 @@ class OpenAICompatibleLlmProvider(LlmProvider):
         return self._json_chat(prompt)
 
     def _json_chat(self, prompt: dict) -> ProviderResult:
+        started = perf_counter()
         try:
-            raw_text = self._chat(json.dumps(prompt, ensure_ascii=False))
+            raw_text, token_usage = self._chat(json.dumps(prompt, ensure_ascii=False))
             return ProviderResult(
                 status="ok",
                 provider_kind=self.provider_kind,
                 provider_name=self.provider_name,
+                model_name=self.model,
                 payload=_parse_json_object(raw_text),
                 raw_text=raw_text,
+                latency_ms=int((perf_counter() - started) * 1000),
+                token_usage=token_usage,
             )
         except (OSError, ValueError, urllib.error.URLError) as exc:
             return ProviderResult(
                 status="error",
                 provider_kind=self.provider_kind,
                 provider_name=self.provider_name,
+                model_name=self.model,
+                latency_ms=int((perf_counter() - started) * 1000),
                 error=str(exc),
             )
 
-    def _chat(self, content: str) -> str:
+    def _chat(self, content: str) -> tuple[str, dict | None]:
         endpoint = self.api_url if self.api_url.endswith("/chat/completions") else f"{self.api_url}/chat/completions"
         body = json.dumps(
             {
@@ -162,7 +192,8 @@ class OpenAICompatibleLlmProvider(LlmProvider):
         content_value = payload.get("choices", [{}])[0].get("message", {}).get("content")
         if not isinstance(content_value, str) or not content_value.strip():
             raise ValueError("LLM response did not contain message content")
-        return content_value
+        token_usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else None
+        return content_value, token_usage
 
 
 def get_llm_provider(purpose: str | None = None) -> LlmProvider:
@@ -195,6 +226,9 @@ def provider_info(result: ProviderResult) -> dict:
         "status": result.status,
         "provider_kind": result.provider_kind,
         "provider_name": result.provider_name,
+        "model_name": result.model_name,
+        "latency_ms": result.latency_ms,
+        "token_usage": result.token_usage,
         "error": result.error,
     }
 

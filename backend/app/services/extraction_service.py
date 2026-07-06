@@ -22,6 +22,10 @@ class ExtractionProviderError(ValueError):
     pass
 
 
+EXTRACTION_CONTRACT_VERSION = "llm-extraction-v1"
+REGEX_FALLBACK_VERSION = "regex-extraction-v1"
+
+
 @dataclass(frozen=True)
 class FieldSpec:
     field_name: str
@@ -487,11 +491,14 @@ def extract_document(db: Session, document_id: UUID) -> list[ExtractedField]:
         task_id=document.task_id,
         document_id=document.id,
         provider=str(provider_meta.get("provider_name") or provider_meta.get("provider") or "unknown"),
-        model_name=str(provider_meta.get("provider_name") or provider_meta.get("provider") or "unknown"),
-        invocation_type="extraction",
+        model_name=str(provider_meta.get("model_name") or provider_meta.get("provider_name") or provider_meta.get("provider") or "unknown"),
+        invocation_type="extract",
+        prompt_version=REGEX_FALLBACK_VERSION if provider_meta.get("fallback_used") else EXTRACTION_CONTRACT_VERSION,
         output_schema=document.doc_type,
-        status="degraded" if provider_meta.get("fallback_used") else "completed",
+        status="fallback" if provider_meta.get("fallback_used") else "success",
+        latency_ms=provider_meta.get("latency_ms"),
         input_text="\n".join(page.raw_text for page in pages),
+        token_usage=provider_meta.get("token_usage") if isinstance(provider_meta.get("token_usage"), dict) else None,
         error={"message": str(provider_meta.get("error"))} if provider_meta.get("error") else None,
     )
     try:

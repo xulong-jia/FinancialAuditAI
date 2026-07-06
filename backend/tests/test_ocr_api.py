@@ -1,9 +1,12 @@
 from pathlib import Path
+from uuid import UUID
 
 import fitz
 from fastapi.testclient import TestClient
 
+from app.db.session import SessionLocal
 from app.main import app
+from app.models.model_invocation import ModelInvocation
 
 
 client = TestClient(app)
@@ -70,6 +73,14 @@ def test_pdf_ocr_extracts_pages_in_order() -> None:
     assert "digital_text_confidence_not_applicable" in pages[0]["warnings"]
     assert pages[0]["table_blocks"][0]["rows"][0]["cells"] == ["item", "amount"]
 
+    with SessionLocal() as db:
+        invocation = db.query(ModelInvocation).filter(ModelInvocation.document_id == UUID(uploaded["id"])).one()
+        assert invocation.task_id == UUID(task["id"])
+        assert invocation.invocation_type == "ocr"
+        assert invocation.status == "success"
+        assert invocation.latency_ms is not None
+        assert invocation.cost_estimate["basis"] == "non_llm_ocr_no_token_usage"
+
     image_response = client.get(f"/api/v1/documents/{uploaded['id']}/pages/1/image")
     assert image_response.status_code == 200
     assert image_response.headers["content-type"] == "image/png"
@@ -128,5 +139,11 @@ def test_ocr_failure_does_not_hide_task_or_document() -> None:
     pages_response = client.get(f"/api/v1/documents/{uploaded['id']}/pages")
     assert pages_response.status_code == 200
     assert pages_response.json() == []
+
+    with SessionLocal() as db:
+        invocation = db.query(ModelInvocation).filter(ModelInvocation.document_id == UUID(uploaded["id"])).one()
+        assert invocation.invocation_type == "ocr"
+        assert invocation.status == "failed"
+        assert invocation.error["message"]
 
     assert not list((Path(__file__).resolve().parents[2] / "local_storage").glob("**/*.ocr"))

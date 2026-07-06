@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from time import perf_counter
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 from uuid import UUID
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models.document import Document
 from app.models.document_page import DocumentPage
-from app.services import audit_log_service
+from app.services import audit_log_service, model_invocation_service
 
 
 class BasicImageOcrProvider:
@@ -86,8 +87,10 @@ def run_ocr(db: Session, document_id: UUID) -> Document:
     db.commit()
 
     path = project_root() / document.storage_path
+    started = perf_counter()
     try:
         pages = _parse_document(document, path)
+        latency_ms = int((perf_counter() - started) * 1000)
         db.query(DocumentPage).filter(DocumentPage.document_id == document_id).delete()
         for page in pages:
             db.add(page)
@@ -103,10 +106,25 @@ def run_ocr(db: Session, document_id: UUID) -> Document:
             target_id=document.id,
             after_value={"page_count": len(pages), "ocr_status": document.ocr_status},
         )
+        model_invocation_service.add_invocation(
+            db,
+            task_id=document.task_id,
+            document_id=document.id,
+            provider=_ocr_provider_name(pages),
+            model_name=_ocr_provider_name(pages),
+            invocation_type="ocr",
+            prompt_version="ocr-provider-v1",
+            output_schema="DocumentPageRead",
+            status="success",
+            latency_ms=latency_ms,
+            input_text=f"{document.original_filename}:{document.file_hash}",
+            cost_estimate={"currency": "USD", "amount": None, "basis": "non_llm_ocr_no_token_usage"},
+        )
         db.commit()
         db.refresh(document)
         return document
     except Exception as exc:
+        latency_ms = int((perf_counter() - started) * 1000)
         db.rollback()
         document = db.get(Document, document_id)
         if document is not None:
@@ -121,9 +139,29 @@ def run_ocr(db: Session, document_id: UUID) -> Document:
                 target_id=document.id,
                 after_value={"ocr_status": document.ocr_status, "error": str(exc)[:500]},
             )
+            model_invocation_service.add_invocation(
+                db,
+                task_id=document.task_id,
+                document_id=document.id,
+                provider="ocr-provider",
+                model_name="ocr-provider",
+                invocation_type="ocr",
+                prompt_version="ocr-provider-v1",
+                output_schema="DocumentPageRead",
+                status="failed",
+                latency_ms=latency_ms,
+                input_text=f"{document.original_filename}:{document.file_hash}",
+                cost_estimate={"currency": "USD", "amount": None, "basis": "non_llm_ocr_no_token_usage"},
+                error={"message": str(exc)[:1000]},
+            )
             db.commit()
             db.refresh(document)
         return document
+
+
+def _ocr_provider_name(pages: list[DocumentPage]) -> str:
+    engines = sorted({page.ocr_engine for page in pages if page.ocr_engine})
+    return "+".join(engines)[:80] if engines else "ocr-provider"
 
 
 def _parse_document(document: Document, path: Path) -> list[DocumentPage]:

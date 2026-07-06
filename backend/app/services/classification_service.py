@@ -421,11 +421,14 @@ def classify_document(db: Session, document_id: UUID) -> ClassificationRead:
         task_id=document.task_id,
         document_id=document.id,
         provider=provider_result.provider_name,
-        model_name=provider_result.provider_name,
-        invocation_type="classification",
+        model_name=provider_result.model_name or provider_result.provider_name,
+        invocation_type="classify",
+        prompt_version=CLASSIFICATION_CONTRACT_VERSION if provider_result.status == "ok" else DETERMINISTIC_CONTRACT_VERSION,
         output_schema="ClassificationRead",
-        status="completed" if provider_result.status == "ok" else "degraded",
+        status="success" if provider_result.status == "ok" else "fallback",
+        latency_ms=provider_result.latency_ms,
         input_text=text,
+        token_usage=provider_result.token_usage,
         error={"message": provider_result.error} if provider_result.error else None,
     )
     provider_meta = llm_provider.provider_info(provider_result)

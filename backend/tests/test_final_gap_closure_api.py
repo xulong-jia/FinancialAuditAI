@@ -41,7 +41,7 @@ def test_model_invocations_are_recorded_for_rag_query() -> None:
     document = create_rag_document(text="Inventory count procedures require source backed evidence.")
     index_document(document["id"])
     with SessionLocal() as db:
-        indexed_embeddings = db.query(ModelInvocation).filter(ModelInvocation.invocation_type == "embedding").count()
+        indexed_embeddings = db.query(ModelInvocation).filter(ModelInvocation.invocation_type == "embed").count()
     assert indexed_embeddings == 1
 
     result = query_rag("inventory count evidence")
@@ -50,8 +50,9 @@ def test_model_invocations_are_recorded_for_rag_query() -> None:
     with SessionLocal() as db:
         invocations = db.query(ModelInvocation).order_by(ModelInvocation.created_at).all()
         invocation_types = {invocation.invocation_type for invocation in invocations}
-    assert {"embedding", "rag_rerank", "rag_answer"}.issubset(invocation_types)
+    assert {"embed", "rerank", "answer"}.issubset(invocation_types)
     assert all(invocation.cost_estimate for invocation in invocations)
+    assert all(invocation.latency_ms is not None for invocation in invocations if invocation.invocation_type in {"embed", "rerank"})
 
 
 def test_workpaper_rag_requires_task_scope_metadata() -> None:
@@ -125,6 +126,12 @@ def test_task_run_reports_rag_evidence_retrieval_for_review_items() -> None:
     assert response.json()["status"] == "reviewing"
     assert response.json()["rag_evidence_status"] == "completed"
     assert response.json()["rag_citation_count"] > 0
+    with SessionLocal() as db:
+        invocation_types = {
+            invocation.invocation_type
+            for invocation in db.query(ModelInvocation).filter(ModelInvocation.task_id == UUID(task["id"])).all()
+        }
+    assert "explain" in invocation_types
 
 
 def test_report_generation_supports_markdown_and_pdf() -> None:

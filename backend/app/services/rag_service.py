@@ -7,6 +7,7 @@ import json
 import math
 from pathlib import Path
 import re
+from time import perf_counter
 import urllib.error
 import urllib.request
 from uuid import UUID, uuid4
@@ -176,14 +177,19 @@ def index_document(db: Session, document_id: UUID) -> dict:
         task_id = (document.metadata_json or {}).get("task_id")
         scoped_task_id = UUID(str(task_id)) if task_id else None
     for chunk in chunks:
+        started = perf_counter()
         embedding_vector = provider.embed(chunk.text)
+        latency_ms = int((perf_counter() - started) * 1000)
         model_invocation_service.add_invocation(
             db,
             provider=provider.name,
             model_name=provider.name,
-            invocation_type="embedding",
+            invocation_type="embed",
             task_id=scoped_task_id,
-            status="degraded" if provider.kind == "deterministic_fallback" else "completed",
+            prompt_version="rag-embedding-v1",
+            output_schema=f"vector[{EMBEDDING_DIMENSIONS}]",
+            status="fallback" if provider.kind == "deterministic_fallback" else "success",
+            latency_ms=latency_ms,
             input_text=chunk.text,
         )
         db.add(
@@ -230,30 +236,40 @@ def query(
     if knowledge_base == "workpaper" and not metadata_filter.get("task_id"):
         raise HTTPException(status_code=400, detail="workpaper RAG queries require metadata_filter.task_id")
     provider = _embedding_provider()
+    started = perf_counter()
     embedding_vector = provider.embed(query_text)
+    embedding_latency_ms = int((perf_counter() - started) * 1000)
     model_invocation_service.add_invocation(
         db,
         provider=provider.name,
         model_name=provider.name,
-        invocation_type="embedding",
+        invocation_type="embed",
         task_id=task_id,
-        status="degraded" if provider.kind == "deterministic_fallback" else "completed",
+        prompt_version="rag-embedding-v1",
+        output_schema=f"vector[{EMBEDDING_DIMENSIONS}]",
+        status="fallback" if provider.kind == "deterministic_fallback" else "success",
+        latency_ms=embedding_latency_ms,
         input_text=query_text,
     )
     embedding = _vector_literal(embedding_vector)
     rows = _search_chunks(db, knowledge_base, embedding, metadata_filter, top_k)
+    started = perf_counter()
     citations, rerank_info = _rerank_citations(query_text, [
         _citation(row)
         for row in rows
         if row["score"] >= MIN_SCORE and _has_token_overlap(query_text, row["chunk_text"])
     ])
+    rerank_latency_ms = int((perf_counter() - started) * 1000)
     model_invocation_service.add_invocation(
         db,
         provider=str(rerank_info.get("rerank_provider") or settings.rag_rerank_provider),
-        model_name=str(rerank_info.get("rerank_provider") or settings.rag_rerank_provider),
-        invocation_type="rag_rerank",
+        model_name=str(rerank_info.get("rerank_model_name") or rerank_info.get("rerank_provider") or settings.rag_rerank_provider),
+        invocation_type="rerank",
         task_id=task_id,
-        status="degraded" if rerank_info.get("rerank_provider_status") == "deterministic_fallback" else "completed",
+        prompt_version="rag-rerank-v1",
+        output_schema="RagCitationOrder",
+        status=_invocation_status(str(rerank_info.get("rerank_provider_status"))),
+        latency_ms=rerank_latency_ms,
         input_text=query_text,
     )
     provider_info = {
@@ -266,10 +282,13 @@ def query(
             db,
             provider=settings.rag_answer_provider,
             model_name=settings.rag_answer_provider,
-            invocation_type="rag_answer",
+            invocation_type="answer",
             task_id=task_id,
-            status="skipped_no_citations",
+            prompt_version="rag-answer-v1",
+            output_schema="RagAnswer",
+            status="skipped",
             input_text=query_text,
+            cost_estimate={"currency": "USD", "amount": None, "basis": "not_called_no_citations"},
         )
         return {
             "status": "no_answer",
@@ -290,11 +309,15 @@ def query(
     model_invocation_service.add_invocation(
         db,
         provider=answer_provider_result.provider_name,
-        model_name=answer_provider_result.provider_name,
-        invocation_type="rag_answer",
+        model_name=answer_provider_result.model_name or answer_provider_result.provider_name,
+        invocation_type="answer",
         task_id=task_id,
-        status="completed" if answer_provider_result.status == "ok" else "degraded",
+        prompt_version="rag-answer-v1",
+        output_schema="RagAnswer",
+        status="success" if answer_provider_result.status == "ok" else "fallback",
+        latency_ms=answer_provider_result.latency_ms,
         input_text=query_text,
+        token_usage=answer_provider_result.token_usage,
         error={"message": answer_provider_result.error} if answer_provider_result.error else None,
     )
     provider_info = provider_info | {
@@ -498,6 +521,7 @@ def _rerank_citations(query_text: str, citations: list[dict]) -> tuple[list[dict
     provider = llm_provider.get_llm_provider("rag_rerank")
     provider_info = {
         "rerank_provider": provider.provider_name,
+        "rerank_model_name": provider.provider_name,
         "rerank_provider_kind": provider.provider_kind,
         "rerank_provider_status": "deterministic_fallback",
     }
@@ -506,6 +530,7 @@ def _rerank_citations(query_text: str, citations: list[dict]) -> tuple[list[dict
         provider_info.update(
             {
                 "rerank_provider_status": result.status,
+                "rerank_model_name": result.model_name or result.provider_name,
                 "rerank_provider_error": result.error,
             }
         )
@@ -524,6 +549,14 @@ def _rerank_citations(query_text: str, citations: list[dict]) -> tuple[list[dict
         ),
         reverse=True,
     ), provider_info
+
+
+def _invocation_status(provider_status: str) -> str:
+    if provider_status == "ok":
+        return "success"
+    if provider_status in {"deterministic_fallback", "unavailable"}:
+        return "fallback"
+    return "failed" if provider_status == "error" else provider_status
 
 
 def _citations_from_rerank_payload(citations: list[dict], payload: dict | None) -> list[dict] | None:

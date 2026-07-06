@@ -13,6 +13,7 @@ from app.models.audit_result import AuditResult
 from app.models.audit_task import AuditTask
 from app.models.document import Document
 from app.services import (
+    bad_case_service,
     classification_service,
     document_service,
     extraction_service,
@@ -35,7 +36,7 @@ TOOL_WHITELIST = {
     "generate_control_table",
     "create_review_ticket",
     "route_review_queue",
-    "create_bad_case",
+    "record_bad_case",
 }
 EVIDENCE_KNOWLEDGE_BASES = ("regulation", "inquiry_case", "prospectus", "workpaper")
 
@@ -93,9 +94,10 @@ for tool_name, failed_state in FAILURE_STATES.items():
 
 
 class AgentStepFailed(RuntimeError):
-    def __init__(self, tool_name: str, error: dict):
+    def __init__(self, tool_name: str, error: dict, step_id: UUID | None = None):
         self.tool_name = tool_name
         self.error = error
+        self.step_id = step_id
         super().__init__(str(error.get("detail") or error.get("type") or "agent step failed"))
 
 
@@ -214,7 +216,7 @@ def resume_run(db: Session, run_id: UUID) -> AgentRun:
             },
         )
     except AgentStepFailed as exc:
-        _fail_run(db, run, FAILURE_STATES.get(exc.tool_name, "REPORT_FAILED"), exc.error)
+        _fail_run(db, run, FAILURE_STATES.get(exc.tool_name, "REPORT_FAILED"), exc.error, exc.step_id)
     return get_run(db, run_id)
 
 
@@ -318,7 +320,7 @@ def _execute_workflow(
             },
         )
     except AgentStepFailed as exc:
-        _fail_run(db, run, FAILURE_STATES.get(exc.tool_name, "REPORT_FAILED"), exc.error)
+        _fail_run(db, run, FAILURE_STATES.get(exc.tool_name, "REPORT_FAILED"), exc.error, exc.step_id)
 
 
 def _run_ocr_stage(db: Session, run: AgentRun, retry_of: UUID | None) -> None:
@@ -468,7 +470,7 @@ def _run_step(
     db.add(step)
     db.commit()
     if error is not None:
-        raise AgentStepFailed(tool_name, error)
+        raise AgentStepFailed(tool_name, error, step.id)
     return output
 
 
@@ -498,7 +500,7 @@ def _pause_for_review(db: Session, run: AgentRun, output_refs: dict) -> None:
     db.commit()
 
 
-def _fail_run(db: Session, run: AgentRun, failed_state: str, error: dict) -> None:
+def _fail_run(db: Session, run: AgentRun, failed_state: str, error: dict, failed_step_id: UUID | None = None) -> None:
     if failed_state not in ALLOWED_TRANSITIONS.get(run.current_state, set()):
         run.current_state = failed_state
     else:
@@ -507,6 +509,49 @@ def _fail_run(db: Session, run: AgentRun, failed_state: str, error: dict) -> Non
     run.error = error
     run.finished_at = utc_now()
     run.updated_at = utc_now()
+    db.commit()
+    _record_bad_case_step(db, run, failed_state, error, failed_step_id)
+
+
+def _record_bad_case_step(
+    db: Session,
+    run: AgentRun,
+    failed_state: str,
+    error: dict,
+    failed_step_id: UUID | None,
+) -> None:
+    failed_step = db.get(AgentStep, failed_step_id) if failed_step_id is not None else None
+    bad_case = bad_case_service.create_failed_case(
+        db,
+        task_id=run.task_id,
+        case_type="agent",
+        title=f"Agent step failed: {failed_step.tool_name if failed_step else failed_state}",
+        input_payload={
+            "agent_run_id": str(run.id),
+            "agent_step_id": _str_or_none(failed_step_id),
+            "failed_state": failed_state,
+            "tool_name": failed_step.tool_name if failed_step else None,
+        },
+        model_output={"error": error},
+        expected_output={"status": "completed"},
+        severity="high",
+    )
+    db.add(
+        AgentStep(
+            run_id=run.id,
+            step_name=f"record_bad_case:{bad_case.id}",
+            step_order=_next_step_order(db, run.id),
+            tool_name="record_bad_case",
+            status="completed",
+            input_payload={
+                "failed_state": failed_state,
+                "failed_step_id": _str_or_none(failed_step_id),
+            },
+            output_payload={"bad_case_id": str(bad_case.id), "case_type": bad_case.case_type},
+            error=None,
+            duration_ms=0,
+        )
+    )
     db.commit()
 
 

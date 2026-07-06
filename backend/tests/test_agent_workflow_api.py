@@ -3,6 +3,7 @@ from uuid import UUID
 
 from app.db.session import SessionLocal
 from app.models.audit_result import AuditResult
+from app.models.bad_case import BadCase
 from app.models.document import Document
 from app.services import agent_service
 from test_rule_engine_api import build_scenario, client
@@ -98,14 +99,23 @@ def test_failed_step_retry_records_retry_step() -> None:
     run = create_agent_run(task_response.json()["id"])
     assert run["status"] == "failed"
     assert run["current_state"] == "OCR_FAILED"
-    assert len([step for step in list_steps(run["id"]) if step["status"] == "failed"]) == 1
+    steps = list_steps(run["id"])
+    assert len([step for step in steps if step["status"] == "failed"]) == 1
+    assert "record_bad_case" in {step["tool_name"] for step in steps}
+    with SessionLocal() as db:
+        cases = db.query(BadCase).filter(BadCase.task_id == UUID(task_response.json()["id"])).all()
+        assert len(cases) == 1
+        assert cases[0].case_type == "agent"
+        assert cases[0].input_payload["failed_state"] == "OCR_FAILED"
 
     retry = client.post(f"/api/v1/agents/runs/{run['id']}/retry")
     assert retry.status_code == 200
     assert retry.json()["status"] == "failed"
-    failed_steps = [step for step in list_steps(run["id"]) if step["status"] == "failed"]
+    next_steps = list_steps(run["id"])
+    failed_steps = [step for step in next_steps if step["status"] == "failed"]
     assert len(failed_steps) == 2
     assert failed_steps[-1]["input_payload"]["retry_of"] == failed_steps[0]["id"]
+    assert len([step for step in next_steps if step["tool_name"] == "record_bad_case"]) == 2
 
 
 def test_high_risk_exception_routes_to_review_without_auto_confirming() -> None:

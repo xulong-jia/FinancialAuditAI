@@ -3,6 +3,8 @@ from uuid import UUID
 from xml.etree import ElementTree
 from zipfile import ZipFile
 
+import fitz
+
 from app.db.session import SessionLocal
 from app.models.audit_result import AuditResult
 from app.models.control_table_row import ControlTableRow
@@ -33,6 +35,11 @@ def workbook_sheet_names(data: bytes) -> list[str]:
 def worksheet_text(data: bytes, sheet_number: int) -> str:
     with ZipFile(BytesIO(data)) as archive:
         return archive.read(f"xl/worksheets/sheet{sheet_number}.xml").decode()
+
+
+def pdf_text(data: bytes) -> str:
+    with fitz.open(stream=data, filetype="pdf") as document:
+        return "\n".join(page.get_text("text") for page in document)
 
 
 def prepare_report_data() -> tuple[dict, dict]:
@@ -154,6 +161,32 @@ def test_control_table_report_generates_csv_download() -> None:
     csv_text = download.content.decode()
     assert "business_key" in csv_text
     assert "reviewer_comment" in csv_text
+
+
+def test_control_table_report_generates_pdf_with_evidence_review_and_boundary() -> None:
+    task, _ = prepare_report_data()
+
+    response = client.post(
+        f"/api/v1/tasks/{task['id']}/reports/control-table",
+        json={"generated_by": "reporter", "file_format": "pdf"},
+    )
+
+    assert response.status_code == 200
+    report = response.json()
+    assert report["file_format"] == "pdf"
+    download = client.get(f"/api/v1/reports/{report['id']}/download")
+    assert download.status_code == 200
+    assert download.headers["content-type"].startswith("application/pdf")
+    text = pdf_text(download.content)
+    assert "FinancialAuditAI Report" in text
+    assert "usage_boundary" in text
+    assert "not a legal, audit, or investment conclusion" in text
+    assert "Exceptions" in text
+    assert "PROC_AMOUNT_001" in text
+    assert "Evidence Index" in text
+    assert "source_bbox" in text
+    assert "Field Corrections" in text
+    assert "General report review note." in text
 
 
 def test_report_history_api_lists_generated_reports() -> None:

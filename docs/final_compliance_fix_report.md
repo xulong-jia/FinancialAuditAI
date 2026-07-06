@@ -4,7 +4,7 @@
 
 Round date: 2026-07-06
 
-Scope: frontend permission contract automation, role-gated command surface checks, and continued strict execution-manual gap tracking.
+Scope: PDF report completeness, evidence/review/boundary export coverage, and continued strict execution-manual gap tracking.
 
 Status: **verified locally; still not final execution-manual complete**.
 
@@ -12,10 +12,10 @@ Status: **verified locally; still not final execution-manual complete**.
 
 | Item | Result | Evidence |
 | --- | --- | --- |
-| Frontend now has an automated test command without adding dependencies | implemented | `frontend/package.json` |
-| Navigation route permissions are covered by automated contract tests | implemented | `frontend/tests/permission-contract.test.mjs` |
-| Critical command surfaces are checked for `hasPermission` and disabled gating | implemented | `frontend/tests/permission-contract.test.mjs` |
-| Agent controls are checked for `canRunAgent` disabled gating | implemented | `frontend/tests/permission-contract.test.mjs` |
+| PDF report no longer truncates rows to eight columns or 130 characters | implemented | `backend/app/services/report_service.py` |
+| PDF report includes Summary, Exceptions, Evidence Index, Field Corrections, and Rule Definitions content | implemented | `backend/app/services/report_service.py` |
+| PDF report preserves usage boundary and review comments in downloadable output | implemented | `backend/tests/test_report_api.py::test_control_table_report_generates_pdf_with_evidence_review_and_boundary` |
+| PDF report uses existing PyMuPDF dependency and stdlib wrapping, with no new package | implemented | `backend/app/services/report_service.py` |
 
 ## Verification Completed
 
@@ -27,7 +27,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 158 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 159 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `cd frontend && npm test` | PASS, 4 node:test checks |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
@@ -39,7 +39,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | Critical | Real customer/production evaluation datasets are not present and must not be committed; final real-data verification remains `blocked_external_dependency` until provided safely. |
 | Critical | Real OCR/LLM/RAG API keys and endpoints are not present and must not be committed; external Provider verification remains `blocked_external_dependency` until configured safely. |
 | Medium | Browser-level frontend E2E/interaction tests are still absent. |
-| Medium | PDF report remains simplified and depends on upstream evidence/bbox/confidence completeness. |
+| Medium | Report evidence quality still depends on upstream evidence/bbox/confidence completeness. |
 
 ## Compliance Boundary
 

@@ -19,6 +19,7 @@
 | RAG Provider citation JSON 边界 | 已修复 UUID citation 无法序列化到真实 Provider prompt 的问题 | `backend/app/services/llm_provider.py` | `backend/tests/test_llm_provider_paths_api.py::test_rag_rerank_answer_and_rule_explain_use_configured_llm_provider` |
 | Agent 工具角色职责合同 | 已在每个 `agent_steps.input_payload` 记录 `agent_role` 和 `must_not` 约束 | `backend/app/services/agent_service.py` | `backend/tests/test_agent_workflow_api.py::test_agent_run_creates_steps_and_report_without_bypassing_rule_engine` |
 | 前端权限合同测试 | 已新增无新依赖的 `node --test` 权限合同测试 | `frontend/package.json`, `frontend/tests/permission-contract.test.mjs` | `cd frontend && npm test` |
+| PDF 报告证据/复核/用途边界输出 | 已改为全列换行输出并覆盖 PDF 内容测试 | `backend/app/services/report_service.py` | `backend/tests/test_report_api.py::test_control_table_report_generates_pdf_with_evidence_review_and_boundary` |
 | `model_invocations` 类型口径 | 已对齐执行手册主要口径 | `backend/app/services/classification_service.py`, `backend/app/services/extraction_service.py`, `backend/app/services/rag_service.py` 使用 `classify` / `extract` / `embed` / `rerank` / `answer` | `backend/tests/test_final_gap_closure_api.py::test_model_invocations_are_recorded_for_rag_query` |
 | OCR 调用留痕 | 已补齐成功/失败路径 | `backend/app/services/ocr_service.py` 写入 `invocation_type="ocr"`、`latency_ms`、`error`、`cost_estimate` | `backend/tests/test_ocr_api.py::test_pdf_ocr_extracts_pages_in_order`, `backend/tests/test_ocr_api.py::test_ocr_failure_does_not_hide_task_or_document` |
 | LLM Provider 调用元数据 | 已补齐真实返回路径 | `backend/app/services/llm_provider.py` 从 OpenAI-compatible 响应读取 `usage`，记录真实 `latency_ms`，不伪造 token/cost | `backend/tests/test_classification_api.py`, `backend/tests/test_extraction_api.py` |
@@ -35,7 +36,7 @@
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 158 passed, 5 warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 159 passed, 5 warnings |
 | `cd frontend && npm test` | PASS, 4 tests |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
@@ -60,7 +61,7 @@
 | 编号 | 模块 | 缺口 |
 | --- | --- | --- |
 | M-01 | Evaluation | 数据集驱动入口已存在，但真实 OCR、真实 RAG groundedness、真实 Agent E2E 评测仍依赖外部标注集和真实 Provider 配置。 |
-| M-02 | Report | xlsx/csv/markdown/pdf 均存在；PDF 仍是简化文本版，报告质量受上游 evidence/bbox/confidence 影响。 |
+| M-02 | Report | xlsx/csv/markdown/pdf 均存在；PDF 已输出 Summary、异常、证据索引、复核意见和用途边界，报告质量仍受上游 evidence/bbox/confidence 完整性影响。 |
 | M-03 | Review | 主流程满足；历史 `actor_name` / `reviewed_by` / `corrected_by` 字符串字段仍为兼容口径。 |
 | M-04 | Frontend tests | 已有权限合同自动化测试；仍无浏览器级 E2E/交互测试。 |
 
@@ -80,6 +81,6 @@
 
 ## 下一轮最高优先级
 
-1. Report PDF 质量与 evidence/bbox/confidence 上游依赖继续收敛。
+1. Review 历史兼容字段与执行手册 UUID 口径继续收敛。
 2. 浏览器级 E2E/交互测试能力。
 3. LLM/RAG Provider 真实端到端验收在安全配置下完成。

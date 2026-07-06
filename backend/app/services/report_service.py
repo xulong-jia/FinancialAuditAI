@@ -3,6 +3,7 @@ import csv
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from textwrap import wrap
 from uuid import UUID, uuid4
 
 import fitz
@@ -325,25 +326,34 @@ def _write_markdown(path: Path, sheets: dict[str, list[list[object | None]]]) ->
 def _write_pdf(path: Path, sheets: dict[str, list[list[object | None]]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     pdf = fitz.open()
-    page = pdf.new_page()
-    y = 48
-    for line in _pdf_lines(sheets):
+    page = pdf.new_page(width=595, height=842)
+    y = 42
+    for line, font_size in _pdf_lines(sheets):
+        wrapped = wrap(line, width=112, replace_whitespace=False) or [""]
+        for part in wrapped:
+            if y > 800:
+                page = pdf.new_page(width=595, height=842)
+                y = 42
+            page.insert_text((42, y), part, fontsize=font_size)
+            y += int(font_size + 5)
         if y > 780:
-            page = pdf.new_page()
-            y = 48
-        page.insert_text((48, y), line[:130], fontsize=9)
-        y += 14
+            page = pdf.new_page(width=595, height=842)
+            y = 42
     pdf.save(path)
     pdf.close()
 
 
-def _pdf_lines(sheets: dict[str, list[list[object | None]]]) -> list[str]:
-    lines: list[str] = []
+def _pdf_lines(sheets: dict[str, list[list[object | None]]]) -> list[tuple[str, int]]:
+    lines: list[tuple[str, int]] = [
+        ("FinancialAuditAI Report", 14),
+        ("Data source, usage boundary, exceptions, evidence index, review comments, and rule definitions are exported below.", 9),
+        ("", 9),
+    ]
     for name, rows in sheets.items():
-        lines.append(name)
-        for row in rows[:40]:
-            lines.append(" | ".join(str(item or "").replace("\n", " ") for item in row[:8]))
-        lines.append("")
+        lines.append((name, 12))
+        for row in rows:
+            lines.append((" | ".join(str(item or "").replace("\n", " ") for item in row), 8))
+        lines.append(("", 8))
     return lines
 
 

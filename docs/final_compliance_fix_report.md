@@ -4,7 +4,7 @@
 
 Round date: 2026-07-06
 
-Scope: Agent Workflow failed-step Bad Case closure, `record_bad_case` tool-step traceability, retry preservation, and continued strict execution-manual gap tracking.
+Scope: OpenAI-compatible LLM/RAG Provider path verification, citation prompt serialization safety, model invocation metadata, and continued strict execution-manual gap tracking.
 
 Status: **verified locally; still not final execution-manual complete**.
 
@@ -12,11 +12,12 @@ Status: **verified locally; still not final execution-manual complete**.
 
 | Item | Result | Evidence |
 | --- | --- | --- |
-| Agent tool whitelist now uses the execution-manual `record_bad_case` tool name | implemented | `backend/app/services/agent_service.py` |
-| Failed Agent steps create task-scoped `agent` Bad Cases | implemented | `backend/app/services/agent_service.py` |
-| Agent step history records a completed `record_bad_case` tool call after failure | implemented | `backend/app/services/agent_service.py` |
-| Retry failures preserve independent failed steps and Bad Case records | implemented | `backend/tests/test_agent_workflow_api.py` |
-| Tests cover failed-step Bad Case and `record_bad_case` trace creation | implemented | `backend/tests/test_agent_workflow_api.py::test_failed_step_retry_records_retry_step` |
+| OpenAI-compatible classification Provider path is covered without real secrets | implemented | `backend/tests/test_llm_provider_paths_api.py` |
+| OpenAI-compatible extraction Provider path is covered without real secrets | implemented | `backend/tests/test_llm_provider_paths_api.py` |
+| OpenAI-compatible RAG rerank and answer Provider paths are covered without real secrets | implemented | `backend/tests/test_llm_provider_paths_api.py` |
+| OpenAI-compatible rule explanation Provider path is covered without real secrets | implemented | `backend/tests/test_llm_provider_paths_api.py` |
+| Provider-returned token usage and model names are preserved in `model_invocations` | implemented | `backend/app/services/llm_provider.py`, `backend/tests/test_llm_provider_paths_api.py` |
+| RAG/Rule citation prompts convert UUID IDs to JSON-safe strings before Provider calls | implemented | `backend/app/services/llm_provider.py` |
 
 ## Verification Completed
 
@@ -28,7 +29,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 156 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 158 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
 
@@ -38,8 +39,6 @@ Status: **verified locally; still not final execution-manual complete**.
 | --- | --- |
 | Critical | Real customer/production evaluation datasets are not present and must not be committed; final real-data verification remains `blocked_external_dependency` until provided safely. |
 | Critical | Real OCR/LLM/RAG API keys and endpoints are not present and must not be committed; external Provider verification remains `blocked_external_dependency` until configured safely. |
-| High | LLM classification/extraction/RAG/explain still fall back when no real/local provider is configured. |
-| High | RAG four-library flow still defaults to deterministic/local embedding, rerank, and answer fallback when no real/local provider is configured. |
 | High | Agent Workflow still needs complete proof against every execution-manual Agent role responsibility and state/output contract. |
 
 ## Compliance Boundary

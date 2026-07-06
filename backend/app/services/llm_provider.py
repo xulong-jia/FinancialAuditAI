@@ -104,7 +104,7 @@ class OpenAICompatibleLlmProvider(LlmProvider):
             "task": "answer_with_citations_only",
             "knowledge_base": knowledge_base,
             "query": query_text,
-            "citations": citations[:5],
+            "citations": [_citation_for_prompt(citation) for citation in citations[:5]],
             "required_json_schema": {"answer": "string grounded in citations", "limitations": ["strings"]},
             "rules": [
                 "Use only provided citations.",
@@ -119,7 +119,7 @@ class OpenAICompatibleLlmProvider(LlmProvider):
             "rule_code": rule_code,
             "severity": severity,
             "message": message,
-            "citations": citations[:5],
+            "citations": [_citation_for_prompt(citation) for citation in citations[:5]],
             "required_json_schema": {"explanation": "string grounded in citations", "limitations": ["strings"]},
             "rules": [
                 "Do not change the deterministic rule result.",
@@ -250,3 +250,17 @@ def _parse_json_object(raw_text: str) -> dict:
     if not isinstance(parsed, dict):
         raise ValueError("LLM JSON response must be an object")
     return parsed
+
+
+def _citation_for_prompt(citation: dict) -> dict:
+    return {
+        "chunk_id": str(citation.get("chunk_id")) if citation.get("chunk_id") is not None else None,
+        "document_id": str(citation.get("document_id")) if citation.get("document_id") is not None else None,
+        "knowledge_base": citation.get("knowledge_base"),
+        "title": citation.get("title"),
+        "section": citation.get("section"),
+        "page": citation.get("page"),
+        "score": citation.get("score"),
+        "quote": citation.get("quote"),
+        "metadata": citation.get("metadata") if isinstance(citation.get("metadata"), dict) else {},
+    }

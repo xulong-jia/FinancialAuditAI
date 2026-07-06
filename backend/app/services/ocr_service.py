@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import base64
+import json
 from pathlib import Path
 from time import perf_counter
+import urllib.error
+import urllib.request
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 from uuid import UUID
@@ -12,6 +16,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.services import audit_log_service, model_invocation_service
@@ -57,6 +62,36 @@ class BasicImageOcrProvider:
                 warnings=warnings,
             )
         ]
+
+
+class HttpOcrProvider:
+    name = "http-ocr-provider"
+
+    def parse(self, document: Document, path: Path) -> list[DocumentPage]:
+        if not settings.ocr_api_url:
+            raise ValueError("OCR_API_URL is required when OCR_PROVIDER is external")
+        payload = {
+            "model": settings.ocr_model,
+            "filename": document.original_filename,
+            "file_ext": document.file_ext,
+            "content_type": document.content_type,
+            "file_base64": base64.b64encode(path.read_bytes()).decode(),
+        }
+        headers = {"Content-Type": "application/json"}
+        if settings.ocr_api_key:
+            headers["Authorization"] = f"Bearer {settings.ocr_api_key}"
+        request = urllib.request.Request(
+            settings.ocr_api_url,
+            data=json.dumps(payload).encode(),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=settings.ocr_timeout_seconds) as response:
+                provider_payload = json.loads(response.read().decode())
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            raise ValueError(f"OCR provider request failed: {exc}") from exc
+        return _pages_from_provider_payload(document, path, provider_payload)
 
 
 def project_root() -> Path:
@@ -167,6 +202,9 @@ def _ocr_provider_name(pages: list[DocumentPage]) -> str:
 def _parse_document(document: Document, path: Path) -> list[DocumentPage]:
     if not path.exists():
         raise FileNotFoundError("Stored document file was not found")
+    provider = _configured_ocr_provider()
+    if provider is not None:
+        return provider.parse(document, path)
     if document.file_ext == "pdf":
         return _parse_pdf(document, path)
     if document.file_ext in {"png", "jpg", "jpeg"}:
@@ -176,6 +214,148 @@ def _parse_document(document: Document, path: Path) -> list[DocumentPage]:
     if document.file_ext == "xlsx":
         return _parse_xlsx(document, path)
     raise ValueError(f"OCR is not supported for .{document.file_ext}")
+
+
+def _configured_ocr_provider() -> HttpOcrProvider | None:
+    provider = (settings.ocr_provider or "pymupdf-local").strip().lower()
+    if provider in {"pymupdf", "pymupdf-local", "local"}:
+        return None
+    if provider in {"http", "external-http", "real"}:
+        return HttpOcrProvider()
+    raise ValueError("Configured OCR provider is not enabled")
+
+
+def _pages_from_provider_payload(document: Document, path: Path, payload: object) -> list[DocumentPage]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("pages"), list):
+        raise ValueError("OCR provider response must contain a pages list")
+    image_map = _provider_page_images(document, path)
+    pages = []
+    for index, item in enumerate(payload["pages"], start=1):
+        if not isinstance(item, dict):
+            raise ValueError("OCR provider page must be an object")
+        page_number = _int_or_none(item.get("page_number")) or index
+        raw_text = str(item.get("raw_text") or item.get("text") or "")
+        blocks, block_warnings = _provider_blocks(item.get("ocr_blocks") or item.get("blocks") or [], raw_text)
+        ocr_confidence = _confidence_or_none(item.get("ocr_confidence", item.get("confidence")))
+        block_confidences = [
+            block["confidence"]
+            for block in blocks
+            if isinstance(block.get("confidence"), (int, float))
+        ]
+        warnings = [str(warning) for warning in item.get("warnings") or [] if isinstance(warning, str)]
+        warnings.extend(block_warnings)
+        if ocr_confidence is None and block_confidences:
+            ocr_confidence = round(sum(block_confidences) / len(block_confidences), 4)
+            warnings.append("ocr_confidence_derived_from_blocks")
+        elif ocr_confidence is None:
+            warnings.extend(["confidence_unavailable", "ocr_confidence_not_reported_by_provider"])
+        image_path, image_width, image_height = image_map.get(page_number, (None, None, None))
+        pages.append(
+            DocumentPage(
+                document_id=document.id,
+                page_number=page_number,
+                raw_text=raw_text,
+                ocr_blocks=blocks,
+                table_blocks=_provider_table_blocks(item.get("table_blocks") or item.get("tables"), raw_text),
+                image_path=str(item.get("image_path") or image_path) if (item.get("image_path") or image_path) else None,
+                width=_int_or_none(item.get("width")) or image_width,
+                height=_int_or_none(item.get("height")) or image_height,
+                ocr_engine=str(item.get("ocr_engine") or item.get("engine") or settings.ocr_provider),
+                ocr_confidence=ocr_confidence,
+                warnings=sorted(set(warnings)),
+            )
+        )
+    if not pages:
+        raise ValueError("OCR provider returned no pages")
+    return pages
+
+
+def _provider_blocks(raw_blocks: object, raw_text: str) -> tuple[list[dict], list[str]]:
+    warnings: list[str] = []
+    blocks = []
+    if isinstance(raw_blocks, list):
+        for item in raw_blocks:
+            if not isinstance(item, dict):
+                continue
+            text = str(item.get("text") or "").strip()
+            if not text:
+                continue
+            confidence = _confidence_or_none(item.get("confidence"))
+            if confidence is None:
+                warnings.append("block_confidence_not_reported_by_provider")
+            blocks.append(
+                {
+                    "text": text,
+                    "bbox": _bbox_or_none(item.get("bbox")),
+                    "confidence": confidence,
+                    "confidence_source": "provider" if confidence is not None else "not_reported_by_provider",
+                }
+            )
+    if not blocks and raw_text:
+        warnings.append("provider_blocks_missing")
+        blocks.append(
+            {
+                "text": raw_text,
+                "bbox": None,
+                "confidence": None,
+                "confidence_source": "not_reported_by_provider",
+            }
+        )
+    return blocks, warnings
+
+
+def _provider_table_blocks(raw_tables: object, raw_text: str) -> list[dict]:
+    if isinstance(raw_tables, list):
+        return [table for table in raw_tables if isinstance(table, dict)]
+    return _table_blocks(raw_text)
+
+
+def _provider_page_images(document: Document, path: Path) -> dict[int, tuple[str | None, int | None, int | None]]:
+    try:
+        if document.file_ext == "pdf":
+            with fitz.open(path) as pdf:
+                return {
+                    index: _provider_pdf_image(document, index, page)
+                    for index, page in enumerate(pdf, start=1)
+                }
+        if document.file_ext in {"png", "jpg", "jpeg"}:
+            pixmap = fitz.Pixmap(str(path))
+            image_path = _save_image_page(document, 1, pixmap)
+            return {1: (image_path, pixmap.width, pixmap.height)}
+    except (RuntimeError, ValueError, EmptyFileError, FileDataError):
+        return {}
+    return {}
+
+
+def _provider_pdf_image(document: Document, page_number: int, page: fitz.Page) -> tuple[str, int, int]:
+    pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+    return _save_image_page(document, page_number, pixmap), pixmap.width, pixmap.height
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _confidence_or_none(value: object) -> float | None:
+    try:
+        confidence = float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+    if confidence is None:
+        return None
+    return max(0.0, min(1.0, confidence))
+
+
+def _bbox_or_none(value: object) -> list[float] | None:
+    if not isinstance(value, list) or len(value) != 4:
+        return None
+    try:
+        return [float(item) for item in value]
+    except (TypeError, ValueError):
+        return None
 
 
 def _parse_docx(document: Document, path: Path) -> list[DocumentPage]:

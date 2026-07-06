@@ -1,12 +1,15 @@
+import json
 from pathlib import Path
 from uuid import UUID
 
 import fitz
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.model_invocation import ModelInvocation
+from app.services import ocr_service
 
 
 client = TestClient(app)
@@ -15,6 +18,20 @@ ONE_PIXEL_PNG = (
     b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00"
     b"\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82"
 )
+
+
+class FakeOcrResponse:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return None
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode()
 
 
 def make_pdf(page_texts: list[str]) -> bytes:
@@ -115,6 +132,63 @@ def test_png_ocr_runs_without_unimplemented_provider() -> None:
     assert pages[0]["height"] == 1
     assert "confidence_unavailable" in pages[0]["warnings"]
     assert "ocr_confidence_not_reported_by_provider" in pages[0]["warnings"]
+
+
+def test_http_ocr_provider_preserves_provider_confidence(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "ocr_provider", "http")
+    monkeypatch.setattr(settings, "ocr_api_url", "http://ocr.local/parse")
+    monkeypatch.setattr(settings, "ocr_api_key", "test-ocr-key")
+    monkeypatch.setattr(settings, "ocr_model", "external-ocr-v1")
+
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append((request, timeout, json.loads(request.data.decode())))
+        return FakeOcrResponse(
+            {
+                "pages": [
+                    {
+                        "page_number": 1,
+                        "raw_text": "Total 123.45",
+                        "ocr_engine": "external-ocr-v1",
+                        "ocr_confidence": 0.96,
+                        "ocr_blocks": [
+                            {"text": "Total 123.45", "bbox": [10, 20, 80, 40], "confidence": 0.93}
+                        ],
+                        "table_blocks": [{"type": "provider_table", "rows": []}],
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(ocr_service.urllib.request, "urlopen", fake_urlopen)
+    task = create_task()
+    uploaded = upload_file(task["id"], "contract.pdf", make_pdf(["native text ignored by provider"]), "application/pdf")
+
+    ocr_response = client.post(f"/api/v1/documents/{uploaded['id']}/ocr")
+
+    assert ocr_response.status_code == 200
+    pages = client.get(f"/api/v1/documents/{uploaded['id']}/pages").json()
+    assert pages[0]["raw_text"] == "Total 123.45"
+    assert pages[0]["ocr_confidence"] == 0.96
+    assert pages[0]["ocr_blocks"][0]["confidence"] == 0.93
+    assert pages[0]["ocr_blocks"][0]["confidence_source"] == "provider"
+    assert "confidence_unavailable" not in pages[0]["warnings"]
+    assert pages[0]["table_blocks"][0]["type"] == "provider_table"
+    assert pages[0]["image_path"]
+
+    request, timeout, payload = calls[0]
+    assert request.full_url == "http://ocr.local/parse"
+    assert request.headers["Authorization"] == "Bearer test-ocr-key"
+    assert timeout == settings.ocr_timeout_seconds
+    assert payload["model"] == "external-ocr-v1"
+    assert payload["filename"] == "contract.pdf"
+
+    with SessionLocal() as db:
+        invocation = db.query(ModelInvocation).filter(ModelInvocation.document_id == UUID(uploaded["id"])).one()
+        assert invocation.provider == "external-ocr-v1"
+        assert invocation.invocation_type == "ocr"
+        assert invocation.status == "success"
 
 
 def test_ocr_failure_does_not_hide_task_or_document() -> None:

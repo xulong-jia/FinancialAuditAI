@@ -113,6 +113,10 @@ export function AdminCenterPage({ currentUser }: PageProps) {
             { label: "API URL", value: config?.llm_api_url_status },
             { label: "API Key", value: config?.llm_api_key_status },
             { label: "Embedding", value: config?.embedding_provider },
+            { label: "OCR", value: config?.ocr_provider },
+            { label: "OCR Model", value: config?.ocr_model },
+            { label: "OCR URL", value: config?.ocr_api_url_status },
+            { label: "OCR Key", value: config?.ocr_api_key_status },
             { label: "Rerank", value: config?.rag_rerank_provider },
             { label: "RAG Answer", value: config?.rag_answer_provider },
           ].map((item) => (

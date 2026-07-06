@@ -34,6 +34,11 @@ class Settings(BaseModel):
     )
     embedding_provider: str = "deterministic-local"
     embedding_dimensions: int = 32
+    ocr_provider: str = "pymupdf-local"
+    ocr_api_url: str | None = None
+    ocr_api_key: str | None = None
+    ocr_model: str = "financialauditai-ocr"
+    ocr_timeout_seconds: float = 30.0
     llm_provider: str = "deterministic-fallback"
     llm_api_url: str | None = None
     llm_api_key: str | None = None
@@ -64,6 +69,11 @@ def get_settings() -> Settings:
         ),
         embedding_provider=os.getenv("EMBEDDING_PROVIDER", "deterministic-local"),
         embedding_dimensions=int(os.getenv("EMBEDDING_DIMENSIONS", "32")),
+        ocr_provider=os.getenv("OCR_PROVIDER", "pymupdf-local"),
+        ocr_api_url=os.getenv("OCR_API_URL") or None,
+        ocr_api_key=os.getenv("OCR_API_KEY") or None,
+        ocr_model=os.getenv("OCR_MODEL", "financialauditai-ocr"),
+        ocr_timeout_seconds=float(os.getenv("OCR_TIMEOUT_SECONDS", "30")),
         llm_provider=os.getenv("LLM_PROVIDER", "deterministic-fallback"),
         llm_api_url=os.getenv("LLM_API_URL") or None,
         llm_api_key=os.getenv("LLM_API_KEY") or None,

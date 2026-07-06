@@ -34,6 +34,9 @@ class Settings(BaseModel):
     )
     embedding_provider: str = "deterministic-local"
     embedding_dimensions: int = 32
+    embedding_api_url: str | None = None
+    embedding_api_key: str | None = None
+    embedding_model: str = "financialauditai-embedding"
     ocr_provider: str = "pymupdf-local"
     ocr_api_url: str | None = None
     ocr_api_key: str | None = None
@@ -69,6 +72,9 @@ def get_settings() -> Settings:
         ),
         embedding_provider=os.getenv("EMBEDDING_PROVIDER", "deterministic-local"),
         embedding_dimensions=int(os.getenv("EMBEDDING_DIMENSIONS", "32")),
+        embedding_api_url=os.getenv("EMBEDDING_API_URL") or None,
+        embedding_api_key=os.getenv("EMBEDDING_API_KEY") or None,
+        embedding_model=os.getenv("EMBEDDING_MODEL", "financialauditai-embedding"),
         ocr_provider=os.getenv("OCR_PROVIDER", "pymupdf-local"),
         ocr_api_url=os.getenv("OCR_API_URL") or None,
         ocr_api_key=os.getenv("OCR_API_KEY") or None,

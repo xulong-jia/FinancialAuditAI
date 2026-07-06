@@ -1,20 +1,36 @@
+import json
 from uuid import UUID
 
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.audit_result import AuditResult
 from app.models.model_invocation import ModelInvocation
 from app.models.report import Report
 from app.schemas.auth import UserCreate
-from app.services import auth_service
+from app.services import auth_service, rag_service
 from test_quality_api import create_bad_case, run_eval
 from test_rag_api import create_rag_document, index_document, query_rag
 from test_rule_engine_api import build_scenario, seed_rag_document
 
 
 client = TestClient(app)
+
+
+class FakeEmbeddingResponse:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return None
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode()
 
 
 def auth_headers(email: str, password: str) -> dict[str, str]:
@@ -53,6 +69,35 @@ def test_model_invocations_are_recorded_for_rag_query() -> None:
     assert {"embed", "rerank", "answer"}.issubset(invocation_types)
     assert all(invocation.cost_estimate for invocation in invocations)
     assert all(invocation.latency_ms is not None for invocation in invocations if invocation.invocation_type in {"embed", "rerank"})
+
+
+def test_real_embedding_provider_requests_configured_vector_dimensions(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "embedding_provider", "openai-compatible")
+    monkeypatch.setattr(settings, "embedding_api_url", "http://embed.local/v1")
+    monkeypatch.setattr(settings, "embedding_api_key", "test-embedding-key")
+    monkeypatch.setattr(settings, "embedding_model", "text-embedding-3-small")
+    monkeypatch.setattr(settings, "embedding_dimensions", 32)
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append((request, timeout, json.loads(request.data.decode())))
+        return FakeEmbeddingResponse({"data": [{"embedding": [0.03125] * 32}]})
+
+    monkeypatch.setattr(rag_service.urllib.request, "urlopen", fake_urlopen)
+    document = create_rag_document(text="Provider-backed embedding evidence.")
+
+    index_document(document["id"])
+
+    request, _, payload = calls[0]
+    assert request.full_url == "http://embed.local/v1/embeddings"
+    assert request.headers["Authorization"] == "Bearer test-embedding-key"
+    assert payload["model"] == "text-embedding-3-small"
+    assert payload["dimensions"] == 32
+    with SessionLocal() as db:
+        invocation = db.query(ModelInvocation).filter(ModelInvocation.invocation_type == "embed").one()
+        assert invocation.provider == "openai-compatible"
+        assert invocation.model_name == "text-embedding-3-small"
+        assert invocation.status == "success"
 
 
 def test_workpaper_rag_requires_task_scope_metadata() -> None:

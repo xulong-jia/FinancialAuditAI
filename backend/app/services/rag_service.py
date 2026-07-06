@@ -56,6 +56,7 @@ class TextChunk:
 class DeterministicEmbeddingProvider:
     name = "deterministic-local"
     kind = "deterministic_fallback"
+    model_name = "deterministic-local"
 
     def embed(self, text_value: str) -> list[float]:
         vector = [0.0] * EMBEDDING_DIMENSIONS
@@ -71,18 +72,22 @@ class DeterministicEmbeddingProvider:
 class OpenAICompatibleEmbeddingProvider:
     kind = "real"
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, api_url: str, api_key: str, model_name: str, dimensions: int) -> None:
         self.name = name
+        self.api_url = api_url
+        self.api_key = api_key
+        self.model_name = model_name
+        self.dimensions = dimensions
 
     def embed(self, text_value: str) -> list[float]:
-        endpoint = settings.llm_api_url.rstrip("/")
+        endpoint = self.api_url.rstrip("/")
         if not endpoint.endswith("/embeddings"):
             endpoint = f"{endpoint}/embeddings"
-        body = json.dumps({"model": settings.llm_model, "input": text_value[:8000]}).encode()
+        body = json.dumps({"model": self.model_name, "input": text_value[:8000], "dimensions": self.dimensions}).encode()
         request = urllib.request.Request(
             endpoint,
             data=body,
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.llm_api_key}"},
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}"},
             method="POST",
         )
         try:
@@ -183,7 +188,7 @@ def index_document(db: Session, document_id: UUID) -> dict:
         model_invocation_service.add_invocation(
             db,
             provider=provider.name,
-            model_name=provider.name,
+            model_name=provider.model_name,
             invocation_type="embed",
             task_id=scoped_task_id,
             prompt_version="rag-embedding-v1",
@@ -242,7 +247,7 @@ def query(
     model_invocation_service.add_invocation(
         db,
         provider=provider.name,
-        model_name=provider.name,
+        model_name=provider.model_name,
         invocation_type="embed",
         task_id=task_id,
         prompt_version="rag-embedding-v1",
@@ -646,11 +651,19 @@ def _chunk_counts(db: Session, document_ids: list[UUID]) -> dict[UUID, int]:
 
 def _embedding_provider() -> DeterministicEmbeddingProvider | OpenAICompatibleEmbeddingProvider:
     if settings.embedding_provider in {"openai", "openai-compatible", "real"}:
-        if not settings.llm_api_url or not settings.llm_api_key:
-            raise HTTPException(status_code=400, detail="Real embedding provider is configured but LLM_API_URL/LLM_API_KEY is missing")
+        api_url = settings.embedding_api_url or settings.llm_api_url
+        api_key = settings.embedding_api_key or settings.llm_api_key
+        if not api_url or not api_key:
+            raise HTTPException(status_code=400, detail="Real embedding provider is configured but EMBEDDING_API_URL/EMBEDDING_API_KEY is missing")
         if settings.embedding_dimensions != EMBEDDING_DIMENSIONS:
             raise HTTPException(status_code=400, detail="Embedding dimensions must be 32 for the configured vector index")
-        return OpenAICompatibleEmbeddingProvider(settings.embedding_provider)
+        return OpenAICompatibleEmbeddingProvider(
+            settings.embedding_provider,
+            api_url,
+            api_key,
+            settings.embedding_model,
+            EMBEDDING_DIMENSIONS,
+        )
     if settings.embedding_provider not in {"deterministic-local", "deterministic-fallback", "local", "mock"}:
         raise HTTPException(status_code=400, detail="Configured embedding provider is not enabled")
     if settings.embedding_dimensions != EMBEDDING_DIMENSIONS:

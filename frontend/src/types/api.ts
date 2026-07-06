@@ -20,6 +20,9 @@ export type SystemConfig = {
   llm_api_url_status: string;
   llm_api_key_status: string;
   embedding_provider: string;
+  embedding_model: string;
+  embedding_api_url_status: string;
+  embedding_api_key_status: string;
   ocr_provider: string;
   ocr_model: string;
   ocr_api_url_status: string;

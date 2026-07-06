@@ -4,7 +4,7 @@
 
 Round date: 2026-07-06
 
-Scope: configurable OCR Provider path, provider confidence preservation, OCR Provider configuration exposure, and continued strict execution-manual gap tracking.
+Scope: independent RAG embedding Provider configuration, 32-dimension embedding request compatibility, model invocation metadata, and continued strict execution-manual gap tracking.
 
 Status: **verified locally; still not final execution-manual complete**.
 
@@ -12,12 +12,11 @@ Status: **verified locally; still not final execution-manual complete**.
 
 | Item | Result | Evidence |
 | --- | --- | --- |
-| OCR Provider is configurable through environment variables | implemented | `backend/app/core/config.py`, `.env.example` |
-| External HTTP OCR Provider can receive uploaded file bytes without committing secrets or data | implemented | `backend/app/services/ocr_service.py` |
-| Provider-returned page and block confidence values are preserved without fabrication | implemented | `backend/app/services/ocr_service.py` |
-| Missing OCR confidence still produces explicit warnings on local/default paths | preserved | `backend/app/services/ocr_service.py` |
-| Admin Center exposes OCR provider/model/API status | implemented | `backend/app/api/router.py`, `frontend/src/types/api.ts`, `frontend/src/pages/AdminCenterPage.tsx` |
-| Tests cover external OCR provider confidence and request configuration | implemented | `backend/tests/test_ocr_api.py::test_http_ocr_provider_preserves_provider_confidence` |
+| Embedding Provider has independent endpoint/key/model configuration | implemented | `backend/app/core/config.py`, `.env.example` |
+| OpenAI-compatible embedding requests include `dimensions=32` for the current pgvector index | implemented | `backend/app/services/rag_service.py` |
+| `model_invocations` records the actual embedding model name instead of only provider name | implemented | `backend/app/services/rag_service.py` |
+| Admin Center exposes embedding model/API status | implemented | `backend/app/api/router.py`, `frontend/src/types/api.ts`, `frontend/src/pages/AdminCenterPage.tsx` |
+| Tests cover configured embedding endpoint, API key, model, and dimensions | implemented | `backend/tests/test_final_gap_closure_api.py::test_real_embedding_provider_requests_configured_vector_dimensions` |
 
 ## Verification Completed
 
@@ -29,7 +28,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 155 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 156 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
 
@@ -40,7 +39,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | Critical | Real customer/production evaluation datasets are not present and must not be committed; final real-data verification remains `blocked_external_dependency` until provided safely. |
 | Critical | Real OCR/LLM/RAG API keys and endpoints are not present and must not be committed; external Provider verification remains `blocked_external_dependency` until configured safely. |
 | High | LLM classification/extraction/RAG/explain still fall back when no real/local provider is configured. |
-| High | RAG four-library flow still defaults to deterministic/local embedding, rerank, and answer fallback; real provider/index compatibility remains incomplete. |
+| High | RAG four-library flow still defaults to deterministic/local embedding, rerank, and answer fallback when no real/local provider is configured. |
 | High | Agent Workflow still needs tighter execution-manual state/tool/Bad Case alignment. |
 
 ## Compliance Boundary

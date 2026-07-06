@@ -1,82 +1,51 @@
 # FinancialAuditAI Final Compliance Fix Report
 
-## Current Round: P2 delivery and frontend closure
+## Current Round
 
-Status: resolved
+Round date: 2026-07-06
 
-## Resolved P0 Items
+Scope: controlled execution manual artifact, Evaluation dataset-driven execution path, Evaluation result task scope, scoped failed-case propagation, and Evaluation Center frontend fields.
+
+Status: **verified locally; pending commit and push**.
+
+## Fixed In This Round
 
 | Item | Result | Evidence |
 | --- | --- | --- |
-| DOCX/XLSX upload and parser continuity | resolved | `backend/app/services/document_service.py`, `backend/app/services/ocr_service.py`, `backend/tests/test_task_document_api.py` |
-| Procurement quantity rule alignment | resolved | `backend/app/services/rule_engine_service.py`, `backend/tests/test_rule_engine_api.py` |
-| Report Evidence Index `source_page` for audit-result evidence | resolved | `backend/app/services/report_service.py`, `backend/tests/test_report_api.py` |
-| RAG workpaper task-scope isolation | resolved | `backend/app/api/rag.py`, `backend/tests/test_rag_api.py`, `backend/tests/test_final_gap_closure_api.py` |
+| Execution manual artifact is no longer ignored as an unmanaged external-only file | pending commit | `FinancialAuditAI_最终版项目开发执行手册.md` |
+| `evaluation_results` can be task-scoped | implemented | `backend/app/models/evaluation_result.py`, `backend/alembic/versions/0023_evaluation_result_scope.py` |
+| Evaluation result list/detail enforces task scope | implemented | `backend/app/api/quality.py` |
+| Evaluation can read JSON datasets from controlled sample or ignored local dataset roots | implemented | `backend/app/services/evaluation_service.py` |
+| Evaluation failed samples inherit task scope when converted to Bad Case | implemented | `backend/app/services/bad_case_service.py` |
+| Evaluation Center exposes task scope and dataset path fields | implemented | `frontend/src/pages/EvaluationCenterPage.tsx`, `frontend/src/types/api.ts` |
 
-## Verification Results
+## Verification Completed
 
 | Check | Result |
 | --- | --- |
 | `python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.json` | PASS |
 | `python3 scripts/danger_check.py` | PASS |
-| `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 152 passed, 5 PyMuPDF/SWIG deprecation warnings |
-| `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `docker compose config` | PASS |
-| Docker PostgreSQL health | PASS, `financialauditai-postgres-1` healthy |
-| `cd backend && ./.venv/bin/alembic current` | PASS, `0022_model_invocation_cost_estimate (head)` |
+| `docker compose up -d postgres` | PASS |
+| `docker compose ps` | PASS, PostgreSQL healthy |
+| `cd backend && ./.venv/bin/alembic upgrade head` | PASS, upgraded to `0023_evaluation_result_scope` |
+| Focused backend tests for Evaluation and Bad Case scope | PASS, 12 passed |
+| Full backend pytest | PASS, 154 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| Frontend build | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
 
-## Remaining Scope
+## Remaining Blocking Gaps
 
-| Priority | Status |
+| Priority | Gap |
 | --- | --- |
-| P1 | resolved |
-| Latest re-review backend high-risk gaps | resolved |
-| RBAC matrix gaps | resolved |
-| P2 | resolved |
+| Critical | Commit, push, and clean `git status` are not complete yet. |
+| Critical | Real customer/production evaluation datasets are not present and must not be committed; final real-data verification remains `blocked_external_dependency` until provided safely. |
+| High | LLM classification/extraction still fall back to deterministic/regex when no real/local provider is configured. |
+| High | OCR confidence is still unavailable for providers that do not report it; real OCR provider confidence path remains incomplete. |
+| High | `model_invocations` still does not cover OCR / explain. |
+| High | RAG four-library flow still defaults to deterministic/local embedding, rerank, and answer fallback. |
+| High | Agent Workflow still needs tighter execution-manual state/tool/Bad Case alignment. |
 
-P0, P1, latest re-review backend high-risk gaps, RBAC matrix gaps, and P2 closure items are resolved.
+## Compliance Boundary
 
-## Resolved P1 Items
-
-| Item | Result | Evidence |
-| --- | --- | --- |
-| Procurement Schema field-name compatibility | resolved | `backend/app/services/extraction_service.py`, `backend/tests/test_extraction_api.py` |
-| `model_invocations` cost-estimate compatibility | resolved | `backend/app/models/model_invocation.py`, `backend/app/services/model_invocation_service.py`, `backend/alembic/versions/0022_model_invocation_cost_estimate.py`, `backend/tests/test_final_gap_closure_api.py` |
-| OCR confidence semantics | resolved | `backend/app/services/ocr_service.py`, `backend/tests/test_ocr_api.py` |
-| `/tasks/{task_id}/run` RAG evidence retrieval status | resolved | `backend/app/services/task_service.py`, `backend/app/schemas/task.py`, `backend/tests/test_final_gap_closure_api.py` |
-
-## Resolved Latest Re-review Backend High-risk Items
-
-| Item | Result | Evidence |
-| --- | --- | --- |
-| RAG index embedding calls write `model_invocations` | resolved | `backend/app/services/rag_service.py`, `backend/tests/test_final_gap_closure_api.py` |
-| Agent evidence retrieval covers regulation, inquiry case, prospectus, and workpaper | resolved | `backend/app/services/agent_service.py`, `backend/tests/test_agent_workflow_api.py` |
-| Bad Case API enforces task-scope reads and writes for task/document-bound cases | resolved | `backend/app/api/quality.py`, `backend/app/services/bad_case_service.py`, `backend/tests/test_auth_rbac_security_api.py` |
-
-## Resolved RBAC Matrix Items
-
-| Item | Result | Evidence |
-| --- | --- | --- |
-| Viewer cannot read cross-task task records through `read_all` | resolved | `backend/app/services/auth_service.py`, `backend/tests/test_auth_rbac_security_api.py` |
-| Analyst field correction is blocked after the task enters review-stage statuses | resolved | `backend/app/api/review.py`, `backend/tests/test_auth_rbac_security_api.py` |
-
-## Resolved P2 Items
-
-| Item | Result | Evidence |
-| --- | --- | --- |
-| Database actor/responsibility-field compatibility wording | resolved | `docs/database_schema.md` |
-| Evaluation synthetic/non-production boundary wording | resolved | `docs/evaluation.md` |
-| Frontend permission affordances for read-only users | resolved | `frontend/src/pages/BadCaseCenterPage.tsx`, `frontend/src/pages/KnowledgeCenterPage.tsx`, `frontend/src/pages/ReportCenterPage.tsx`, `frontend/src/pages/RuleCenterPage.tsx` |
-| Admin Center model/provider configuration visibility | resolved | `backend/app/api/router.py`, `frontend/src/pages/AdminCenterPage.tsx`, `README.md` |
-
-## Final Execution Manual Re-review Conclusion
-
-Conclusion: can be submitted as the final local portfolio version.
-
-Blocking gaps from the final execution-manual review are resolved in code or closed with explicit compatibility boundaries. Remaining non-blocking limits are:
-
-- External OCR/LLM/RAG providers require environment configuration; deterministic providers remain local fallback and are marked degraded.
-- Built-in Evaluation Center runs are synthetic/sample/regression scoped and report `is_production_evaluation=false`.
-- Historical actor display fields remain nullable strings for compatibility; authenticated accountability is carried by `audit_logs.user_id`.
+This report does not claim final execution-manual compliance. Synthetic/demo/static paths remain acceptable only as smoke tests or local fixtures, not as proof that the execution manual is fully satisfied.

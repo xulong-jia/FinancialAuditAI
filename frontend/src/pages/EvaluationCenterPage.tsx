@@ -1,15 +1,20 @@
 import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 
-import { listEvaluationResults, runEvaluation } from "../api/client";
+import { listEvaluationResults, listTasks, runEvaluation } from "../api/client";
 import type { PageProps } from "../routes";
-import type { EvalType, EvaluationResult } from "../types/api";
+import type { AuditTask, EvalType, EvaluationResult } from "../types/api";
 import { hasPermission } from "../utils/permissions";
 
 type EvaluationFormValues = {
+  task_id?: string;
   eval_type: EvalType;
   eval_name?: string;
   dataset_name: string;
+  dataset_path?: string;
+  model_name?: string;
+  prompt_version?: string;
+  rule_version?: string;
   created_by?: string;
 };
 
@@ -30,6 +35,7 @@ function formatJson(value: unknown) {
 
 export function EvaluationCenterPage({ currentUser }: PageProps) {
   const [form] = Form.useForm<EvaluationFormValues>();
+  const [tasks, setTasks] = useState<AuditTask[]>([]);
   const [results, setResults] = useState<EvaluationResult[]>([]);
   const [selected, setSelected] = useState<EvaluationResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,16 +50,33 @@ export function EvaluationCenterPage({ currentUser }: PageProps) {
   }
 
   useEffect(() => {
-    void refreshResults().catch(() => message.error("Failed to load evaluation results"));
+    async function loadInitialData() {
+      setLoading(true);
+      try {
+        const [nextTasks] = await Promise.all([listTasks(), refreshResults()]);
+        setTasks(nextTasks);
+      } catch {
+        message.error("Failed to load evaluation center");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void loadInitialData();
   }, []);
 
   async function handleRun(values: EvaluationFormValues) {
     setLoading(true);
     try {
       const result = await runEvaluation({
+        task_id: values.task_id || null,
         eval_type: values.eval_type,
         eval_name: values.eval_name,
         dataset_name: values.dataset_name,
+        dataset_path: values.dataset_path || null,
+        model_name: values.model_name || null,
+        prompt_version: values.prompt_version || null,
+        rule_version: values.rule_version || null,
         created_by: values.created_by,
       });
       await refreshResults();
@@ -95,8 +118,27 @@ export function EvaluationCenterPage({ currentUser }: PageProps) {
             <Form.Item name="dataset_name" label="Dataset" rules={[{ required: true }]}>
               <Input style={{ width: 220 }} />
             </Form.Item>
+            <Form.Item name="dataset_path" label="Dataset Path">
+              <Input placeholder="strict_eval.json" style={{ width: 240 }} />
+            </Form.Item>
+            <Form.Item name="task_id" label="Task Scope">
+              <Select
+                allowClear
+                style={{ width: 260 }}
+                options={tasks.map((task) => ({ label: `${task.task_no} - ${task.name}`, value: task.id }))}
+              />
+            </Form.Item>
             <Form.Item name="eval_name" label="Name">
               <Input style={{ width: 240 }} />
+            </Form.Item>
+            <Form.Item name="model_name" label="Model">
+              <Input style={{ width: 180 }} />
+            </Form.Item>
+            <Form.Item name="prompt_version" label="Prompt">
+              <Input style={{ width: 160 }} />
+            </Form.Item>
+            <Form.Item name="rule_version" label="Rule">
+              <Input style={{ width: 160 }} />
             </Form.Item>
             <Form.Item name="created_by" label="Created By">
               <Input style={{ width: 180 }} />
@@ -125,6 +167,7 @@ export function EvaluationCenterPage({ currentUser }: PageProps) {
             columns={[
               { title: "Name", dataIndex: "eval_name" },
               { title: "Type", dataIndex: "eval_type", render: (value: string) => <Tag>{value}</Tag> },
+              { title: "Task", dataIndex: "task_id", render: (value: string | null) => value ?? "global" },
               { title: "Samples", dataIndex: "sample_count" },
               { title: "Failed", dataIndex: "failed_cases", render: (value: unknown[]) => value.length },
             ]}

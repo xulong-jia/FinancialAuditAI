@@ -98,8 +98,10 @@ def create_failed_case(
     model_output: dict,
     expected_output: dict,
     severity: str = "medium",
+    task_id: UUID | None = None,
 ) -> BadCase:
     case = BadCase(
+        task_id=task_id,
         case_type=case_type,
         title=title,
         input_payload=input_payload,
@@ -117,7 +119,7 @@ def create_failed_case(
     audit_log_service.add_log(
         db,
         actor_name=None,
-        task_id=None,
+        task_id=task_id,
         action="bad_case_created_from_failed_sample",
         target_type="bad_case",
         target_id=case.id,

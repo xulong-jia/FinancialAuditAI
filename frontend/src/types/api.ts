@@ -355,9 +355,11 @@ export type BadCaseCreatePayload = {
 export type BadCaseUpdatePayload = Partial<Omit<BadCaseCreatePayload, "case_type">>;
 
 export type EvaluationRunPayload = {
+  task_id?: string | null;
   eval_type: EvalType;
   eval_name?: string;
   dataset_name?: string;
+  dataset_path?: string | null;
   model_name?: string | null;
   prompt_version?: string | null;
   rule_version?: string | null;
@@ -366,6 +368,7 @@ export type EvaluationRunPayload = {
 
 export type EvaluationResult = {
   id: string;
+  task_id: string | null;
   eval_name: string;
   eval_type: EvalType;
   dataset_name: string;

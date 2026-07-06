@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Integer, JSON, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -15,6 +15,9 @@ class EvaluationResult(Base):
     __tablename__ = "evaluation_results"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    task_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("audit_tasks.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     eval_name: Mapped[str] = mapped_column(String(160), index=True)
     eval_type: Mapped[str] = mapped_column(String(64), index=True)
     dataset_name: Mapped[str] = mapped_column(String(160), index=True)

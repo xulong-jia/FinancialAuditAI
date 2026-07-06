@@ -83,9 +83,11 @@ class BadCaseRead(BaseModel):
 
 
 class EvaluationRunRequest(BaseModel):
+    task_id: UUID | None = None
     eval_type: EvalType
     eval_name: str | None = Field(default=None, max_length=160)
     dataset_name: str = Field(default="bad_case_regression", min_length=1, max_length=160)
+    dataset_path: str | None = Field(default=None, max_length=500)
     model_name: str | None = Field(default=None, max_length=160)
     prompt_version: str | None = Field(default=None, max_length=80)
     rule_version: str | None = Field(default=None, max_length=80)
@@ -96,6 +98,7 @@ class EvaluationResultRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    task_id: UUID | None
     eval_name: str
     eval_type: str
     dataset_name: str

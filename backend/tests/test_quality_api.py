@@ -1,5 +1,8 @@
+import json
+
 from fastapi.testclient import TestClient
 
+from app.services import evaluation_service
 from app.main import app
 
 client = TestClient(app)
@@ -34,6 +37,26 @@ def run_eval(eval_type: str) -> dict:
         },
     )
     assert response.status_code == 200, response.text
+    return response.json()
+
+
+def auth_headers(email: str, password: str) -> dict[str, str]:
+    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def create_user(email: str, role_codes: list[str]) -> dict:
+    response = client.post(
+        "/api/v1/users",
+        json={
+            "email": email,
+            "password": "test-password",
+            "full_name": email.split("@")[0],
+            "role_codes": role_codes,
+        },
+    )
+    assert response.status_code == 200
     return response.json()
 
 
@@ -167,6 +190,91 @@ def test_evaluation_results_list_filter() -> None:
     assert response.status_code == 200
     assert len(response.json()) == 1
     assert response.json()[0]["eval_type"] == "classification"
+
+
+def test_dataset_driven_evaluation_is_task_scoped_and_creates_scoped_bad_cases() -> None:
+    owner = create_user("eval-owner@example.com", ["analyst"])
+    create_user("eval-other@example.com", ["analyst"])
+    owner_headers = auth_headers("eval-owner@example.com", "test-password")
+    other_headers = auth_headers("eval-other@example.com", "test-password")
+    task = client.post(
+        "/api/v1/tasks",
+        json={"name": "Scoped evaluation task", "scenario": "procurement"},
+        headers=owner_headers,
+    ).json()
+    assert task["owner_id"] == owner["id"]
+    dataset_path = evaluation_service.evaluation_datasets_root() / "strict_eval_dataset.json"
+    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+    dataset_path.write_text(
+        json.dumps(
+            {
+                "dataset_name": "strict_eval_dataset",
+                "dataset_kind": "desensitized_annotated",
+                "samples": [
+                    {
+                        "id": "cls-pass",
+                        "eval_type": "classification",
+                        "actual": {"doc_type": "invoice", "confidence": 0.93},
+                        "expected": {"doc_type": "invoice"},
+                    },
+                    {
+                        "id": "cls-fail",
+                        "eval_type": "classification",
+                        "actual": {"doc_type": "purchase_contract", "confidence": 0.91},
+                        "expected": {"doc_type": "invoice"},
+                        "severity": "high",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_response = client.post(
+        "/api/v1/evaluations/run",
+        json={
+            "task_id": task["id"],
+            "eval_type": "classification",
+            "dataset_name": "strict_eval_dataset",
+            "dataset_path": "strict_eval_dataset.json",
+            "created_by": "qa_test",
+        },
+    )
+
+    assert result_response.status_code == 200, result_response.text
+    result = result_response.json()
+    assert result["task_id"] == task["id"]
+    assert result["sample_count"] == 2
+    assert result["metrics"]["is_dataset_driven"] is True
+    assert result["metrics"]["dataset_kind"] == "desensitized_annotated"
+    assert result["metrics"]["accuracy"] == 0.5
+    assert result["failed_cases"][0]["title"] == "cls-fail"
+    assert result["metrics"]["is_production_evaluation"] is False
+
+    owner_results = client.get("/api/v1/evaluations/results", headers=owner_headers)
+    other_results = client.get("/api/v1/evaluations/results", headers=other_headers)
+    assert result["id"] in {item["id"] for item in owner_results.json()}
+    assert result["id"] not in {item["id"] for item in other_results.json()}
+    assert client.get(f"/api/v1/evaluations/results/{result['id']}", headers=other_headers).status_code == 403
+
+    owner_cases = client.get("/api/v1/bad-cases?case_type=classification", headers=owner_headers).json()
+    other_cases = client.get("/api/v1/bad-cases?case_type=classification", headers=other_headers).json()
+    assert any(case["title"] == "cls-fail" and case["task_id"] == task["id"] for case in owner_cases)
+    assert all(case["title"] != "cls-fail" for case in other_cases)
+
+
+def test_evaluation_dataset_path_is_restricted() -> None:
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={
+            "eval_type": "classification",
+            "dataset_name": "blocked",
+            "dataset_path": "../project_status.json",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "dataset_path" in response.json()["detail"]
 
 
 def test_evaluation_metrics_cover_required_metric_families() -> None:

@@ -144,8 +144,8 @@ def create_comment(
     if db.get(AuditTask, payload.task_id) is None:
         raise HTTPException(status_code=404, detail="Task not found")
     data = payload.model_dump()
-    data["author_id"] = payload.author_id or author_id
-    data["author_name"] = payload.author_name or author_name
+    data["author_id"] = author_id or payload.author_id
+    data["author_name"] = author_name or payload.author_name
     comment = ReviewComment(**data)
     db.add(comment)
     _add_log(
@@ -166,7 +166,7 @@ def create_comment(
     return comment
 
 
-def update_field(db: Session, field_id: UUID, payload: FieldCorrection) -> ExtractedField:
+def update_field(db: Session, field_id: UUID, payload: FieldCorrection, actor_id: UUID | None = None) -> ExtractedField:
     field = db.get(ExtractedField, field_id)
     if field is None:
         raise HTTPException(status_code=404, detail="Field not found")
@@ -183,6 +183,7 @@ def update_field(db: Session, field_id: UUID, payload: FieldCorrection) -> Extra
     field.warnings = _updated_warnings(field)
     field.is_verified = True
     field.corrected_by = payload.actor_name
+    field.corrected_by_user_id = actor_id
     field.corrected_at = utc_now()
     after = _field_snapshot(field)
 
@@ -191,6 +192,7 @@ def update_field(db: Session, field_id: UUID, payload: FieldCorrection) -> Extra
             task_id=field.task_id,
             document_id=field.document_id,
             field_id=field.id,
+            author_id=actor_id,
             author_name=payload.actor_name,
             comment_type="field_correction",
             content=payload.comment or "Field corrected",
@@ -213,7 +215,7 @@ def update_field(db: Session, field_id: UUID, payload: FieldCorrection) -> Extra
     return field
 
 
-def reextract_document(db: Session, document_id: UUID, payload: ReextractRequest) -> list[ExtractedField]:
+def reextract_document(db: Session, document_id: UUID, payload: ReextractRequest, actor_id: UUID | None = None) -> list[ExtractedField]:
     document = db.get(Document, document_id)
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -227,6 +229,7 @@ def reextract_document(db: Session, document_id: UUID, payload: ReextractRequest
         ReviewComment(
             task_id=document.task_id,
             document_id=document.id,
+            author_id=actor_id,
             author_name=payload.actor_name,
             comment_type="reextract_requested",
             content=payload.reason or "Document re-extracted from Review Center.",
@@ -248,7 +251,7 @@ def reextract_document(db: Session, document_id: UUID, payload: ReextractRequest
     return extraction_service.list_document_fields(db, document_id)
 
 
-def rerun_rules_for_field(db: Session, field_id: UUID, payload: ReviewAction) -> list[AuditResult]:
+def rerun_rules_for_field(db: Session, field_id: UUID, payload: ReviewAction, actor_id: UUID | None = None) -> list[AuditResult]:
     field = db.get(ExtractedField, field_id)
     if field is None:
         raise HTTPException(status_code=404, detail="Field not found")
@@ -259,6 +262,7 @@ def rerun_rules_for_field(db: Session, field_id: UUID, payload: ReviewAction) ->
             task_id=field.task_id,
             document_id=field.document_id,
             field_id=field.id,
+            author_id=actor_id,
             author_name=payload.actor_name,
             comment_type="field_rules_rerun",
             content=payload.reason or "Rules rerun after field review.",
@@ -280,7 +284,7 @@ def rerun_rules_for_field(db: Session, field_id: UUID, payload: ReviewAction) ->
     return results
 
 
-def create_bad_case_from_review(db: Session, payload: BadCaseFromReview) -> BadCase:
+def create_bad_case_from_review(db: Session, payload: BadCaseFromReview, actor_id: UUID | None = None) -> BadCase:
     if db.get(AuditTask, payload.task_id) is None:
         raise HTTPException(status_code=404, detail="Task not found")
     input_payload = payload.model_dump(mode="json")
@@ -308,6 +312,8 @@ def create_bad_case_from_review(db: Session, payload: BadCaseFromReview) -> BadC
             document_id=payload.document_id,
             audit_result_id=payload.audit_result_id,
             field_id=payload.field_id,
+            author_id=actor_id,
+            author_name=payload.owner_name,
             comment_type="bad_case_created",
             content=f"Bad case created: {case.title}",
             after_value={"bad_case_id": str(case.id)},
@@ -328,35 +334,37 @@ def create_bad_case_from_review(db: Session, payload: BadCaseFromReview) -> BadC
     return case
 
 
-def confirm_result(db: Session, result_id: UUID, payload: ReviewAction) -> AuditResult:
+def confirm_result(db: Session, result_id: UUID, payload: ReviewAction, actor_id: UUID | None = None) -> AuditResult:
     result = _get_result(db, result_id)
     before = _result_snapshot(result)
     result.review_status = "confirmed"
     result.reviewed_by = payload.actor_name
+    result.reviewed_by_user_id = actor_id
     result.reviewed_at = utc_now()
     after = _result_snapshot(result)
-    _comment_for_result(db, result, payload.actor_name, "audit_result_confirmed", payload.reason or "Audit result confirmed", before, after)
+    _comment_for_result(db, result, payload.actor_name, "audit_result_confirmed", payload.reason or "Audit result confirmed", before, after, actor_id=actor_id)
     _add_log(db, payload.actor_name, result.task_id, "audit_result_confirmed", "audit_result", result.id, before, after)
     db.commit()
     db.refresh(result)
     return result
 
 
-def dismiss_result(db: Session, result_id: UUID, payload: DismissReviewAction) -> AuditResult:
+def dismiss_result(db: Session, result_id: UUID, payload: DismissReviewAction, actor_id: UUID | None = None) -> AuditResult:
     result = _get_result(db, result_id)
     before = _result_snapshot(result)
     result.review_status = "dismissed"
     result.reviewed_by = payload.actor_name
+    result.reviewed_by_user_id = actor_id
     result.reviewed_at = utc_now()
     after = _result_snapshot(result) | {"dismiss_reason": payload.reason}
-    _comment_for_result(db, result, payload.actor_name, "audit_result_dismissed", payload.reason, before, after)
+    _comment_for_result(db, result, payload.actor_name, "audit_result_dismissed", payload.reason, before, after, actor_id=actor_id)
     _add_log(db, payload.actor_name, result.task_id, "audit_result_dismissed", "audit_result", result.id, before, after)
     db.commit()
     db.refresh(result)
     return result
 
 
-def rerun_result(db: Session, result_id: UUID, payload: ReviewAction) -> list[AuditResult]:
+def rerun_result(db: Session, result_id: UUID, payload: ReviewAction, actor_id: UUID | None = None) -> list[AuditResult]:
     result = _get_result(db, result_id)
     task_id = result.task_id
     before = _result_snapshot(result)
@@ -559,6 +567,7 @@ def _result_snapshot(result: AuditResult) -> dict:
         "message": result.message,
         "review_status": result.review_status,
         "reviewed_by": result.reviewed_by,
+        "reviewed_by_user_id": str(result.reviewed_by_user_id) if result.reviewed_by_user_id else None,
         "reviewed_at": result.reviewed_at.isoformat() if result.reviewed_at else None,
     }
 
@@ -571,11 +580,14 @@ def _comment_for_result(
     content: str,
     before: dict,
     after: dict,
+    *,
+    actor_id: UUID | None = None,
 ) -> None:
     db.add(
         ReviewComment(
             task_id=result.task_id,
             audit_result_id=result.id,
+            author_id=actor_id,
             author_name=actor_name,
             comment_type=comment_type,
             content=content,

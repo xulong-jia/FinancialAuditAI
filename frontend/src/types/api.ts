@@ -117,6 +117,7 @@ export type ExtractedField = {
   is_required: boolean;
   is_verified: boolean;
   corrected_by: string | null;
+  corrected_by_user_id: string | null;
   corrected_at: string | null;
   warnings: string[];
   created_at: string;
@@ -406,6 +407,7 @@ export type AuditResult = {
   rag_citations: Record<string, unknown>[] | null;
   review_status: string;
   reviewed_by: string | null;
+  reviewed_by_user_id: string | null;
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;

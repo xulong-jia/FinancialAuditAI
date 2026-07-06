@@ -85,7 +85,7 @@ def update_field(
         raise HTTPException(status_code=403, detail="Analyst field correction is limited to draft stage")
     if payload.actor_name is None:
         payload = payload.model_copy(update={"actor_name": user.full_name})
-    return review_service.update_field(db, field_id, payload)
+    return review_service.update_field(db, field_id, payload, actor_id=user.id)
 
 
 @router.post("/audit-results/{result_id}/confirm", response_model=AuditResultRead)
@@ -99,7 +99,7 @@ def confirm_audit_result(
     enforce_task_scope(db, user, result.task_id, write=True)
     if payload.actor_name is None:
         payload = payload.model_copy(update={"actor_name": user.full_name})
-    return review_service.confirm_result(db, result_id, payload)
+    return review_service.confirm_result(db, result_id, payload, actor_id=user.id)
 
 
 @router.post("/audit-results/{result_id}/dismiss", response_model=AuditResultRead)
@@ -113,7 +113,7 @@ def dismiss_audit_result(
     enforce_task_scope(db, user, result.task_id, write=True)
     if payload.actor_name is None:
         payload = payload.model_copy(update={"actor_name": user.full_name})
-    return review_service.dismiss_result(db, result_id, payload)
+    return review_service.dismiss_result(db, result_id, payload, actor_id=user.id)
 
 
 @router.post("/audit-results/{result_id}/rerun", response_model=list[AuditResultRead])
@@ -127,7 +127,7 @@ def rerun_audit_result(
     enforce_task_scope(db, user, result.task_id, write=True)
     if payload.actor_name is None:
         payload = payload.model_copy(update={"actor_name": user.full_name})
-    return review_service.rerun_result(db, result_id, payload)
+    return review_service.rerun_result(db, result_id, payload, actor_id=user.id)
 
 
 @router.post("/fields/{field_id}/rerun-rules", response_model=list[AuditResultRead])
@@ -141,7 +141,7 @@ def rerun_rules_for_field(
     enforce_task_scope(db, user, field.task_id, write=True)
     if payload.actor_name is None:
         payload = payload.model_copy(update={"actor_name": user.full_name})
-    return review_service.rerun_rules_for_field(db, field_id, payload)
+    return review_service.rerun_rules_for_field(db, field_id, payload, actor_id=user.id)
 
 
 @router.post("/documents/{document_id}/reextract", response_model=list[ExtractedFieldRead])
@@ -154,7 +154,7 @@ def reextract_document(
     enforce_document_scope(db, user, document_id, write=True)
     if payload.actor_name is None:
         payload = payload.model_copy(update={"actor_name": user.full_name})
-    return review_service.reextract_document(db, document_id, payload)
+    return review_service.reextract_document(db, document_id, payload, actor_id=user.id)
 
 
 @router.post("/review/bad-case", response_model=BadCaseRead)
@@ -166,7 +166,7 @@ def create_bad_case_from_review(
     _enforce_review_source_scope(db, user, payload)
     if payload.owner_name is None:
         payload = payload.model_copy(update={"owner_name": user.full_name})
-    return review_service.create_bad_case_from_review(db, payload)
+    return review_service.create_bad_case_from_review(db, payload, actor_id=user.id)
 
 
 def _get_field(db: Session, field_id: UUID) -> ExtractedField:

@@ -88,6 +88,7 @@ class AuditResultRead(BaseModel):
     rag_citations: list[dict] | None
     review_status: str
     reviewed_by: str | None
+    reviewed_by_user_id: UUID | None
     reviewed_at: datetime | None
     created_at: datetime
     updated_at: datetime

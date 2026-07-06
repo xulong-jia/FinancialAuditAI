@@ -56,6 +56,7 @@ class ExtractedFieldRead(ExtractedFieldValue):
     is_required: bool
     is_verified: bool
     corrected_by: str | None
+    corrected_by_user_id: UUID | None
     corrected_at: datetime | None
     created_at: datetime
     updated_at: datetime

@@ -222,6 +222,7 @@ def test_reviewer_can_correct_field_and_audit_log_is_redacted() -> None:
     )
 
     assert response.status_code == 200
+    assert response.json()["corrected_by_user_id"] == reviewer["id"]
     logs = client.get("/api/v1/audit-logs").json()
     field_log = next(log for log in logs if log["action"] == "field_corrected")
     assert "secret original source text" not in str(field_log)

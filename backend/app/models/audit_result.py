@@ -33,6 +33,9 @@ class AuditResult(Base):
     rag_citations: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     review_status: Mapped[str] = mapped_column(String(32), default="pending")
     reviewed_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    reviewed_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(

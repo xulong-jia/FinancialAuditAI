@@ -8,6 +8,7 @@ from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.extracted_field import ExtractedField
 from app.models.review_comment import ReviewComment
+from app.models.user import User
 from test_rule_engine_api import build_scenario, client, run_audit
 
 
@@ -38,12 +39,17 @@ def test_review_queue_and_comments_api() -> None:
         "/api/v1/review/comments",
         json={
             "task_id": task["id"],
-            "author_name": "reviewer",
+            "author_id": "00000000-0000-0000-0000-000000000000",
+            "author_name": "spoofed reviewer",
             "comment_type": "general",
             "content": "Need procurement evidence follow-up.",
         },
     )
     assert comment_response.status_code == 200
+    with SessionLocal() as db:
+        admin = db.query(User).filter(User.email == "admin@example.com").one()
+        assert comment_response.json()["author_id"] == str(admin.id)
+        assert comment_response.json()["author_name"] == "Test Admin"
 
     list_response = client.get(f"/api/v1/review/comments?task_id={task['id']}")
     assert list_response.status_code == 200
@@ -78,8 +84,11 @@ def test_field_correction_preserves_source_and_writes_before_after_log() -> None
     assert payload["source_text"] == original_source_text
 
     with SessionLocal() as db:
+        reviewer = db.query(User).filter(User.email == "admin@example.com").one()
+        assert payload["corrected_by_user_id"] == str(reviewer.id)
         comment = db.query(ReviewComment).filter(ReviewComment.field_id == field.id).one()
         log = db.query(AuditLog).filter(AuditLog.action == "field_corrected").one()
+        assert comment.author_id == reviewer.id
         assert comment.before_value["value_text"] == "Supplier Co"
         assert comment.after_value["value_text"] == "Supplier Corrected Co"
         assert log.before_value["source_text"] == "[REDACTED_TEXT]"
@@ -125,6 +134,11 @@ def test_confirm_marks_result_reviewed() -> None:
     payload = response.json()
     assert payload["review_status"] == "confirmed"
     assert payload["reviewed_by"] == "reviewer"
+    with SessionLocal() as db:
+        reviewer = db.query(User).filter(User.email == "admin@example.com").one()
+        assert payload["reviewed_by_user_id"] == str(reviewer.id)
+        comment = db.query(ReviewComment).filter(ReviewComment.audit_result_id == UUID(result_id)).one()
+        assert comment.author_id == reviewer.id
 
 
 def test_high_risk_result_stays_pending_until_manual_action() -> None:

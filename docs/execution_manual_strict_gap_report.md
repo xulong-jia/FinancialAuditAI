@@ -18,6 +18,7 @@
 | OpenAI-compatible LLM Provider 路径验证 | 已覆盖 classify / extract / rerank / answer / explain 的安全 mock HTTP 路径 | `backend/app/services/llm_provider.py` | `backend/tests/test_llm_provider_paths_api.py` |
 | RAG Provider citation JSON 边界 | 已修复 UUID citation 无法序列化到真实 Provider prompt 的问题 | `backend/app/services/llm_provider.py` | `backend/tests/test_llm_provider_paths_api.py::test_rag_rerank_answer_and_rule_explain_use_configured_llm_provider` |
 | Viewer RBAC 数据库口径 | 已移除 migration seed/update 中的 viewer `read_all`，并新增 head migration 修正已迁移数据库 | `backend/alembic/versions/0014_rbac_users_roles.py`, `backend/alembic/versions/0019_quality_audit_contract.py`, `backend/alembic/versions/0020_final_gap_role_matrix.py`, `backend/alembic/versions/0024_viewer_role_scope.py` | `cd backend && ./.venv/bin/alembic upgrade head`, `backend/tests/test_auth_rbac_security_api.py::test_default_role_permissions_match_execution_matrix_baseline` |
+| Review actor UUID 口径 | 已为字段修正和异常复核补齐服务端注入的用户 UUID FK，并保留字符串名称作为显示兼容字段 | `backend/app/models/extracted_field.py`, `backend/app/models/audit_result.py`, `backend/app/services/review_service.py`, `backend/alembic/versions/0025_review_actor_user_refs.py` | `backend/tests/test_review_api.py::test_field_correction_preserves_source_and_writes_before_after_log`, `backend/tests/test_review_api.py::test_confirm_marks_result_reviewed`, `backend/tests/test_review_api.py::test_review_queue_and_comments_api` |
 | Agent 工具角色职责合同 | 已在每个 `agent_steps.input_payload` 记录 `agent_role` 和 `must_not` 约束 | `backend/app/services/agent_service.py` | `backend/tests/test_agent_workflow_api.py::test_agent_run_creates_steps_and_report_without_bypassing_rule_engine` |
 | 前端权限合同测试 | 已新增无新依赖的 `node --test` 权限合同测试 | `frontend/package.json`, `frontend/tests/permission-contract.test.mjs` | `cd frontend && npm test` |
 | PDF 报告证据/复核/用途边界输出 | 已改为全列换行输出并覆盖 PDF 内容测试 | `backend/app/services/report_service.py` | `backend/tests/test_report_api.py::test_control_table_report_generates_pdf_with_evidence_review_and_boundary` |
@@ -64,7 +65,7 @@
 | --- | --- | --- |
 | M-01 | Evaluation | 数据集驱动入口已存在，但真实 OCR、真实 RAG groundedness、真实 Agent E2E 评测仍依赖外部标注集和真实 Provider 配置。 |
 | M-02 | Report | xlsx/csv/markdown/pdf 均存在；PDF 已输出 Summary、异常、证据索引、复核意见和用途边界；audit_result 证据行已含 `field_id`，报告质量仍受上游 OCR bbox/confidence 完整性影响。 |
-| M-03 | Review | 主流程满足；历史 `actor_name` / `reviewed_by` / `corrected_by` 字符串字段仍为兼容口径。 |
+| M-03 | Review | 字段修正和异常复核已补服务端用户 UUID FK；历史 `actor_name` / `reviewed_by` / `corrected_by` 字符串字段仅保留为显示兼容口径。 |
 | M-04 | Frontend tests | 已有权限合同自动化测试；仍无浏览器级 E2E/交互测试。 |
 
 ## fallback / synthetic / demo 状态
@@ -83,6 +84,5 @@
 
 ## 下一轮最高优先级
 
-1. Review 历史兼容字段与执行手册 UUID 口径继续收敛。
-2. 浏览器级 E2E/交互测试能力。
-3. LLM/RAG Provider 真实端到端验收在安全配置下完成。
+1. 浏览器级 E2E/交互测试能力。
+2. LLM/RAG Provider 真实端到端验收在安全配置下完成。

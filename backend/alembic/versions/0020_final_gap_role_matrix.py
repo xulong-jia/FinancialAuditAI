@@ -16,7 +16,7 @@ depends_on = None
 
 
 ROLE_PERMISSIONS = {
-    "viewer": '["read", "read_all", "evaluation:read"]',
+    "viewer": '["read", "evaluation:read"]',
     "analyst": '["read", "task:create", "task:update", "document:upload", "document:process", "audit:run", "agent:run", "report:generate", "evaluation:read", "field:correct"]',
     "reviewer": '["read", "task:create", "task:update", "document:upload", "document:process", "audit:run", "agent:run", "review:write", "report:generate", "evaluation:read"]',
     "manager": '["read", "project:manage", "task:create", "task:update", "document:upload", "document:process", "audit:run", "agent:run", "review:write", "report:generate", "evaluation:read", "quality:manage", "audit_log:read", "rule:manage", "rag:manage"]',

@@ -45,7 +45,7 @@ def upgrade() -> None:
     if "roles" in inspector.get_table_names():
         op.execute(
             """
-            UPDATE roles SET permissions = '["read", "read_all", "evaluation:read"]'::jsonb WHERE code = 'viewer';
+            UPDATE roles SET permissions = '["read", "evaluation:read"]'::jsonb WHERE code = 'viewer';
             UPDATE roles SET permissions = '["read", "project:manage", "task:create", "task:update", "document:upload", "document:process", "audit:run", "agent:run", "review:write", "report:generate", "evaluation:read", "quality:manage", "audit_log:read", "rule:manage", "rag:manage"]'::jsonb
             WHERE code = 'manager';
             """

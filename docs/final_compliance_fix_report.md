@@ -4,7 +4,7 @@
 
 Round date: 2026-07-06
 
-Scope: rule evidence chain traceability, report evidence export coverage, and continued strict execution-manual gap tracking.
+Scope: viewer RBAC database scope, rule evidence chain traceability, report evidence export coverage, and continued strict execution-manual gap tracking.
 
 Status: **verified locally; still not final execution-manual complete**.
 
@@ -18,6 +18,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | PDF report uses existing PyMuPDF dependency and stdlib wrapping, with no new package | implemented | `backend/app/services/report_service.py` |
 | Rule evidence refs now carry `field_id` when backed by an extracted field | implemented | `backend/app/services/rule_engine_service.py` |
 | Report Evidence Index now carries `field_id` on audit_result rows when available | implemented | `backend/app/services/report_service.py`, `backend/tests/test_report_api.py::test_report_xlsx_exports_exceptions_evidence_and_field_corrections` |
+| Viewer role seed/update no longer grants `read_all`; existing migrated databases are corrected by a head migration | implemented | `backend/alembic/versions/0024_viewer_role_scope.py` |
 
 ## Verification Completed
 

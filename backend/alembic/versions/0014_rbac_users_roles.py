@@ -21,7 +21,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 ROLE_SEEDS = [
-    ("viewer", "Viewer", ["read", "read_all", "evaluation:read"]),
+    ("viewer", "Viewer", ["read", "evaluation:read"]),
     ("analyst", "Analyst", ["read", "task:create", "task:update", "document:upload", "document:process", "audit:run", "agent:run", "report:generate", "evaluation:read", "field:correct"]),
     ("reviewer", "Reviewer", ["read", "task:create", "task:update", "document:upload", "document:process", "audit:run", "agent:run", "review:write", "report:generate", "evaluation:read"]),
     ("manager", "Manager", ["read", "project:manage", "task:create", "task:update", "document:upload", "document:process", "audit:run", "agent:run", "review:write", "report:generate", "evaluation:read", "quality:manage", "audit_log:read", "rule:manage", "rag:manage"]),

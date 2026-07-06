@@ -88,6 +88,7 @@
 - 普通 `pytest` 启动时强制 `ENVIRONMENT=test` / `TESTING=true`，并固定使用 `deterministic-fallback`、`deterministic-local`、`pymupdf-local`，不读取本地 `.env` 中真实 Provider key 作为单元测试配置。
 - 本地 `.env` 可以保存真实 Provider 配置，但 `.env` 不提交；普通单元测试不会因为 `.env` 中存在真实 `LLM_PROVIDER` / `LLM_API_KEY` 而触发外部调用。
 - Provider readiness 使用专门入口：`python3 scripts/provider_readiness.py` 或 `GET /api/v1/provider-readiness`。
+- OpenAI-compatible readiness 支持 `LLM_API_MODE=auto` / `responses` / `chat_completions`；`auto` 对 `gpt-5*` readiness 使用 Responses API，其余默认兼容旧 `/chat/completions` provider。
 - 真实网络 integration 只能显式设置 `RUN_PROVIDER_INTEGRATION=1` 后触发；无 key 或 endpoint 时状态为 `blocked_external_dependency`，不能声明 fully satisfied。
 - readiness 输出只包含 provider/model 和 `api_url_status` / `api_key_status`，不得输出 API key。
 

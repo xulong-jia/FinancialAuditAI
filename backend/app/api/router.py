@@ -32,6 +32,7 @@ def read_config() -> dict[str, str]:
         "api_prefix": settings.api_v1_prefix,
         "llm_provider": settings.llm_provider,
         "llm_model": settings.llm_model,
+        "llm_api_mode": settings.llm_api_mode,
         "llm_api_url_status": "configured" if settings.llm_api_url else "not_configured",
         "llm_api_key_status": "configured" if settings.llm_api_key else "not_configured",
         "embedding_provider": settings.embedding_provider,

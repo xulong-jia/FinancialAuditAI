@@ -8,6 +8,7 @@ TEST_PROVIDER_ENV = {
     "LLM_PROVIDER": "deterministic-fallback",
     "LLM_API_URL": "",
     "LLM_API_KEY": "",
+    "LLM_API_MODE": "auto",
     "LLM_MODEL": "financialauditai-local",
     "EMBEDDING_PROVIDER": "deterministic-local",
     "EMBEDDING_API_URL": "",
@@ -68,6 +69,7 @@ class Settings(BaseModel):
     llm_provider: str = "deterministic-fallback"
     llm_api_url: str | None = None
     llm_api_key: str | None = None
+    llm_api_mode: str = "auto"
     llm_model: str = "financialauditai-local"
     llm_timeout_seconds: float = 20.0
     rag_rerank_provider: str = "deterministic-fallback"
@@ -106,6 +108,7 @@ def get_settings() -> Settings:
         llm_provider=os.getenv("LLM_PROVIDER", "deterministic-fallback"),
         llm_api_url=os.getenv("LLM_API_URL") or None,
         llm_api_key=os.getenv("LLM_API_KEY") or None,
+        llm_api_mode=os.getenv("LLM_API_MODE", "auto"),
         llm_model=os.getenv("LLM_MODEL", "financialauditai-local"),
         llm_timeout_seconds=float(os.getenv("LLM_TIMEOUT_SECONDS", "20")),
         rag_rerank_provider=os.getenv("RAG_RERANK_PROVIDER", "deterministic-fallback"),

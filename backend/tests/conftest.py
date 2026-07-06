@@ -9,6 +9,7 @@ TEST_PROVIDER_ENV = {
     "LLM_PROVIDER": "deterministic-fallback",
     "LLM_API_URL": "",
     "LLM_API_KEY": "",
+    "LLM_API_MODE": "auto",
     "LLM_MODEL": "financialauditai-local",
     "EMBEDDING_PROVIDER": "deterministic-local",
     "EMBEDDING_API_URL": "",

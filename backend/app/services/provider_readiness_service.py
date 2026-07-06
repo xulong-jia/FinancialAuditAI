@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
 import os
+import re
+from time import perf_counter
+import urllib.error
+import urllib.request
 
 from app.core.config import settings
-from app.services import llm_provider, rag_service
+from app.services import rag_service
 
 REAL_PROVIDERS = {"openai", "openai-compatible", "real"}
 LOCAL_LLM_PROVIDERS = {"local", "local-http", "local-llm"}
@@ -50,19 +55,10 @@ def _configured_status(provider: str, api_url: str | None, api_key: str | None, 
 
 def _llm_status(provider: str, api_url: str | None, api_key: str | None, model: str, run_integration: bool, purpose: str | None = None) -> dict:
     status = _configured_status(provider, api_url, api_key, model)
+    status["api_mode"] = _llm_api_mode(model)
     if not run_integration or status["status"] != "configured":
         return status
-    result = llm_provider.get_llm_provider(purpose).classify_document(
-        "provider-readiness.txt",
-        "provider readiness probe",
-        "procurement",
-        ["invoice", "purchase_contract"],
-    )
-    return status | {
-        "status": "ready" if result.status == "ok" else "failed",
-        "latency_ms": result.latency_ms,
-        "error": result.error,
-    }
+    return status | _probe_llm(api_url, api_key, model, status["api_mode"])
 
 
 def _embedding_status(run_integration: bool) -> dict:
@@ -77,3 +73,110 @@ def _embedding_status(run_integration: bool) -> dict:
     except Exception as exc:  # noqa: BLE001
         return status | {"status": "failed", "error": str(exc)}
     return status | {"status": "ready"}
+
+
+def _probe_llm(api_url: str | None, api_key: str | None, model: str, api_mode: str) -> dict:
+    if not api_url:
+        return {"status": "blocked_external_dependency", "error": {"message": "LLM_API_URL is not configured"}}
+    started = perf_counter()
+    request = urllib.request.Request(
+        _llm_endpoint(api_url, api_mode),
+        data=json.dumps(_llm_probe_body(model, api_mode)).encode(),
+        headers=_headers(api_key),
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=settings.llm_timeout_seconds) as response:
+            payload = json.loads(response.read().decode() or "{}")
+        return {
+            "status": "ready",
+            "latency_ms": int((perf_counter() - started) * 1000),
+            "response_text_status": "present" if _response_text(payload) else "not_parsed_2xx",
+        }
+    except urllib.error.HTTPError as exc:
+        return {
+            "status": "failed",
+            "latency_ms": int((perf_counter() - started) * 1000),
+            "http_status": exc.code,
+            "error": _http_error_payload(exc),
+        }
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        return {
+            "status": "failed",
+            "latency_ms": int((perf_counter() - started) * 1000),
+            "error": {"message": _sanitize(str(exc))},
+        }
+
+
+def _llm_api_mode(model: str) -> str:
+    mode = (settings.llm_api_mode or "auto").strip().lower().replace("-", "_")
+    if mode in {"responses", "response"}:
+        return "responses"
+    if mode in {"chat", "chat_completions"}:
+        return "chat_completions"
+    return "responses" if model.strip().lower().startswith("gpt-5") else "chat_completions"
+
+
+def _llm_endpoint(api_url: str, api_mode: str) -> str:
+    base = api_url.rstrip("/")
+    if api_mode == "responses":
+        return base if base.endswith("/responses") else f"{base}/responses"
+    return base if base.endswith("/chat/completions") else f"{base}/chat/completions"
+
+
+def _llm_probe_body(model: str, api_mode: str) -> dict:
+    if api_mode == "responses":
+        return {"model": model, "input": "Return exactly: ok"}
+    return {"model": model, "messages": [{"role": "user", "content": "Return exactly: ok"}], "temperature": 0}
+
+
+def _headers(api_key: str | None) -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def _response_text(payload: object) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    if isinstance(payload.get("output_text"), str):
+        return payload["output_text"]
+    choices = payload.get("choices")
+    choice_text = choices[0].get("message", {}).get("content") if isinstance(choices, list) and choices else None
+    if isinstance(choice_text, str):
+        return choice_text
+    output = payload.get("output")
+    if not isinstance(output, list):
+        return None
+    for item in output:
+        if not isinstance(item, dict) or not isinstance(item.get("content"), list):
+            continue
+        for content in item["content"]:
+            if isinstance(content, dict) and isinstance(content.get("text"), str):
+                return content["text"]
+    return None
+
+
+def _http_error_payload(exc: urllib.error.HTTPError) -> dict:
+    raw = exc.read().decode(errors="replace")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"message": _sanitize(raw[:500] or str(exc))}
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(error, dict):
+        return {
+            "message": _sanitize(str(error.get("message") or str(exc))),
+            "type": _sanitize(str(error.get("type"))) if error.get("type") is not None else None,
+            "code": _sanitize(str(error.get("code"))) if error.get("code") is not None else None,
+        }
+    return {"message": _sanitize(str(exc))}
+
+
+def _sanitize(text: str) -> str:
+    sanitized = text
+    for secret in (settings.llm_api_key, settings.embedding_api_key, settings.ocr_api_key):
+        if secret:
+            sanitized = sanitized.replace(secret, "[REDACTED]")
+    return re.sub(r"Bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", sanitized)

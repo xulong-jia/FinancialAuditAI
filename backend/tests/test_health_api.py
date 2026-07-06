@@ -1,9 +1,13 @@
 from pathlib import Path
+from io import BytesIO
+import json
+from urllib.error import HTTPError
 
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings, settings
 from app.main import app
+from app.services import provider_readiness_service
 
 
 client = TestClient(app)
@@ -43,6 +47,7 @@ def test_pytest_config_forces_deterministic_providers(monkeypatch) -> None:
     assert loaded.llm_provider == "deterministic-fallback"
     assert loaded.llm_api_url is None
     assert loaded.llm_api_key is None
+    assert loaded.llm_api_mode == "auto"
     assert loaded.embedding_provider == "deterministic-local"
     assert loaded.embedding_api_url is None
     assert loaded.embedding_api_key is None
@@ -73,6 +78,80 @@ def test_provider_readiness_is_sanitized_and_non_integrating_by_default(monkeypa
     assert body["providers"]["ocr"]["status"] == "blocked_external_dependency"
     assert body["providers"]["llm"]["api_key_status"] == "configured"
     assert "unit-test-placeholder-key" not in str(body)
+
+
+def test_provider_readiness_responses_mode_success(monkeypatch) -> None:
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen["url"] = request.full_url
+        seen["body"] = json.loads(request.data.decode())
+        return _FakeHttpResponse({"output_text": "ok"})
+
+    monkeypatch.setenv("RUN_PROVIDER_INTEGRATION", "1")
+    monkeypatch.setattr(settings, "llm_provider", "openai-compatible")
+    monkeypatch.setattr(settings, "llm_api_url", "https://api.example.test/v1")
+    monkeypatch.setattr(settings, "llm_api_key", "unit-test-placeholder-key")
+    monkeypatch.setattr(settings, "llm_api_mode", "auto")
+    monkeypatch.setattr(settings, "llm_model", "gpt-5.5")
+    monkeypatch.setattr(provider_readiness_service.urllib.request, "urlopen", fake_urlopen)
+
+    response = client.get("/api/v1/provider-readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["providers"]["llm"]["status"] == "ready"
+    assert body["providers"]["llm"]["api_mode"] == "responses"
+    assert seen["url"] == "https://api.example.test/v1/responses"
+    assert seen["body"] == {"model": "gpt-5.5", "input": "Return exactly: ok"}
+    assert "unit-test-placeholder-key" not in str(body)
+
+
+def test_provider_readiness_http_error_is_sanitized(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        payload = {
+            "error": {
+                "message": "Unsupported endpoint for provided model.",
+                "type": "invalid_request_error",
+                "code": "unsupported_endpoint",
+            }
+        }
+        raise HTTPError(request.full_url, 400, "Bad Request", {}, BytesIO(json.dumps(payload).encode()))
+
+    monkeypatch.setenv("RUN_PROVIDER_INTEGRATION", "1")
+    monkeypatch.setattr(settings, "llm_provider", "openai-compatible")
+    monkeypatch.setattr(settings, "llm_api_url", "https://api.example.test/v1")
+    monkeypatch.setattr(settings, "llm_api_key", "unit-test-placeholder-key")
+    monkeypatch.setattr(settings, "llm_api_mode", "chat_completions")
+    monkeypatch.setattr(settings, "llm_model", "gpt-5.5")
+    monkeypatch.setattr(provider_readiness_service.urllib.request, "urlopen", fake_urlopen)
+
+    response = client.get("/api/v1/provider-readiness")
+
+    assert response.status_code == 200
+    error = response.json()["providers"]["llm"]["error"]
+    assert response.json()["providers"]["llm"]["status"] == "failed"
+    assert response.json()["providers"]["llm"]["http_status"] == 400
+    assert error == {
+        "message": "Unsupported endpoint for provided model.",
+        "type": "invalid_request_error",
+        "code": "unsupported_endpoint",
+    }
+    assert "unit-test-placeholder-key" not in str(response.json())
+
+
+class _FakeHttpResponse:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return None
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode()
 
 
 def test_api_response_envelope_by_default() -> None:

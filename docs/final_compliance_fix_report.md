@@ -24,6 +24,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | Ordinary pytest is isolated from local real Provider `.env` settings and always uses deterministic/local/fallback providers | implemented | `backend/app/core/config.py`, `backend/tests/conftest.py`, `backend/tests/test_health_api.py::test_pytest_config_forces_deterministic_providers` |
 | Provider readiness is exposed through a sanitized dedicated endpoint/script and does not run integration calls unless explicitly enabled | implemented | `backend/app/services/provider_readiness_service.py`, `backend/app/api/router.py`, `scripts/provider_readiness.py`, `backend/tests/test_health_api.py::test_provider_readiness_is_sanitized_and_non_integrating_by_default` |
 | OpenAI-compatible readiness supports Responses API and chat completions modes with sanitized HTTP error parsing | implemented | `backend/app/services/provider_readiness_service.py`, `.env.example`, `backend/tests/test_health_api.py::test_provider_readiness_responses_mode_success`, `backend/tests/test_health_api.py::test_provider_readiness_http_error_is_sanitized` |
+| Local OpenAI-compatible readiness validation passed for LLM, embedding, RAG answer, and RAG rerank without recording secrets | verified locally | `python3 scripts/provider_readiness.py`, `RUN_PROVIDER_INTEGRATION=1 python3 scripts/provider_readiness.py`; `.env` not committed and API keys not logged |
 
 ## Verification Completed
 
@@ -47,8 +48,8 @@ Status: **verified locally; still not final execution-manual complete**.
 | Critical | Real customer/production evaluation datasets are not present and must not be committed; final real-data verification remains `blocked_external_dependency` until provided safely. |
 | Critical | Real OCR/LLM/RAG API keys and endpoints are not present and must not be committed; external Provider verification remains `blocked_external_dependency` until configured safely. |
 | Medium | Browser-level frontend E2E/interaction tests are still absent. |
-| Medium | Report evidence quality still depends on upstream evidence/bbox/confidence completeness. |
-| Medium | Real Provider readiness can report configured/blocked locally, and supports `LLM_API_MODE=auto` / `responses` / `chat_completions`; external integration remains blocked until safe endpoint/key configuration is supplied and `RUN_PROVIDER_INTEGRATION=1` is used. |
+| Medium | Report evidence quality still depends on upstream evidence/bbox/confidence completeness. OCR remains `pymupdf-local` fallback, so real OCR confidence remains `blocked_external_dependency`. |
+| Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and passed with 163 tests / 5 warnings. |
 
 ## Compliance Boundary
 

@@ -91,6 +91,7 @@
 - OpenAI-compatible readiness 支持 `LLM_API_MODE=auto` / `responses` / `chat_completions`；`auto` 对 `gpt-5*` readiness 使用 Responses API，其余默认兼容旧 `/chat/completions` provider。
 - 真实网络 integration 只能显式设置 `RUN_PROVIDER_INTEGRATION=1` 后触发；无 key 或 endpoint 时状态为 `blocked_external_dependency`，不能声明 fully satisfied。
 - readiness 输出只包含 provider/model 和 `api_url_status` / `api_key_status`，不得输出 API key。
+- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider，结果为 163 passed / 5 warnings。OCR 仍为 `pymupdf-local` fallback，真实 OCR confidence 仍属于 `blocked_external_dependency`。
 
 ## 下一轮最高优先级
 

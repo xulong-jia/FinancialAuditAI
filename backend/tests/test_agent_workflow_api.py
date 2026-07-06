@@ -80,6 +80,12 @@ def test_agent_run_creates_steps_and_report_without_bypassing_rule_engine() -> N
     assert "run_rule_engine" in {step["tool_name"] for step in steps}
     assert "route_review_queue" in {step["tool_name"] for step in steps}
     assert "generate_control_table" in {step["tool_name"] for step in steps}
+    for step in steps:
+        contract = agent_service.AGENT_TOOL_CONTRACTS[step["tool_name"]]
+        assert step["input_payload"]["agent_role"] == contract["agent_role"]
+        assert step["input_payload"]["must_not"] == contract["must_not"]
+    audit_step = next(step for step in steps if step["tool_name"] == "run_rule_engine")
+    assert "bypass_rule_engine" in audit_step["input_payload"]["must_not"]
     with SessionLocal() as db:
         results = db.query(AuditResult).filter(AuditResult.task_id == task["id"]).all()
         assert len(results) == 7
@@ -102,6 +108,9 @@ def test_failed_step_retry_records_retry_step() -> None:
     steps = list_steps(run["id"])
     assert len([step for step in steps if step["status"] == "failed"]) == 1
     assert "record_bad_case" in {step["tool_name"] for step in steps}
+    record_step = next(step for step in steps if step["tool_name"] == "record_bad_case")
+    assert record_step["input_payload"]["agent_role"] == "Quality Agent"
+    assert "mark_unverified_fix_as_regressed" in record_step["input_payload"]["must_not"]
     with SessionLocal() as db:
         cases = db.query(BadCase).filter(BadCase.task_id == UUID(task_response.json()["id"])).all()
         assert len(cases) == 1

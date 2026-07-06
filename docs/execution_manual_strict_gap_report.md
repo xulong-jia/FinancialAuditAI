@@ -17,6 +17,7 @@
 | Agent 失败 Bad Case 闭环 | 已补齐 `record_bad_case` 工具步骤和 task-scoped Bad Case | `backend/app/services/agent_service.py` | `backend/tests/test_agent_workflow_api.py::test_failed_step_retry_records_retry_step` |
 | OpenAI-compatible LLM Provider 路径验证 | 已覆盖 classify / extract / rerank / answer / explain 的安全 mock HTTP 路径 | `backend/app/services/llm_provider.py` | `backend/tests/test_llm_provider_paths_api.py` |
 | RAG Provider citation JSON 边界 | 已修复 UUID citation 无法序列化到真实 Provider prompt 的问题 | `backend/app/services/llm_provider.py` | `backend/tests/test_llm_provider_paths_api.py::test_rag_rerank_answer_and_rule_explain_use_configured_llm_provider` |
+| Agent 工具角色职责合同 | 已在每个 `agent_steps.input_payload` 记录 `agent_role` 和 `must_not` 约束 | `backend/app/services/agent_service.py` | `backend/tests/test_agent_workflow_api.py::test_agent_run_creates_steps_and_report_without_bypassing_rule_engine` |
 | `model_invocations` 类型口径 | 已对齐执行手册主要口径 | `backend/app/services/classification_service.py`, `backend/app/services/extraction_service.py`, `backend/app/services/rag_service.py` 使用 `classify` / `extract` / `embed` / `rerank` / `answer` | `backend/tests/test_final_gap_closure_api.py::test_model_invocations_are_recorded_for_rag_query` |
 | OCR 调用留痕 | 已补齐成功/失败路径 | `backend/app/services/ocr_service.py` 写入 `invocation_type="ocr"`、`latency_ms`、`error`、`cost_estimate` | `backend/tests/test_ocr_api.py::test_pdf_ocr_extracts_pages_in_order`, `backend/tests/test_ocr_api.py::test_ocr_failure_does_not_hide_task_or_document` |
 | LLM Provider 调用元数据 | 已补齐真实返回路径 | `backend/app/services/llm_provider.py` 从 OpenAI-compatible 响应读取 `usage`，记录真实 `latency_ms`，不伪造 token/cost | `backend/tests/test_classification_api.py`, `backend/tests/test_extraction_api.py` |
@@ -50,7 +51,7 @@
 
 | 编号 | 模块 | 缺口 |
 | --- | --- | --- |
-| H-01 | Agent Workflow | 状态机、步骤、重试、Review 路由和失败 Bad Case 闭环存在；与执行手册完整 Agent 角色职责口径仍未完全逐项证明。 |
+| - | - | 当前无新增 High 代码缺口；外部真实数据/Provider 验收见 Critical `blocked_external_dependency`，质量和测试差距见 Medium。 |
 
 ### Medium
 
@@ -77,6 +78,6 @@
 
 ## 下一轮最高优先级
 
-1. Agent Workflow 角色职责、状态口径和工具输出继续逐项证明。
-2. LLM/RAG Provider 真实端到端验收在安全配置下完成。
-3. 前端自动化测试和最终 UI 权限验证。
+1. 前端自动化测试和最终 UI 权限验证。
+2. Report PDF 质量与 evidence/bbox/confidence 上游依赖继续收敛。
+3. LLM/RAG Provider 真实端到端验收在安全配置下完成。

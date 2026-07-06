@@ -26,18 +26,49 @@ from app.services import (
 )
 
 WORKFLOW_NAME = "procurement_agent_v1"
-TOOL_WHITELIST = {
-    "run_ocr",
-    "classify_document",
-    "extract_fields",
-    "link_business_documents",
-    "run_rule_engine",
-    "retrieve_evidence",
-    "generate_control_table",
-    "create_review_ticket",
-    "route_review_queue",
-    "record_bad_case",
+AGENT_TOOL_CONTRACTS = {
+    "run_ocr": {
+        "agent_role": "OCR Agent",
+        "must_not": ["modify_ocr_meaning", "make_business_judgment"],
+    },
+    "classify_document": {
+        "agent_role": "Classification Agent",
+        "must_not": ["extract_business_fields", "make_rule_decision"],
+    },
+    "extract_fields": {
+        "agent_role": "Extraction Agent",
+        "must_not": ["invent_missing_fields", "drop_source_evidence"],
+    },
+    "link_business_documents": {
+        "agent_role": "Linkage Agent",
+        "must_not": ["ignore_low_confidence_conflicts"],
+    },
+    "run_rule_engine": {
+        "agent_role": "Audit Agent",
+        "must_not": ["bypass_rule_engine", "use_llm_for_pass_fail"],
+    },
+    "retrieve_evidence": {
+        "agent_role": "Evidence Agent",
+        "must_not": ["write_conclusion_without_citation"],
+    },
+    "create_review_ticket": {
+        "agent_role": "Review Routing Agent",
+        "must_not": ["auto_confirm_high_risk_exception"],
+    },
+    "route_review_queue": {
+        "agent_role": "Review Routing Agent",
+        "must_not": ["auto_confirm_high_risk_exception"],
+    },
+    "generate_control_table": {
+        "agent_role": "Report Agent",
+        "must_not": ["hide_failed_rules"],
+    },
+    "record_bad_case": {
+        "agent_role": "Quality Agent",
+        "must_not": ["mark_unverified_fix_as_regressed"],
+    },
 }
+TOOL_WHITELIST = set(AGENT_TOOL_CONTRACTS)
 EVIDENCE_KNOWLEDGE_BASES = ("regulation", "inquiry_case", "prospectus", "workpaper")
 
 STATE_SEQUENCE = [
@@ -443,6 +474,7 @@ def _run_step(
 ) -> dict:
     if tool_name not in TOOL_WHITELIST:
         raise HTTPException(status_code=400, detail="Agent tool is not whitelisted")
+    tool_contract = AGENT_TOOL_CONTRACTS[tool_name]
     started = perf_counter()
     error = None
     output: dict = {}
@@ -462,7 +494,7 @@ def _run_step(
         step_order=_next_step_order(db, run.id),
         tool_name=tool_name,
         status=status,
-        input_payload=_safe_payload(input_payload),
+        input_payload=_safe_payload(_with_tool_contract(tool_contract, input_payload)),
         output_payload=_safe_payload(output),
         error=error,
         duration_ms=duration_ms,
@@ -543,10 +575,13 @@ def _record_bad_case_step(
             step_order=_next_step_order(db, run.id),
             tool_name="record_bad_case",
             status="completed",
-            input_payload={
-                "failed_state": failed_state,
-                "failed_step_id": _str_or_none(failed_step_id),
-            },
+            input_payload=_with_tool_contract(
+                AGENT_TOOL_CONTRACTS["record_bad_case"],
+                {
+                    "failed_state": failed_state,
+                    "failed_step_id": _str_or_none(failed_step_id),
+                },
+            ),
             output_payload={"bad_case_id": str(bad_case.id), "case_type": bad_case.case_type},
             error=None,
             duration_ms=0,
@@ -735,6 +770,14 @@ def _safe_payload(payload: dict) -> dict:
     return {
         key: ("[redacted]" if key in blocked else value)
         for key, value in payload.items()
+    }
+
+
+def _with_tool_contract(contract: dict, payload: dict) -> dict:
+    return {
+        "agent_role": contract["agent_role"],
+        "must_not": contract["must_not"],
+        **payload,
     }
 
 

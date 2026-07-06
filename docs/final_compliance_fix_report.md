@@ -4,7 +4,7 @@
 
 Round date: 2026-07-06
 
-Scope: OpenAI-compatible LLM/RAG Provider path verification, citation prompt serialization safety, model invocation metadata, and continued strict execution-manual gap tracking.
+Scope: Agent tool role-contract traceability, per-step responsibility constraints, and continued strict execution-manual gap tracking.
 
 Status: **verified locally; still not final execution-manual complete**.
 
@@ -12,12 +12,11 @@ Status: **verified locally; still not final execution-manual complete**.
 
 | Item | Result | Evidence |
 | --- | --- | --- |
-| OpenAI-compatible classification Provider path is covered without real secrets | implemented | `backend/tests/test_llm_provider_paths_api.py` |
-| OpenAI-compatible extraction Provider path is covered without real secrets | implemented | `backend/tests/test_llm_provider_paths_api.py` |
-| OpenAI-compatible RAG rerank and answer Provider paths are covered without real secrets | implemented | `backend/tests/test_llm_provider_paths_api.py` |
-| OpenAI-compatible rule explanation Provider path is covered without real secrets | implemented | `backend/tests/test_llm_provider_paths_api.py` |
-| Provider-returned token usage and model names are preserved in `model_invocations` | implemented | `backend/app/services/llm_provider.py`, `backend/tests/test_llm_provider_paths_api.py` |
-| RAG/Rule citation prompts convert UUID IDs to JSON-safe strings before Provider calls | implemented | `backend/app/services/llm_provider.py` |
+| Agent tools map to explicit execution-manual roles | implemented | `backend/app/services/agent_service.py` |
+| Each `agent_steps.input_payload` records `agent_role` | implemented | `backend/app/services/agent_service.py` |
+| Each `agent_steps.input_payload` records role-specific `must_not` constraints | implemented | `backend/app/services/agent_service.py` |
+| Tests prove Rule Engine is not bypassed and role constraints are persisted | implemented | `backend/tests/test_agent_workflow_api.py::test_agent_run_creates_steps_and_report_without_bypassing_rule_engine` |
+| Tests prove `record_bad_case` uses a Quality Agent contract | implemented | `backend/tests/test_agent_workflow_api.py::test_failed_step_retry_records_retry_step` |
 
 ## Verification Completed
 
@@ -39,7 +38,8 @@ Status: **verified locally; still not final execution-manual complete**.
 | --- | --- |
 | Critical | Real customer/production evaluation datasets are not present and must not be committed; final real-data verification remains `blocked_external_dependency` until provided safely. |
 | Critical | Real OCR/LLM/RAG API keys and endpoints are not present and must not be committed; external Provider verification remains `blocked_external_dependency` until configured safely. |
-| High | Agent Workflow still needs complete proof against every execution-manual Agent role responsibility and state/output contract. |
+| Medium | Frontend automated UI tests are still absent. |
+| Medium | PDF report remains simplified and depends on upstream evidence/bbox/confidence completeness. |
 
 ## Compliance Boundary
 

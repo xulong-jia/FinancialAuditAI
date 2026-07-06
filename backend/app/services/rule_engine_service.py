@@ -32,6 +32,7 @@ class EvidenceRef:
     source_text: str | None = None
     source_bbox: list[float] | None = None
     confidence: float | None = None
+    field_id: UUID | None = None
 
 
 @dataclass
@@ -2021,7 +2022,7 @@ def _to_model(task_id: UUID, rule: AuditRule, result: RuleResult) -> AuditResult
         message=result.message,
         expected_value=result.expected_value,
         actual_value=result.actual_value,
-        evidence={"refs": [ref.__dict__ | {"document_id": str(ref.document_id) if ref.document_id else None} for ref in result.evidence]},
+        evidence={"refs": [_evidence_payload(ref) for ref in result.evidence]},
         rag_citations=None,
         review_status="not_required" if result.status == "pass" else "pending",
         reviewed_by=None,
@@ -2505,6 +2506,7 @@ def _evidence_ref(
         source_text=field.source_text,
         source_bbox=field.source_bbox,
         confidence=field.confidence,
+        field_id=field.id,
     )
 
 
@@ -2523,11 +2525,19 @@ def _missing_ref(
         source_text=field.source_text if field else None,
         source_bbox=field.source_bbox if field else None,
         confidence=field.confidence if field else None,
+        field_id=field.id if field else None,
     )
 
 
 def _task_ref(context: RuleContext, field_name: str) -> EvidenceRef:
     return EvidenceRef(None, None, field_name, context.business_key, None)
+
+
+def _evidence_payload(ref: EvidenceRef) -> dict:
+    payload = ref.__dict__.copy()
+    payload["document_id"] = str(ref.document_id) if ref.document_id else None
+    payload["field_id"] = str(ref.field_id) if ref.field_id else None
+    return payload
 
 
 def _result(

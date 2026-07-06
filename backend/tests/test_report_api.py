@@ -139,7 +139,9 @@ def test_report_xlsx_exports_exceptions_evidence_and_field_corrections() -> None
             db.query(AuditResult).filter(AuditResult.task_id == task_uuid).all(),
         )
     source_page_index = evidence_rows[0].index("source_page")
+    field_id_index = evidence_rows[0].index("field_id")
     assert any(row[0] == "audit_result" and row[source_page_index] == 1 for row in evidence_rows[1:])
+    assert any(row[0] == "audit_result" and row[field_id_index] for row in evidence_rows[1:])
 
 
 def test_control_table_report_generates_csv_download() -> None:

@@ -353,6 +353,7 @@ def test_amount_rule_fails_on_overpayment_and_supports_many_invoices_payments() 
     assert results["PROC_AMOUNT_001"]["actual_value"]["invoice_total"] > 1000.0
     assert results["PROC_AMOUNT_001"]["actual_value"]["payment_total"] > 1000.0
     assert any(ref["source_page"] == 1 for ref in results["PROC_AMOUNT_001"]["evidence"]["refs"])
+    assert any(ref["field_id"] for ref in results["PROC_AMOUNT_001"]["evidence"]["refs"])
 
 
 def test_failed_rule_result_binds_real_rag_citation_without_overriding_status() -> None:

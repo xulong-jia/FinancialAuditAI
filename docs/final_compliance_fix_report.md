@@ -4,7 +4,7 @@
 
 Round date: 2026-07-06
 
-Scope: PDF report completeness, evidence/review/boundary export coverage, and continued strict execution-manual gap tracking.
+Scope: rule evidence chain traceability, report evidence export coverage, and continued strict execution-manual gap tracking.
 
 Status: **verified locally; still not final execution-manual complete**.
 
@@ -16,6 +16,8 @@ Status: **verified locally; still not final execution-manual complete**.
 | PDF report includes Summary, Exceptions, Evidence Index, Field Corrections, and Rule Definitions content | implemented | `backend/app/services/report_service.py` |
 | PDF report preserves usage boundary and review comments in downloadable output | implemented | `backend/tests/test_report_api.py::test_control_table_report_generates_pdf_with_evidence_review_and_boundary` |
 | PDF report uses existing PyMuPDF dependency and stdlib wrapping, with no new package | implemented | `backend/app/services/report_service.py` |
+| Rule evidence refs now carry `field_id` when backed by an extracted field | implemented | `backend/app/services/rule_engine_service.py` |
+| Report Evidence Index now carries `field_id` on audit_result rows when available | implemented | `backend/app/services/report_service.py`, `backend/tests/test_report_api.py::test_report_xlsx_exports_exceptions_evidence_and_field_corrections` |
 
 ## Verification Completed
 

@@ -707,7 +707,7 @@ def _evidence_rows(
                 document_id or "",
                 document.original_filename if document else "",
                 ref.get("doc_type") or "",
-                "",
+                ref.get("field_id") or "",
                 ref.get("field_name") or "",
                 str(result.id),
                 result.rule_code,

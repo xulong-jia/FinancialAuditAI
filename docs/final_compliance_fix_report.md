@@ -4,7 +4,7 @@
 
 Round date: 2026-07-06
 
-Scope: review actor UUID references, viewer RBAC database scope, rule evidence chain traceability, report evidence export coverage, and continued strict execution-manual gap tracking.
+Scope: provider test isolation/readiness, review actor UUID references, viewer RBAC database scope, rule evidence chain traceability, report evidence export coverage, and continued strict execution-manual gap tracking.
 
 Status: **verified locally; still not final execution-manual complete**.
 
@@ -21,6 +21,8 @@ Status: **verified locally; still not final execution-manual complete**.
 | Viewer role seed/update no longer grants `read_all`; existing migrated databases are corrected by a head migration | implemented | `backend/alembic/versions/0024_viewer_role_scope.py` |
 | Review field corrections and audit-result confirmations now persist authenticated user UUID references | implemented | `backend/alembic/versions/0025_review_actor_user_refs.py`, `backend/app/services/review_service.py` |
 | Review comment author identity is server-authenticated and cannot be overridden by request payload | implemented | `backend/tests/test_review_api.py::test_review_queue_and_comments_api` |
+| Ordinary pytest is isolated from local real Provider `.env` settings and always uses deterministic/local/fallback providers | implemented | `backend/app/core/config.py`, `backend/tests/conftest.py`, `backend/tests/test_health_api.py::test_pytest_config_forces_deterministic_providers` |
+| Provider readiness is exposed through a sanitized dedicated endpoint/script and does not run integration calls unless explicitly enabled | implemented | `backend/app/services/provider_readiness_service.py`, `backend/app/api/router.py`, `scripts/provider_readiness.py`, `backend/tests/test_health_api.py::test_provider_readiness_is_sanitized_and_non_integrating_by_default` |
 
 ## Verification Completed
 
@@ -45,6 +47,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | Critical | Real OCR/LLM/RAG API keys and endpoints are not present and must not be committed; external Provider verification remains `blocked_external_dependency` until configured safely. |
 | Medium | Browser-level frontend E2E/interaction tests are still absent. |
 | Medium | Report evidence quality still depends on upstream evidence/bbox/confidence completeness. |
+| Medium | Real Provider readiness can report configured/blocked locally, but external integration remains blocked until safe endpoint/key configuration is supplied and `RUN_PROVIDER_INTEGRATION=1` is used. |
 
 ## Compliance Boundary
 

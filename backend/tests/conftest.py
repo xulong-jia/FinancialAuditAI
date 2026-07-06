@@ -1,6 +1,27 @@
 from collections.abc import Generator
+import os
 from pathlib import Path
 import shutil
+
+TEST_PROVIDER_ENV = {
+    "ENVIRONMENT": "test",
+    "TESTING": "true",
+    "LLM_PROVIDER": "deterministic-fallback",
+    "LLM_API_URL": "",
+    "LLM_API_KEY": "",
+    "LLM_MODEL": "financialauditai-local",
+    "EMBEDDING_PROVIDER": "deterministic-local",
+    "EMBEDDING_API_URL": "",
+    "EMBEDDING_API_KEY": "",
+    "EMBEDDING_MODEL": "financialauditai-embedding",
+    "EMBEDDING_DIMENSIONS": "32",
+    "OCR_PROVIDER": "pymupdf-local",
+    "OCR_API_URL": "",
+    "OCR_API_KEY": "",
+    "RAG_RERANK_PROVIDER": "deterministic-fallback",
+    "RAG_ANSWER_PROVIDER": "deterministic-fallback",
+}
+os.environ.update(TEST_PROVIDER_ENV)
 
 from fastapi.testclient import TestClient
 import pytest

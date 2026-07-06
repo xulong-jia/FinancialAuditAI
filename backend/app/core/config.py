@@ -4,6 +4,23 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+TEST_PROVIDER_ENV = {
+    "LLM_PROVIDER": "deterministic-fallback",
+    "LLM_API_URL": "",
+    "LLM_API_KEY": "",
+    "LLM_MODEL": "financialauditai-local",
+    "EMBEDDING_PROVIDER": "deterministic-local",
+    "EMBEDDING_API_URL": "",
+    "EMBEDDING_API_KEY": "",
+    "EMBEDDING_MODEL": "financialauditai-embedding",
+    "EMBEDDING_DIMENSIONS": "32",
+    "OCR_PROVIDER": "pymupdf-local",
+    "OCR_API_URL": "",
+    "OCR_API_KEY": "",
+    "RAG_RERANK_PROVIDER": "deterministic-fallback",
+    "RAG_ANSWER_PROVIDER": "deterministic-fallback",
+}
+
 
 def _load_env_file(path: Path) -> None:
     if not path.exists():
@@ -21,6 +38,12 @@ def _load_env() -> None:
     project_dir = backend_dir.parent
     _load_env_file(project_dir / ".env")
     _load_env_file(backend_dir / ".env")
+    if _is_testing():
+        os.environ.update(TEST_PROVIDER_ENV)
+
+
+def _is_testing() -> bool:
+    return os.getenv("TESTING", "").lower() in {"1", "true", "yes"} or os.getenv("ENVIRONMENT") == "test"
 
 
 class Settings(BaseModel):

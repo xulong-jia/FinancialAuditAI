@@ -19,6 +19,7 @@
 | RAG Provider citation JSON 边界 | 已修复 UUID citation 无法序列化到真实 Provider prompt 的问题 | `backend/app/services/llm_provider.py` | `backend/tests/test_llm_provider_paths_api.py::test_rag_rerank_answer_and_rule_explain_use_configured_llm_provider` |
 | Viewer RBAC 数据库口径 | 已移除 migration seed/update 中的 viewer `read_all`，并新增 head migration 修正已迁移数据库 | `backend/alembic/versions/0014_rbac_users_roles.py`, `backend/alembic/versions/0019_quality_audit_contract.py`, `backend/alembic/versions/0020_final_gap_role_matrix.py`, `backend/alembic/versions/0024_viewer_role_scope.py` | `cd backend && ./.venv/bin/alembic upgrade head`, `backend/tests/test_auth_rbac_security_api.py::test_default_role_permissions_match_execution_matrix_baseline` |
 | Review actor UUID 口径 | 已为字段修正和异常复核补齐服务端注入的用户 UUID FK，并保留字符串名称作为显示兼容字段 | `backend/app/models/extracted_field.py`, `backend/app/models/audit_result.py`, `backend/app/services/review_service.py`, `backend/alembic/versions/0025_review_actor_user_refs.py` | `backend/tests/test_review_api.py::test_field_correction_preserves_source_and_writes_before_after_log`, `backend/tests/test_review_api.py::test_confirm_marks_result_reviewed`, `backend/tests/test_review_api.py::test_review_queue_and_comments_api` |
+| 测试配置与真实 Provider 验证隔离 | 普通 pytest 通过 `TESTING=true` 强制 deterministic/local/fallback provider；真实 Provider readiness/integration 改为专门入口 | `backend/app/core/config.py`, `backend/tests/conftest.py`, `backend/app/services/provider_readiness_service.py`, `scripts/provider_readiness.py` | `backend/tests/test_health_api.py::test_pytest_config_forces_deterministic_providers`, `backend/tests/test_health_api.py::test_provider_readiness_is_sanitized_and_non_integrating_by_default` |
 | Agent 工具角色职责合同 | 已在每个 `agent_steps.input_payload` 记录 `agent_role` 和 `must_not` 约束 | `backend/app/services/agent_service.py` | `backend/tests/test_agent_workflow_api.py::test_agent_run_creates_steps_and_report_without_bypassing_rule_engine` |
 | 前端权限合同测试 | 已新增无新依赖的 `node --test` 权限合同测试 | `frontend/package.json`, `frontend/tests/permission-contract.test.mjs` | `cd frontend && npm test` |
 | PDF 报告证据/复核/用途边界输出 | 已改为全列换行输出并覆盖 PDF 内容测试 | `backend/app/services/report_service.py` | `backend/tests/test_report_api.py::test_control_table_report_generates_pdf_with_evidence_review_and_boundary` |
@@ -81,6 +82,14 @@
 | built-in sample Evaluation | 保留为 smoke，不作为最终评测证据 | 仍影响真实验收 |
 | demo seed samples | 仍保留 | 不可作为完全满足证据 |
 | external real/desensitized Evaluation dataset | 已支持 JSON 读取路径 | 需要用户提供真实/脱敏标注数据才能最终验收 |
+
+## Provider 测试隔离与 readiness
+
+- 普通 `pytest` 启动时强制 `ENVIRONMENT=test` / `TESTING=true`，并固定使用 `deterministic-fallback`、`deterministic-local`、`pymupdf-local`，不读取本地 `.env` 中真实 Provider key 作为单元测试配置。
+- 本地 `.env` 可以保存真实 Provider 配置，但 `.env` 不提交；普通单元测试不会因为 `.env` 中存在真实 `LLM_PROVIDER` / `LLM_API_KEY` 而触发外部调用。
+- Provider readiness 使用专门入口：`python3 scripts/provider_readiness.py` 或 `GET /api/v1/provider-readiness`。
+- 真实网络 integration 只能显式设置 `RUN_PROVIDER_INTEGRATION=1` 后触发；无 key 或 endpoint 时状态为 `blocked_external_dependency`，不能声明 fully satisfied。
+- readiness 输出只包含 provider/model 和 `api_url_status` / `api_key_status`，不得输出 API key。
 
 ## 下一轮最高优先级
 

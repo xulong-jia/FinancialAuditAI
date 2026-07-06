@@ -10,6 +10,7 @@ from app.api.review import router as review_router
 from app.api.rules import router as rules_router
 from app.api.tasks import router as tasks_router
 from app.core.config import settings
+from app.services.provider_readiness_service import readiness
 
 router = APIRouter()
 router.include_router(auth_router)
@@ -44,3 +45,8 @@ def read_config() -> dict[str, str]:
         "rag_rerank_provider": settings.rag_rerank_provider,
         "rag_answer_provider": settings.rag_answer_provider,
     }
+
+
+@router.get("/provider-readiness")
+def provider_readiness() -> dict:
+    return readiness()

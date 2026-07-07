@@ -1952,8 +1952,137 @@ def test_public_ocr_missing_key_information_fails(monkeypatch, tmp_path) -> None
     assert result["failed_cases"]
     assert result["metrics"]["key_information_accuracy"] == 0.0
     assert result["failed_cases"][0]["expected_output"]["missing_key_information"] == [
-        {"field": "total", "value": "99.99"}
+        {"field": "total", "match_score": 0.0, "threshold": 1.0}
     ]
+    assert "raw_text" not in result["failed_cases"][0]["model_output"]
+
+
+def test_public_ocr_address_across_lines_token_overlap_passes(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        source_type="public_dataset",
+        expected={
+            "key_information": {
+                "address": "NO.55, JALAN SRI BAHARI, TAMAN, 10050 PULAU PINANG",
+            }
+        },
+    )
+    _fake_ocr_pages(monkeypatch, raw_text="No 55\nJalan Sri Bahari\nTaman\n10050 Pulau Pinang")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "sroie_public_ocr_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"] == []
+    assert result["metrics"]["fuzzy_address_match_accuracy"] == 1.0
+
+
+def test_public_ocr_address_punctuation_spacing_passes(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        source_type="public_dataset",
+        expected={"key_information": {"address": "Lot 2-1, Jalan Raja Chulan"}},
+    )
+    _fake_ocr_pages(monkeypatch, raw_text="LOT 2 1 JALAN RAJA CHULAN")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "sroie_public_ocr_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"] == []
+    assert result["metrics"]["key_information_accuracy"] == 1.0
+
+
+def test_public_ocr_address_low_token_overlap_fails(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        source_type="public_dataset",
+        expected={
+            "key_information": {
+                "address": "NO 55 JALAN SRI BAHARI TAMAN 10050 PULAU PINANG",
+            }
+        },
+    )
+    _fake_ocr_pages(monkeypatch, raw_text="Jalan Sri")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "sroie_public_ocr_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    missing = result["failed_cases"][0]["expected_output"]["missing_key_information"][0]
+    assert missing["field"] == "address"
+    assert missing["match_score"] < missing["threshold"]
+    assert result["metrics"]["fuzzy_address_match_accuracy"] == 0.0
+
+
+def test_public_ocr_strict_key_fields_missing_fail(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        source_type="public_dataset",
+        expected={
+            "key_information": {
+                "company": "ABC SDN BHD",
+                "date": "2026-07-07",
+                "total": "12.00",
+            }
+        },
+    )
+    _fake_ocr_pages(monkeypatch, raw_text="Unrelated receipt text")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "sroie_public_ocr_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    missing_fields = {
+        item["field"] for item in result["failed_cases"][0]["expected_output"]["missing_key_information"]
+    }
+    assert missing_fields == {"company", "date", "total"}
+    assert result["metrics"]["key_information_accuracy"] == 0.0
+
+
+def test_public_ocr_long_must_contain_text_token_overlap_passes(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        source_type="public_dataset",
+        expected={
+            "must_contain_text": [
+                "TOTAL SALES INCLUSIVE TAX SERVICE CHARGE CASHIER COUNTER RECEIPT",
+            ]
+        },
+    )
+    _fake_ocr_pages(monkeypatch, raw_text="Total sales\ninclusive tax\nservice charge\ncashier counter")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "sroie_public_ocr_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"] == []
+    assert result["metrics"]["normalized_text_match_accuracy"] == 1.0
 
 
 def test_public_ocr_box_line_count_below_threshold_fails(monkeypatch, tmp_path) -> None:

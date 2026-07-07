@@ -42,6 +42,9 @@ from app.services import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 OCR_BOX_LINE_COUNT_CAP = 20
+OCR_LONG_TEXT_TOKEN_THRESHOLD = 0.75
+OCR_ADDRESS_TOKEN_THRESHOLD = 0.7
+OCR_LONG_TEXT_MIN_TOKENS = 5
 MANUAL_DATASET_EVAL_TYPES = {
     "ocr",
     "classification",
@@ -612,6 +615,7 @@ def _evaluate_ocr_file_samples(db: Session, samples: list[dict], dataset: dict) 
     failed = []
     text_hits = page_hits = block_hits = bbox_hits = confidence_hits = table_hits = 0
     key_information_hits = box_line_hits = public_label_hits = 0
+    address_hits = 0
     blocked = 0
     for sample in samples:
         actual = _run_ocr_file_sample(db, sample)
@@ -626,9 +630,10 @@ def _evaluate_ocr_file_samples(db: Session, samples: list[dict], dataset: dict) 
         key_information_hits += int(checks["key_information_ok"])
         box_line_hits += int(checks["box_line_count_ok"])
         public_label_hits += int(checks["public_dataset_label_ok"])
+        address_hits += int(checks["fuzzy_address_ok"])
         blocked += int(actual.get("status") == "blocked_external_dependency")
         if not checks["passed"]:
-            failed.append(_sample_failed_case("ocr", sample, actual, checks["expected"]))
+            failed.append(_sample_failed_case("ocr", sample, _sanitized_ocr_failure_output(actual), checks["expected"]))
     total = len(samples)
     return (
         total,
@@ -643,6 +648,8 @@ def _evaluate_ocr_file_samples(db: Session, samples: list[dict], dataset: dict) 
             "key_information_accuracy": _rate(key_information_hits, total),
             "box_line_count_coverage": _rate(box_line_hits, total),
             "public_dataset_label_accuracy": _rate(public_label_hits, total),
+            "normalized_text_match_accuracy": _rate(text_hits, total),
+            "fuzzy_address_match_accuracy": _rate(address_hits, total),
             "blocked_external_dependency_count": blocked,
             "dataset_kind": dataset["dataset_kind"],
             "source_type": dataset["source_type"],
@@ -791,8 +798,10 @@ def _resolve_evaluation_sample_file(value: str, *, external_only: bool = False, 
 
 def _ocr_expected_checks(actual: dict, expected: dict) -> dict:
     required_text = [str(item) for item in expected.get("must_contain_text") or []]
-    missing_text = [item for item in required_text if item not in str(actual.get("raw_text") or "")]
+    raw_text = str(actual.get("raw_text") or "")
+    missing_text = _missing_required_text(raw_text, required_text)
     missing_key_information = _missing_key_information(str(actual.get("raw_text") or ""), expected.get("key_information"))
+    address_ok = not any(item.get("field") == "address" for item in missing_key_information)
     exact_page_count = expected.get("page_count")
     min_page_count = int(expected.get("min_page_count") or exact_page_count or 0)
     min_ocr_blocks = int(expected.get("min_ocr_blocks") or (1 if expected.get("require_ocr_blocks") else 0))
@@ -821,6 +830,7 @@ def _ocr_expected_checks(actual: dict, expected: dict) -> dict:
         "table_blocks_ok": int(actual.get("table_blocks_count") or 0) >= min_tables,
         "page_image_ok": not expected.get("require_page_image") or int(actual.get("pages_with_image_count") or 0) >= int(actual.get("page_count") or 1),
         "key_information_ok": not missing_key_information,
+        "fuzzy_address_ok": address_ok,
         "table_headers_ok": not missing_headers,
         "table_values_ok": not missing_values,
         "expected": {
@@ -857,28 +867,75 @@ def _ocr_expected_checks(actual: dict, expected: dict) -> dict:
             "table_values_ok",
         )
     )
-    checks["public_dataset_label_ok"] = checks["key_information_ok"] and checks["box_line_count_ok"]
+    checks["public_dataset_label_ok"] = checks["text_ok"] and checks["key_information_ok"] and checks["box_line_count_ok"]
     return checks
 
 
-def _missing_key_information(raw_text: str, key_information: object) -> list[dict[str, str]]:
+def _missing_required_text(raw_text: str, required_text: list[str]) -> list[dict[str, float | int]]:
+    missing = []
+    for index, expected_value in enumerate(required_text):
+        matched, score, threshold = _ocr_text_matches(raw_text, expected_value, field="must_contain_text")
+        if not matched:
+            missing.append({"text_index": index, "match_score": score, "threshold": threshold})
+    return missing
+
+
+def _missing_key_information(raw_text: str, key_information: object) -> list[dict[str, str | float]]:
     if not isinstance(key_information, dict):
         return []
-    normalized_raw_text = _normalize_ocr_label_text(raw_text)
-    missing: list[dict[str, str]] = []
+    missing: list[dict[str, str | float]] = []
     for field, value in key_information.items():
         expected_value = str(value or "").strip()
         if not expected_value:
             continue
-        normalized_value = _normalize_ocr_label_text(expected_value)
-        if expected_value in raw_text or (normalized_value and normalized_value in normalized_raw_text):
+        matched, score, threshold = _ocr_text_matches(raw_text, expected_value, field=str(field))
+        if matched:
             continue
-        missing.append({"field": str(field), "value": expected_value})
+        missing.append({"field": str(field), "match_score": score, "threshold": threshold})
     return missing
 
 
 def _normalize_ocr_label_text(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", value.lower())
+    return "".join(char for char in value.casefold() if char.isalnum())
+
+
+def _ocr_text_matches(raw_text: str, expected_value: str, *, field: str) -> tuple[bool, float, float]:
+    normalized_raw = _normalize_ocr_label_text(raw_text)
+    normalized_expected = _normalize_ocr_label_text(expected_value)
+    if not normalized_expected:
+        return True, 1.0, 1.0
+    if normalized_expected in normalized_raw:
+        return True, 1.0, 1.0
+    expected_tokens = _ocr_label_tokens(expected_value)
+    if field.casefold() == "address":
+        score = _token_coverage(expected_tokens, _ocr_label_tokens(raw_text))
+        return score >= OCR_ADDRESS_TOKEN_THRESHOLD, score, OCR_ADDRESS_TOKEN_THRESHOLD
+    if field == "must_contain_text" and len(expected_tokens) >= OCR_LONG_TEXT_MIN_TOKENS:
+        score = _token_coverage(expected_tokens, _ocr_label_tokens(raw_text))
+        return score >= OCR_LONG_TEXT_TOKEN_THRESHOLD, score, OCR_LONG_TEXT_TOKEN_THRESHOLD
+    return False, 0.0, 1.0
+
+
+def _ocr_label_tokens(value: str) -> list[str]:
+    normalized = "".join(char.casefold() if char.isalnum() else " " for char in value)
+    return [token for token in normalized.split() if len(token) > 1 or token.isdigit()]
+
+
+def _token_coverage(expected_tokens: list[str], actual_tokens: list[str]) -> float:
+    expected = set(expected_tokens)
+    if not expected:
+        return 1.0
+    actual = set(actual_tokens)
+    return round(len(expected & actual) / len(expected), 4)
+
+
+def _sanitized_ocr_failure_output(actual: dict) -> dict:
+    sanitized = dict(actual)
+    raw_text = str(sanitized.pop("raw_text", "") or "")
+    sanitized.pop("table_text", None)
+    if raw_text:
+        sanitized["raw_text_length"] = len(raw_text)
+    return sanitized
 
 
 def _has_bbox(block: dict) -> bool:

@@ -41,6 +41,7 @@ from app.services import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+OCR_BOX_LINE_COUNT_CAP = 20
 MANUAL_DATASET_EVAL_TYPES = {
     "ocr",
     "classification",
@@ -610,6 +611,7 @@ def _evaluate_ocr_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
 def _evaluate_ocr_file_samples(db: Session, samples: list[dict], dataset: dict) -> tuple[int, dict, list[dict]]:
     failed = []
     text_hits = page_hits = block_hits = bbox_hits = confidence_hits = table_hits = 0
+    key_information_hits = box_line_hits = public_label_hits = 0
     blocked = 0
     for sample in samples:
         actual = _run_ocr_file_sample(db, sample)
@@ -621,6 +623,9 @@ def _evaluate_ocr_file_samples(db: Session, samples: list[dict], dataset: dict) 
         bbox_hits += int(checks["bbox_ok"])
         confidence_hits += int(checks["confidence_ok"])
         table_hits += int(checks["table_blocks_ok"])
+        key_information_hits += int(checks["key_information_ok"])
+        box_line_hits += int(checks["box_line_count_ok"])
+        public_label_hits += int(checks["public_dataset_label_ok"])
         blocked += int(actual.get("status") == "blocked_external_dependency")
         if not checks["passed"]:
             failed.append(_sample_failed_case("ocr", sample, actual, checks["expected"]))
@@ -635,6 +640,9 @@ def _evaluate_ocr_file_samples(db: Session, samples: list[dict], dataset: dict) 
             "bbox_requirement_accuracy": _rate(bbox_hits, total),
             "confidence_requirement_accuracy": _rate(confidence_hits, total),
             "table_requirement_accuracy": _rate(table_hits, total),
+            "key_information_accuracy": _rate(key_information_hits, total),
+            "box_line_count_coverage": _rate(box_line_hits, total),
+            "public_dataset_label_accuracy": _rate(public_label_hits, total),
             "blocked_external_dependency_count": blocked,
             "dataset_kind": dataset["dataset_kind"],
             "source_type": dataset["source_type"],
@@ -784,9 +792,12 @@ def _resolve_evaluation_sample_file(value: str, *, external_only: bool = False, 
 def _ocr_expected_checks(actual: dict, expected: dict) -> dict:
     required_text = [str(item) for item in expected.get("must_contain_text") or []]
     missing_text = [item for item in required_text if item not in str(actual.get("raw_text") or "")]
+    missing_key_information = _missing_key_information(str(actual.get("raw_text") or ""), expected.get("key_information"))
     exact_page_count = expected.get("page_count")
     min_page_count = int(expected.get("min_page_count") or exact_page_count or 0)
     min_ocr_blocks = int(expected.get("min_ocr_blocks") or (1 if expected.get("require_ocr_blocks") else 0))
+    box_line_count = _optional_int(expected.get("box_line_count"))
+    box_line_required = min(box_line_count or 0, OCR_BOX_LINE_COUNT_CAP)
     min_bbox = int(expected.get("min_blocks_with_bbox") or (1 if expected.get("require_bbox") else 0))
     min_confidence = int(expected.get("min_blocks_with_confidence") or (1 if expected.get("require_confidence") else 0))
     min_tables = int(expected.get("min_table_blocks") or (1 if expected.get("require_table_blocks") else 0))
@@ -804,18 +815,23 @@ def _ocr_expected_checks(actual: dict, expected: dict) -> dict:
             else int(actual.get("page_count") or 0) >= min_page_count
         ),
         "ocr_blocks_ok": int(actual.get("ocr_blocks_count") or 0) >= min_ocr_blocks,
+        "box_line_count_ok": int(actual.get("ocr_blocks_count") or 0) >= box_line_required,
         "bbox_ok": int(actual.get("blocks_with_bbox_count") or 0) >= min_bbox,
         "confidence_ok": int(actual.get("blocks_with_confidence_count") or 0) >= min_confidence,
         "table_blocks_ok": int(actual.get("table_blocks_count") or 0) >= min_tables,
         "page_image_ok": not expected.get("require_page_image") or int(actual.get("pages_with_image_count") or 0) >= int(actual.get("page_count") or 1),
+        "key_information_ok": not missing_key_information,
         "table_headers_ok": not missing_headers,
         "table_values_ok": not missing_values,
         "expected": {
             "missing_text": missing_text,
+            "missing_key_information": missing_key_information,
             "require_raw_text": bool(expected.get("require_raw_text")),
             "page_count": exact_page_count,
             "min_page_count": min_page_count,
             "min_ocr_blocks": min_ocr_blocks,
+            "box_line_count": box_line_count,
+            "box_line_count_required": box_line_required,
             "min_blocks_with_bbox": min_bbox,
             "min_blocks_with_confidence": min_confidence,
             "min_table_blocks": min_tables,
@@ -831,15 +847,38 @@ def _ocr_expected_checks(actual: dict, expected: dict) -> dict:
             "raw_text_ok",
             "page_count_ok",
             "ocr_blocks_ok",
+            "box_line_count_ok",
             "bbox_ok",
             "confidence_ok",
             "table_blocks_ok",
             "page_image_ok",
+            "key_information_ok",
             "table_headers_ok",
             "table_values_ok",
         )
     )
+    checks["public_dataset_label_ok"] = checks["key_information_ok"] and checks["box_line_count_ok"]
     return checks
+
+
+def _missing_key_information(raw_text: str, key_information: object) -> list[dict[str, str]]:
+    if not isinstance(key_information, dict):
+        return []
+    normalized_raw_text = _normalize_ocr_label_text(raw_text)
+    missing: list[dict[str, str]] = []
+    for field, value in key_information.items():
+        expected_value = str(value or "").strip()
+        if not expected_value:
+            continue
+        normalized_value = _normalize_ocr_label_text(expected_value)
+        if expected_value in raw_text or (normalized_value and normalized_value in normalized_raw_text):
+            continue
+        missing.append({"field": str(field), "value": expected_value})
+    return missing
+
+
+def _normalize_ocr_label_text(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", value.lower())
 
 
 def _has_bbox(block: dict) -> bool:

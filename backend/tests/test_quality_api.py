@@ -1695,6 +1695,7 @@ def _fake_ocr_pages(
     monkeypatch,
     *,
     raw_text: str = "Invoice total 100",
+    ocr_blocks: list[dict] | None = None,
     table_blocks: list[dict] | None = None,
     image_path: str | None = "local_storage/page_images/external.png",
     confidence: float | None = None,
@@ -1708,13 +1709,16 @@ def _fake_ocr_pages(
         return document
 
     def fake_list_pages(db, document_id):
-        block = {"text": raw_text, "bbox": [1.0, 2.0, 3.0, 4.0]}
-        if confidence is not None:
-            block["confidence"] = confidence
+        blocks = ocr_blocks
+        if blocks is None:
+            block = {"text": raw_text, "bbox": [1.0, 2.0, 3.0, 4.0]}
+            if confidence is not None:
+                block["confidence"] = confidence
+            blocks = [block]
         return [
             SimpleNamespace(
                 raw_text=raw_text,
-                ocr_blocks=[block],
+                ocr_blocks=blocks,
                 table_blocks=table_blocks or [],
                 image_path=image_path,
                 ocr_engine="external-acceptance-test",
@@ -1884,6 +1888,125 @@ def test_external_ocr_table_expectations_fail_cases(monkeypatch, tmp_path) -> No
     assert result["failed_cases"]
     assert result["metrics"]["ocr_sample_pass_rate"] == 0.0
     assert result["failed_cases"][0]["expected_output"]["missing_table_values"] == ["999.00"]
+
+
+def test_public_ocr_key_information_and_box_line_count_pass(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        source_type="public_dataset",
+        expected={
+            "must_contain_text": ["ABC SDN BHD"],
+            "key_information": {
+                "company": "ABC Sdn. Bhd.",
+                "date": "2026/07/07",
+                "address": "1 Market Road",
+                "total": "12.00",
+            },
+            "box_line_count": 3,
+        },
+    )
+    _fake_ocr_pages(
+        monkeypatch,
+        raw_text="ABC SDN BHD\nDate: 2026-07-07\nAddress 1 Market Road\nTotal RM 12 00",
+        ocr_blocks=[
+            {"text": "ABC SDN BHD", "bbox": [1.0, 1.0, 2.0, 2.0]},
+            {"text": "Date 2026-07-07", "bbox": [1.0, 2.0, 2.0, 3.0]},
+            {"text": "Total RM 12 00", "bbox": [1.0, 3.0, 2.0, 4.0]},
+        ],
+    )
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "sroie_public_ocr_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"] == []
+    assert result["metrics"]["source_type"] == "public_dataset"
+    assert result["metrics"]["is_production_evaluation"] is False
+    assert result["metrics"]["key_information_accuracy"] == 1.0
+    assert result["metrics"]["box_line_count_coverage"] == 1.0
+    assert result["metrics"]["public_dataset_label_accuracy"] == 1.0
+
+
+def test_public_ocr_missing_key_information_fails(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        source_type="public_dataset",
+        expected={"key_information": {"company": "ABC Store", "total": "99.99"}},
+    )
+    _fake_ocr_pages(monkeypatch, raw_text="ABC Store\nTotal RM 12.00")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "sroie_public_ocr_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"]
+    assert result["metrics"]["key_information_accuracy"] == 0.0
+    assert result["failed_cases"][0]["expected_output"]["missing_key_information"] == [
+        {"field": "total", "value": "99.99"}
+    ]
+
+
+def test_public_ocr_box_line_count_below_threshold_fails(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        source_type="public_dataset",
+        expected={"box_line_count": 4},
+    )
+    _fake_ocr_pages(
+        monkeypatch,
+        raw_text="Line one\nLine two",
+        ocr_blocks=[
+            {"text": "Line one", "bbox": [1.0, 1.0, 2.0, 2.0]},
+            {"text": "Line two", "bbox": [1.0, 2.0, 2.0, 3.0]},
+        ],
+    )
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "sroie_public_ocr_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"]
+    assert result["metrics"]["box_line_count_coverage"] == 0.0
+    assert result["failed_cases"][0]["expected_output"]["box_line_count_required"] == 4
+
+
+def test_public_ocr_dataset_cannot_be_marked_production(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        source_type="public_dataset",
+        is_production_evaluation=True,
+        expected={"must_contain_text": ["Receipt"]},
+    )
+    _fake_ocr_pages(monkeypatch, raw_text="Receipt")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "sroie_public_ocr_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    metrics = response.json()["metrics"]
+    assert metrics["source_type"] == "public_dataset"
+    assert metrics["is_production_evaluation"] is False
+    assert metrics["production_evaluation"] is False
+    assert "production_evaluation requires source_type=desensitized or production_approved" in metrics["production_guard_warnings"]
 
 
 def _classification_external_samples(

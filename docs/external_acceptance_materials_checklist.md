@@ -34,9 +34,11 @@ The OCR evaluation runner can read:
 local_storage/external_acceptance/production_dataset/ocr/ocr_external_manifest.json
 ```
 
-Each sample can point to a local external file and label with `file_path` and `label_path`. The label `expected` block can require `page_count`, `must_contain_text`, `raw_text`, OCR blocks, bbox, page images, confidence, table blocks, table headers, and table values. Paths are resolved against `local_storage/external_acceptance` and must not use absolute paths or `..` traversal.
+Each sample can point to a local external file and label with `file_path` and `label_path`. The label `expected` block can require `page_count`, `must_contain_text`, `raw_text`, OCR blocks, bbox, page images, confidence, table blocks, table headers, table values, SROIE-style `key_information`, and `box_line_count`. Paths are resolved against `local_storage/external_acceptance` and must not use absolute paths or `..` traversal.
 
 `source_type=synthetic_external_acceptance` is allowed for local external acceptance only and is forced to `is_production_evaluation=false`. It is not production `fully_satisfied` evidence. Real or desensitized production OCR acceptance still requires approved labels, sanitized Provider artifacts, and explicit Provider integration when Azure Document Intelligence is used.
+
+`source_type=public_dataset` is also allowed for local public OCR acceptance such as SROIE-selected samples. Public labels are stronger than synthetic external acceptance because `key_information` and `box_line_count` affect pass/fail, but they remain non-project-specific and must keep `is_production_evaluation=false`. Real Azure integration for these samples still requires explicit `RUN_PROVIDER_INTEGRATION=1`; local files stay under `local_storage` and are not committed.
 
 Local OCR external acceptance Azure integration has passed with `RUN_PROVIDER_INTEGRATION=1`, `eval_type=ocr`, dataset path `local_storage/external_acceptance/production_dataset/ocr/ocr_external_manifest.json`, and model `azure-document-intelligence:prebuilt-layout`. The run covered three synthetic samples: a multi-page PDF, a complex-table PDF, and a scanned-like PNG. Result summary: `sample_count=3`, `failed_cases=[]`, OCR/text/page/block/bbox/confidence/table metrics all `1.0`, `blocked_external_dependency_count=0`, `source_type=synthetic_external_acceptance`, `is_production_evaluation=false`, and `evaluation_status=synthetic_only`.
 

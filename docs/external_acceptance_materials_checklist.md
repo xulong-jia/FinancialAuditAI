@@ -20,7 +20,7 @@ This directory must remain ignored by `.gitignore` and must never be committed. 
 | Classification | `local_storage/external_acceptance/production_dataset/classification` | Desensitized documents or text samples, expected `doc_type`, confidence, review labels, and optional `classification_external_manifest.json` with external `label_path` | synthetic external acceptance passed locally; production materials still pending | Blocks `fully_satisfied` |
 | Extraction | `local_storage/external_acceptance/production_dataset/extraction` | Desensitized documents, expected fields, `source_page`, `source_text`, `source_bbox`, and `line_items` | pending | Blocks `fully_satisfied` |
 | Rule | `local_storage/external_acceptance/production_dataset/rule` | Pass/fail/warning/missing-data cases, `rule_id`, status, severity, evidence, and review routing labels | pending | Blocks `fully_satisfied` |
-| RAG | `local_storage/external_acceptance/production_dataset/rag` | `regulation`, `inquiry_case`, `prospectus`, and `workpaper` samples with expected citation, no-answer, and workpaper scope labels | pending | Blocks `fully_satisfied` |
+| RAG | `local_storage/external_acceptance/production_dataset/rag` | `regulation`, `inquiry_case`, `prospectus`, and `workpaper` samples with expected citation, no-answer, and workpaper scope labels; optional SEC EDGAR public manifest with local `.txt` filings such as Apple 10-K under `knowledge_base=prospectus` | SEC EDGAR public RAG manifest support implemented; project-specific production labels still pending | Blocks `fully_satisfied` |
 | Agent | `local_storage/external_acceptance/production_dataset/agent` | Expected `agent_steps`, tool use, retry, review routing, Bad Case, and `evidence_insufficient` labels | pending | Blocks `fully_satisfied` |
 | E2E | `local_storage/external_acceptance/production_dataset/e2e` | Complete task, document, OCR, classification, extraction, rule, report, and expected artifact labels | pending | Blocks `fully_satisfied` |
 
@@ -131,6 +131,7 @@ Phase A/B/C internal code, tests, and documentation fixes are complete. The curr
 
 - OCR external acceptance is `synthetic_external_acceptance`; Azure integration passed locally and proves external file loading, OCR Provider connectivity, expected-check plumbing, and local safety boundaries.
 - Classification external acceptance is `synthetic_external_acceptance`; evaluation passed locally and proves external manifest/label/text loading plus deterministic classification assertions.
+- SEC EDGAR RAG external acceptance can load local public `.txt` filings such as Apple 10-K into the `prospectus` knowledge base, index chunks, run query labels, and validate citation/no-answer plumbing; it remains `public_dataset` with `is_production_evaluation=false`.
 - Provider readiness artifact was generated locally, passed the documented safety summary, and proves sanitized Provider readiness artifact generation and connectivity only.
 
 No real or desensitized business materials have been provided yet. Specifically, there are no real or desensitized procurement documents, sales documents, confirmations, interview records, contracts, human-reviewed labels, RAG citation labels, or Agent workflow labels.

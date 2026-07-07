@@ -1153,6 +1153,156 @@ def test_manual_acceptance_rag_manifest_runs_inline_documents(monkeypatch) -> No
         shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
+def _write_external_sec_edgar_rag_manifest(
+    tmp_path: Path,
+    *,
+    file_path: str = "files/apple_10k.txt",
+    is_production_evaluation: bool = False,
+) -> str:
+    dataset_dir = tmp_path / "local_storage" / "external_acceptance" / "production_dataset" / "rag" / "sec_edgar"
+    files_dir = dataset_dir / "files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+    if ".." not in Path(file_path).parts:
+        (files_dir / "apple_10k.txt").write_text(
+            (
+                "Apple Inc. Form 10-K public filing.\n\n"
+                "Net sales for iPhone were driven by demand for the iPhone family of products.\n\n"
+                "Services net sales include advertising, AppleCare, cloud services, digital content and payment services.\n\n"
+                "Risk factors include macroeconomic conditions and supply chain disruption."
+            ),
+            encoding="utf-8",
+        )
+    (dataset_dir / "sec_edgar_rag_external_manifest.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "rag",
+                "dataset_name": "sec_edgar_rag_external_unit",
+                "version": "0.1.0",
+                "source_type": "public_dataset",
+                "is_production_evaluation": is_production_evaluation,
+                "documents": [
+                    {
+                        "document_id": "apple_10k_2025",
+                        "title": "Apple Inc. 2025 Form 10-K",
+                        "file_path": file_path,
+                        "knowledge_base": "prospectus",
+                        "metadata": {
+                            "source": "sec_edgar",
+                            "issuer": "Apple Inc.",
+                            "filing_type": "10-K",
+                            "accession_no": "0000320193-25-000079",
+                        },
+                    }
+                ],
+                "samples": [
+                    {
+                        "sample_id": "sec-edgar-answer",
+                        "query": "What does Apple say about services net sales?",
+                        "expected": {
+                            "answer_must_contain": ["Services net sales"],
+                            "must_have_citation": True,
+                            "expected_citation_document_id": "apple_10k_2025",
+                            "expected_metadata": {
+                                "source": "sec_edgar",
+                                "issuer": "Apple Inc.",
+                                "filing_type": "10-K",
+                            },
+                            "expected_quote_must_contain": ["AppleCare", "cloud services"],
+                            "no_answer": False,
+                            "expected_status": "answer",
+                        },
+                    },
+                    {
+                        "sample_id": "sec-edgar-no-answer",
+                        "query": "Martian banana mining telemetry",
+                        "expected": {
+                            "must_have_citation": False,
+                            "no_answer": True,
+                            "expected_status": "no_answer",
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return "local_storage/external_acceptance/production_dataset/rag/sec_edgar/sec_edgar_rag_external_manifest.json"
+
+
+def _force_deterministic_rag(monkeypatch) -> None:
+    monkeypatch.setattr(evaluation_service.rag_service.settings, "embedding_provider", "deterministic-local")
+    monkeypatch.setattr(evaluation_service.rag_service.settings, "embedding_dimensions", 32)
+    monkeypatch.setattr(evaluation_service.rag_service.settings, "rag_answer_provider", "deterministic-fallback")
+    monkeypatch.setattr(evaluation_service.rag_service.settings, "rag_rerank_provider", "deterministic-fallback")
+
+
+def test_external_sec_edgar_rag_manifest_indexes_and_queries_public_dataset(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    _force_deterministic_rag(monkeypatch)
+    dataset_path = _write_external_sec_edgar_rag_manifest(tmp_path)
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "rag", "dataset_name": "sec_edgar_rag_external_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    metrics = result["metrics"]
+    assert result["sample_count"] == 2
+    assert result["failed_cases"] == []
+    assert metrics["source_type"] == "public_dataset"
+    assert metrics["is_production_evaluation"] is False
+    assert metrics["rag_external_sample_pass_rate"] == 1.0
+    assert metrics["rag_external_citation_accuracy"] == 1.0
+    assert metrics["rag_external_answer_accuracy"] == 1.0
+    assert metrics["rag_external_no_answer_accuracy"] == 1.0
+    assert metrics["rag_external_metadata_accuracy"] == 1.0
+    assert metrics["external_rag_document_count"] == 1
+    assert metrics["external_rag_chunk_count"] >= 1
+
+    with SessionLocal() as db:
+        docs = [
+            document
+            for document in db.query(RagDocument).all()
+            if (document.metadata_json or {}).get("external_document_id") == "apple_10k_2025"
+        ]
+        assert docs
+        assert db.query(RagChunk).filter(RagChunk.rag_document_id == docs[-1].id).count() >= 1
+
+
+def test_external_sec_edgar_rag_manifest_rejects_file_path_escape(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    _force_deterministic_rag(monkeypatch)
+    dataset_path = _write_external_sec_edgar_rag_manifest(tmp_path, file_path="../apple_10k.txt")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "rag", "dataset_name": "sec_edgar_rag_external_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 400
+    assert "file_path" in response.json()["detail"]
+
+
+def test_external_sec_edgar_public_dataset_cannot_be_marked_production(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    _force_deterministic_rag(monkeypatch)
+    dataset_path = _write_external_sec_edgar_rag_manifest(tmp_path, is_production_evaluation=True)
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "rag", "dataset_name": "sec_edgar_rag_external_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    metrics = response.json()["metrics"]
+    assert metrics["source_type"] == "public_dataset"
+    assert metrics["is_production_evaluation"] is False
+    assert metrics["production_evaluation"] is False
+    assert "production_evaluation requires source_type=desensitized or production_approved" in metrics["production_guard_warnings"]
+
+
 def test_manual_acceptance_agent_manifest_runs_workflow_contracts(monkeypatch) -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_agent_unit"
     dataset_dir.mkdir(parents=True, exist_ok=True)

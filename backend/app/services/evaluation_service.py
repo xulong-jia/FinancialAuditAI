@@ -273,6 +273,7 @@ def _normalize_dataset(payload: EvaluationRunRequest, path: Path, data: dict, ma
         "external_resource_required": external_resource_required,
         "production_guard_warnings": guard_warnings,
         "external_acceptance_dataset": external_dataset,
+        "documents": data.get("documents") if isinstance(data.get("documents"), list) else [],
         "samples": samples,
     }
 
@@ -465,7 +466,10 @@ def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, 
     elif eval_type == "rule":
         sample_count, metrics, failed = _evaluate_rule_samples(samples)
     elif eval_type == "rag":
-        sample_count, metrics, failed = _evaluate_rag_samples(db, samples)
+        if dataset.get("external_acceptance_dataset") and isinstance(dataset.get("documents"), list) and dataset["documents"]:
+            sample_count, metrics, failed = _evaluate_external_rag_samples(db, samples, dataset)
+        else:
+            sample_count, metrics, failed = _evaluate_rag_samples(db, samples)
     elif eval_type == "agent":
         sample_count, metrics, failed = _evaluate_agent_samples(samples)
     elif eval_type == "persistent_rag_workflow":
@@ -1721,6 +1725,193 @@ def _evaluate_rag_samples(db: Session, samples: list[dict]) -> tuple[int, dict, 
     )
 
 
+def _evaluate_external_rag_samples(db: Session, samples: list[dict], dataset: dict) -> tuple[int, dict, list[dict]]:
+    provider_block = _external_rag_provider_blocking_reason()
+    if provider_block:
+        return (
+            len(samples),
+            {
+                "rag_external_sample_pass_rate": 0.0,
+                "rag_external_citation_accuracy": 0.0,
+                "rag_external_answer_accuracy": 0.0,
+                "rag_external_no_answer_accuracy": 0.0,
+                "rag_external_metadata_accuracy": 0.0,
+                "failed_case_count": len(samples),
+                "blocked_external_dependency_count": 1,
+                "blocking_reason": provider_block,
+                "evaluation_status": "blocked_external_dependency",
+            },
+            [
+                _sample_failed_case(
+                    "rag",
+                    sample,
+                    {"status": "blocked_external_dependency", "error": provider_block},
+                    _sample_expected(sample),
+                )
+                for sample in samples
+            ],
+        )
+
+    failed = []
+    answer_hits = answer_total = citation_hits = citation_total = no_answer_hits = no_answer_total = 0
+    metadata_hits = metadata_total = 0
+    run_id = f"external-rag-{uuid4()}"
+    indexed_documents = _index_external_rag_documents(db, dataset, run_id)
+    default_knowledge_base = indexed_documents[0]["knowledge_base"] if indexed_documents else "prospectus"
+    for sample in samples:
+        expected = _sample_expected(sample)
+        input_payload = _sample_input(sample)
+        query_text = str(input_payload.get("query") or sample.get("query") or "")
+        knowledge_base = str(input_payload.get("knowledge_base") or sample.get("knowledge_base") or default_knowledge_base)
+        metadata_filter = input_payload.get("metadata_filter") if isinstance(input_payload.get("metadata_filter"), dict) else {}
+        metadata_filter = {"external_rag_run_id": run_id, **metadata_filter}
+        result = rag_service.query(
+            db,
+            query_text=query_text,
+            knowledge_base=knowledge_base,
+            top_k=int(input_payload.get("top_k") or sample.get("top_k") or 3),
+            metadata_filter=metadata_filter,
+            task_id=None,
+        )
+        actual = _external_rag_actual_result(result)
+        checks = _rag_expected_checks(actual, expected)
+        answer_total += checks["answer_total"]
+        answer_hits += int(checks["answer_text_ok"] and checks["answer_total"])
+        no_answer_total += checks["no_answer_total"]
+        no_answer_hits += int(checks["no_answer_ok"] and checks["no_answer_total"])
+        metadata_total += checks["metadata_total"]
+        metadata_hits += int(checks["metadata_ok"] and checks["metadata_total"])
+        citation_expected = any(
+            checks[key]
+            for key in ("citation_presence_total", "citation_document_total", "quote_total")
+        )
+        citation_total += int(citation_expected)
+        citation_hits += int(
+            citation_expected
+            and checks["citation_presence_ok"]
+            and checks["citation_document_ok"]
+            and checks["quote_ok"]
+        )
+        if not checks["passed"]:
+            failed.append(_sample_failed_case("rag", sample, actual, expected | {"checks": checks}))
+    return (
+        len(samples),
+        {
+            "rag_external_sample_pass_rate": _accuracy(len(samples), len(failed)),
+            "rag_external_citation_accuracy": _rate(citation_hits, citation_total),
+            "rag_external_answer_accuracy": _rate(answer_hits, answer_total),
+            "rag_external_no_answer_accuracy": _rate(no_answer_hits, no_answer_total),
+            "rag_external_metadata_accuracy": _rate(metadata_hits, metadata_total),
+            "failed_case_count": len(failed),
+            "blocked_external_dependency_count": 0,
+            "external_rag_document_count": len(indexed_documents),
+            "external_rag_chunk_count": sum(int(document.get("chunk_count") or 0) for document in indexed_documents),
+            "provider_quality_evaluation": False,
+            "provider_quality_note": (
+                "external public RAG acceptance validates file loading, indexing, retrieval, citations, and labels; "
+                "it is not project-specific production RAG quality evidence."
+            ),
+        },
+        failed,
+    )
+
+
+def _index_external_rag_documents(db: Session, dataset: dict, run_id: str) -> list[dict]:
+    dataset_dir = Path(str(dataset["dataset_source"])).parent
+    if not Path(str(dataset["dataset_source"])).is_absolute():
+        dataset_dir = (PROJECT_ROOT / dataset_dir).resolve()
+    indexed = []
+    for document in dataset.get("documents") or []:
+        if not isinstance(document, dict):
+            continue
+        indexed.append(_create_and_index_external_rag_document(db, document, dataset_dir, run_id))
+    return indexed
+
+
+def _external_rag_actual_result(result: dict) -> dict:
+    citations = []
+    for citation in result.get("citations") or []:
+        if not isinstance(citation, dict):
+            continue
+        citations.append(
+            {
+                **citation,
+                "document_id": str(citation.get("document_id") or ""),
+                "chunk_id": str(citation.get("chunk_id") or ""),
+            }
+        )
+    return {
+        "status": result["status"],
+        "answer": result.get("answer"),
+        "citation_count": len(citations),
+        "citations": citations,
+    }
+
+
+def _create_and_index_external_rag_document(db: Session, document: dict, dataset_dir: Path, run_id: str) -> dict:
+    document_path = _resolve_external_rag_file_path(str(document.get("file_path") or ""), dataset_dir)
+    try:
+        content_text = document_path.read_text(encoding="utf-8", errors="ignore")
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"External RAG file_path could not be read: {exc.__class__.__name__}") from exc
+    metadata = document.get("metadata") if isinstance(document.get("metadata"), dict) else {}
+    metadata = {
+        **metadata,
+        "external_document_id": str(document.get("document_id") or document_path.stem),
+        "external_rag_run_id": run_id,
+    }
+    rag_document = asyncio.run(
+        rag_service.create_document(
+            db,
+            knowledge_base=str(document.get("knowledge_base") or "prospectus"),
+            title=str(document.get("title") or document_path.name),
+            source_type=str(document.get("source_type") or "public_dataset"),
+            source_url=document.get("source_url") if isinstance(document.get("source_url"), str) else None,
+            issuer_name=metadata.get("issuer") if isinstance(metadata.get("issuer"), str) else None,
+            metadata=metadata,
+            created_by="evaluation_service",
+            content_text=content_text,
+        )
+    )
+    index_result = rag_service.index_document(db, rag_document.id)
+    return {
+        "document_id": str(rag_document.id),
+        "external_document_id": metadata["external_document_id"],
+        "knowledge_base": rag_document.knowledge_base,
+        "title": rag_document.title,
+        "chunk_count": int(index_result.get("chunk_count") or 0),
+        "metadata": metadata,
+    }
+
+
+def _resolve_external_rag_file_path(value: str, dataset_dir: Path) -> Path:
+    if not value:
+        raise HTTPException(status_code=400, detail="External RAG file_path is required")
+    raw_path = Path(value)
+    if raw_path.is_absolute() or ".." in raw_path.parts:
+        raise HTTPException(status_code=400, detail="External RAG file_path must stay under local_storage/external_acceptance")
+    candidates = [(PROJECT_ROOT / raw_path).resolve(), (dataset_dir / raw_path).resolve()]
+    for candidate in candidates:
+        if _is_under(candidate, external_acceptance_root()):
+            if candidate.exists() and candidate.is_file() and candidate.suffix.lower() == ".txt":
+                return candidate
+            raise HTTPException(status_code=400, detail="External RAG file_path must point to an existing txt file")
+    raise HTTPException(status_code=400, detail="External RAG file_path must stay under local_storage/external_acceptance")
+
+
+def _external_rag_provider_blocking_reason() -> str | None:
+    real_providers = {"openai", "openai-compatible", "real"}
+    configured = {
+        "embedding": getattr(rag_service.settings, "embedding_provider", ""),
+        "rag_answer": getattr(rag_service.settings, "rag_answer_provider", ""),
+        "rag_rerank": getattr(rag_service.settings, "rag_rerank_provider", ""),
+    }
+    real_paths = [name for name, provider in configured.items() if str(provider).strip().lower() in real_providers]
+    if real_paths and os.getenv("RUN_PROVIDER_INTEGRATION") != "1":
+        return f"External RAG provider integration requires RUN_PROVIDER_INTEGRATION=1 for {', '.join(real_paths)}"
+    return None
+
+
 def _evaluate_inline_rag_sample(sample: dict) -> dict:
     input_payload = _sample_input(sample)
     query = str(input_payload.get("query") or "")
@@ -1764,12 +1955,18 @@ def _rag_expected_checks(actual: dict, expected: dict) -> dict:
     status = str(actual.get("status") or "")
     citations = actual.get("citations") if isinstance(actual.get("citations"), list) else []
     citation_count = int(actual.get("citation_count") or len(citations))
-    citation_ids = {str(citation.get("document_id") or citation.get("rag_document_id") or "") for citation in citations if isinstance(citation, dict)}
+    citation_ids = set()
+    for citation in citations:
+        if not isinstance(citation, dict):
+            continue
+        citation_ids.add(str(citation.get("document_id") or citation.get("rag_document_id") or ""))
+        metadata = citation.get("metadata") if isinstance(citation.get("metadata"), dict) else {}
+        citation_ids.add(str(metadata.get("external_document_id") or ""))
     answer_terms = expected.get("answer_must_contain")
     if isinstance(answer_terms, str):
         answer_terms = [answer_terms]
     answer_terms = [str(term) for term in answer_terms] if isinstance(answer_terms, list) else []
-    answer_text_ok = all(term.lower() in answer.lower() for term in answer_terms)
+    answer_text_ok = all(_rag_text_matches(answer, term) for term in answer_terms)
     citation_presence_expected = expected.get("must_have_citation")
     min_citations = expected.get("min_citations", expected.get("citation_count"))
     citation_presence_ok = True
@@ -1779,6 +1976,16 @@ def _rag_expected_checks(actual: dict, expected: dict) -> dict:
         citation_presence_ok = citation_count >= int(min_citations or 0)
     expected_citation_id = expected.get("expected_citation_document_id")
     citation_document_ok = expected_citation_id is None or str(expected_citation_id) in citation_ids
+    expected_metadata = expected.get("expected_metadata") if isinstance(expected.get("expected_metadata"), dict) else None
+    metadata_ok = expected_metadata is None or any(_rag_metadata_matches(citation, expected_metadata) for citation in citations if isinstance(citation, dict))
+    quote_terms = expected.get("expected_quote_must_contain")
+    if isinstance(quote_terms, str):
+        quote_terms = [quote_terms]
+    quote_terms = [str(term) for term in quote_terms] if isinstance(quote_terms, list) else []
+    quote_ok = all(
+        any(_rag_text_matches(str(citation.get("quote") or ""), term) for citation in citations if isinstance(citation, dict))
+        for term in quote_terms
+    )
     expected_status = expected.get("expected_status", expected.get("status"))
     status_ok = expected_status is None or status == str(expected_status)
     no_answer_expected = expected.get("no_answer")
@@ -1793,16 +2000,32 @@ def _rag_expected_checks(actual: dict, expected: dict) -> dict:
         "citation_presence_total": int(citation_presence_expected is not None or min_citations is not None),
         "citation_document_ok": citation_document_ok,
         "citation_document_total": int(expected_citation_id is not None),
+        "metadata_ok": metadata_ok,
+        "metadata_total": int(expected_metadata is not None),
+        "quote_ok": quote_ok,
+        "quote_total": int(bool(quote_terms)),
         "no_answer_ok": no_answer_ok,
         "no_answer_total": int(no_answer_expected is not None),
         "status_ok": status_ok,
-        "passed": answer_text_ok and citation_presence_ok and citation_document_ok and no_answer_ok and status_ok,
+        "passed": answer_text_ok and citation_presence_ok and citation_document_ok and metadata_ok and quote_ok and no_answer_ok and status_ok,
     }
 
 
 def _rag_tokens(text: str) -> set[str]:
     stopwords = {"a", "an", "and", "be", "do", "does", "for", "in", "is", "of", "on", "or", "the", "to", "what", "with"}
     return {token for token in re.findall(r"[a-z0-9]+", text.lower()) if token not in stopwords}
+
+
+def _rag_text_matches(text_value: str, expected_value: str) -> bool:
+    if expected_value.lower() in text_value.lower():
+        return True
+    expected_tokens = _rag_tokens(expected_value)
+    return bool(expected_tokens) and expected_tokens.issubset(_rag_tokens(text_value))
+
+
+def _rag_metadata_matches(citation: dict, expected_metadata: dict) -> bool:
+    metadata = citation.get("metadata") if isinstance(citation.get("metadata"), dict) else {}
+    return all(str(metadata.get(key) or "") == str(value) for key, value in expected_metadata.items())
 
 
 def _evaluate_persistent_rag_workflow(db: Session) -> tuple[int, dict, list[dict]]:

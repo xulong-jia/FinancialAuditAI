@@ -202,6 +202,7 @@ def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: 
 
 
 def _normalize_dataset(payload: EvaluationRunRequest, path: Path, data: dict, manifest: dict | None = None) -> dict:
+    data = _expand_external_label_samples(path, data)
     if not isinstance(data.get("samples"), list):
         raise HTTPException(status_code=400, detail="Evaluation dataset must be a JSON object with a samples array")
     dataset_name = str(data.get("dataset_name") or (manifest or {}).get("dataset_name") or payload.dataset_name)
@@ -234,6 +235,8 @@ def _normalize_dataset(payload: EvaluationRunRequest, path: Path, data: dict, ma
         if not isinstance(sample, dict):
             continue
         merged_sample, guard_warnings = _merge_external_label(sample, path.parent, guard_warnings)
+        if default_eval_type == "classification" and external_dataset:
+            merged_sample = _merge_classification_external_text(merged_sample, path.parent)
         normalized = {
             "eval_type": default_eval_type,
             "dataset_name": dataset_name,
@@ -312,6 +315,28 @@ def _is_under(path: Path, root: Path) -> bool:
     return True
 
 
+def _expand_external_label_samples(path: Path, data: dict) -> dict:
+    label_path = data.get("label_path")
+    if not label_path:
+        return data
+    label_file = _resolve_external_acceptance_path(str(label_path), path.parent)
+    try:
+        label = json.loads(label_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"External label_path could not be read: {exc.__class__.__name__}") from exc
+    if not isinstance(label, dict) or not isinstance(label.get("samples"), list):
+        raise HTTPException(status_code=400, detail="External label_path must point to a JSON object with a samples array")
+    expanded = dict(data)
+    if not isinstance(expanded.get("samples"), list):
+        expanded["samples"] = label["samples"]
+    for key in ("source_type", "is_production_evaluation", "dataset_kind", "sample_count"):
+        if key in label and key not in expanded:
+            expanded[key] = label[key]
+    if "labels" not in expanded:
+        expanded["labels"] = {"label_path": str(label_path)}
+    return expanded
+
+
 def _merge_external_label(sample: dict, dataset_dir: Path, warnings: list[str]) -> tuple[dict, list[str]]:
     label_path = sample.get("label_path")
     if not label_path:
@@ -320,9 +345,9 @@ def _merge_external_label(sample: dict, dataset_dir: Path, warnings: list[str]) 
     try:
         label = json.loads(label_file.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=400, detail=f"OCR label_path could not be read: {exc.__class__.__name__}") from exc
+        raise HTTPException(status_code=400, detail=f"External label_path could not be read: {exc.__class__.__name__}") from exc
     if not isinstance(label, dict):
-        raise HTTPException(status_code=400, detail="OCR label_path must point to a JSON object")
+        raise HTTPException(status_code=400, detail="External label_path must point to a JSON object")
     merged = dict(sample)
     label_expected = label.get("expected") if isinstance(label.get("expected"), dict) else {}
     sample_expected = _sample_expected(sample)
@@ -336,17 +361,53 @@ def _merge_external_label(sample: dict, dataset_dir: Path, warnings: list[str]) 
 
 def _resolve_external_acceptance_path(value: str, dataset_dir: Path) -> Path:
     if not value:
-        raise HTTPException(status_code=400, detail="OCR label_path is required")
+        raise HTTPException(status_code=400, detail="External label_path is required")
     raw_path = Path(value)
     if raw_path.is_absolute() or ".." in raw_path.parts:
-        raise HTTPException(status_code=400, detail="OCR label_path must stay under local_storage/external_acceptance")
+        raise HTTPException(status_code=400, detail="External label_path must stay under local_storage/external_acceptance")
     candidates = [(PROJECT_ROOT / raw_path).resolve(), (dataset_dir / raw_path).resolve()]
     for candidate in candidates:
         if _is_under(candidate, external_acceptance_root()) and candidate.suffix == ".json":
             if candidate.exists():
                 return candidate
-            raise HTTPException(status_code=400, detail="OCR label_path must point to an existing JSON file")
-    raise HTTPException(status_code=400, detail="OCR label_path must stay under local_storage/external_acceptance")
+            raise HTTPException(status_code=400, detail="External label_path must point to an existing JSON file")
+    raise HTTPException(status_code=400, detail="External label_path must stay under local_storage/external_acceptance")
+
+
+def _merge_classification_external_text(sample: dict, dataset_dir: Path) -> dict:
+    file_path = sample.get("file_path")
+    if not file_path:
+        return sample
+    file_type = str(sample.get("file_type") or "").strip().lower()
+    if file_type and file_type != "text/plain":
+        raise HTTPException(status_code=400, detail="Classification external file_path must be text/plain")
+    text_file = _resolve_external_acceptance_file_path(str(file_path), dataset_dir)
+    try:
+        text = text_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Classification file_path could not be read: {exc.__class__.__name__}") from exc
+    input_payload = dict(_sample_input(sample))
+    input_payload["text"] = text
+    input_payload.setdefault("filename", text_file.name)
+    input_payload.setdefault("original_filename", text_file.name)
+    merged = dict(sample)
+    merged["input"] = input_payload
+    return merged
+
+
+def _resolve_external_acceptance_file_path(value: str, dataset_dir: Path) -> Path:
+    if not value:
+        raise HTTPException(status_code=400, detail="Classification file_path is required")
+    raw_path = Path(value)
+    if raw_path.is_absolute() or ".." in raw_path.parts:
+        raise HTTPException(status_code=400, detail="Classification file_path must stay under local_storage/external_acceptance")
+    candidates = [(PROJECT_ROOT / raw_path).resolve(), (dataset_dir / raw_path).resolve()]
+    for candidate in candidates:
+        if _is_under(candidate, external_acceptance_root()):
+            if candidate.exists() and candidate.is_file():
+                return candidate
+            raise HTTPException(status_code=400, detail="Classification file_path must point to an existing text file")
+    raise HTTPException(status_code=400, detail="Classification file_path must stay under local_storage/external_acceptance")
 
 
 def _guard_production_flag(
@@ -445,6 +506,8 @@ def _evaluate_classification_samples(samples: list[dict]) -> tuple[int, dict, li
     failed = []
     pairs = []
     low_confidence = 0
+    confidence_total = confidence_hits = 0
+    review_total = review_hits = 0
     for sample in samples:
         input_payload = _sample_input(sample)
         expected = _sample_expected(sample)
@@ -459,18 +522,44 @@ def _evaluate_classification_samples(samples: list[dict]) -> tuple[int, dict, li
                 "doc_type": ranked[0].doc_type if ranked else "unknown",
                 "confidence": ranked[0].confidence if ranked else 0.0,
             }
-        low_confidence += int(float(actual.get("confidence") or 0.0) < classification_service.LOW_CONFIDENCE_THRESHOLD)
+        actual_confidence = _optional_float(actual.get("confidence")) or 0.0
+        actual.setdefault(
+            "need_human_review",
+            str(actual.get("doc_type") or "unknown") == "unknown"
+            or actual_confidence < classification_service.LOW_CONFIDENCE_THRESHOLD,
+        )
+        low_confidence += int(actual_confidence < classification_service.LOW_CONFIDENCE_THRESHOLD)
         actual_doc_type = str(actual.get("doc_type") or "unknown")
         expected_doc_type = str(expected.get("doc_type") or "unknown")
+        failed_checks = []
         pairs.append((actual_doc_type, expected_doc_type))
         if actual_doc_type != expected_doc_type:
-            failed.append(_sample_failed_case("classification", sample, actual, expected))
+            failed_checks.append("doc_type")
+        minimum_confidence = _optional_float(expected.get("minimum_confidence"))
+        if minimum_confidence is not None:
+            confidence_total += 1
+            confidence_ok = actual_confidence >= minimum_confidence
+            confidence_hits += int(confidence_ok)
+            if not confidence_ok:
+                failed_checks.append("minimum_confidence")
+        if "need_human_review" in expected:
+            review_total += 1
+            expected_review = _coerce_bool(expected.get("need_human_review"))
+            review_ok = bool(actual.get("need_human_review")) == expected_review
+            review_hits += int(review_ok)
+            if not review_ok:
+                failed_checks.append("need_human_review")
+        if failed_checks:
+            failed.append(_sample_failed_case("classification", sample, actual | {"failed_checks": failed_checks}, expected))
     return (
         len(samples),
         {
             "accuracy": _accuracy(len(samples), len(failed)),
             "macro_f1": _macro_f1(pairs),
             "low_confidence_rate": _rate(low_confidence, len(samples)),
+            "confidence_threshold_accuracy": _rate(confidence_hits, confidence_total),
+            "human_review_flag_accuracy": _rate(review_hits, review_total),
+            "failed_case_count": len(failed),
         },
         failed,
     )
@@ -965,6 +1054,23 @@ def _optional_int(value: object) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return bool(value)
 
 
 def _optional_date(value: object) -> date | None:

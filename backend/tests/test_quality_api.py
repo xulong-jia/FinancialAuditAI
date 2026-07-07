@@ -1886,6 +1886,204 @@ def test_external_ocr_table_expectations_fail_cases(monkeypatch, tmp_path) -> No
     assert result["failed_cases"][0]["expected_output"]["missing_table_values"] == ["999.00"]
 
 
+def _classification_external_samples(
+    *,
+    expected_extra: dict | None = None,
+    sample_extra: dict | None = None,
+) -> list[dict]:
+    docs = {
+        "purchase_request": "Purchase Request Request No PR-001 Request Department Applicant Approval",
+        "purchase_contract": "Purchase Contract Contract No PC-001 Supplier Payment Terms Party A Party B",
+        "warehouse_receipt": "Warehouse Receipt Receipt Date Warehouse Received Quantity Received By",
+        "invoice": "Invoice Invoice Number INV-001 Total With Tax Tax Amount Issue Date Buyer Seller",
+        "accounting_voucher": "Accounting Voucher Voucher No Debit Credit Account Title Summary",
+        "payment_receipt": "Payment Receipt Bank Receipt Payer Payee Transaction No Payment",
+    }
+    samples = []
+    for doc_type, text in docs.items():
+        samples.append(
+            {
+                "sample_id": f"classification-{doc_type}",
+                "file_path": f"files/{doc_type}.txt",
+                "file_type": "text/plain",
+                "expected": {
+                    "doc_type": doc_type,
+                    "minimum_confidence": 0.6,
+                    "need_human_review": False,
+                    **(expected_extra or {}),
+                },
+                "_text": text,
+                **(sample_extra or {}),
+            }
+        )
+    return samples
+
+
+def _write_external_classification_manifest(
+    tmp_path: Path,
+    *,
+    samples: list[dict] | None = None,
+    source_type: str = "synthetic_external_acceptance",
+    is_production_evaluation: bool = False,
+    manifest_extra: dict | None = None,
+    label_extra: dict | None = None,
+) -> str:
+    dataset_dir = tmp_path / "local_storage" / "external_acceptance" / "production_dataset" / "classification"
+    files_dir = dataset_dir / "files"
+    labels_dir = dataset_dir / "labels"
+    files_dir.mkdir(parents=True, exist_ok=True)
+    labels_dir.mkdir(parents=True, exist_ok=True)
+    label_samples = []
+    for sample in samples or _classification_external_samples():
+        sample = dict(sample)
+        text = str(sample.pop("_text", "Invoice Invoice Number INV-001 Total With Tax Tax Amount"))
+        file_path = str(sample.get("file_path") or "files/sample.txt")
+        if ".." not in Path(file_path).parts and not Path(file_path).is_absolute():
+            (dataset_dir / file_path).parent.mkdir(parents=True, exist_ok=True)
+            (dataset_dir / file_path).write_text(text, encoding="utf-8")
+        label_samples.append(sample)
+    (labels_dir / "classification_external_labels.json").write_text(
+        json.dumps(
+            {
+                "source_type": source_type,
+                "is_production_evaluation": is_production_evaluation,
+                "samples": label_samples,
+                **(label_extra or {}),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "classification_external_manifest.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "classification",
+                "dataset_name": "classification_external_acceptance_unit",
+                "source_type": source_type,
+                "is_production_evaluation": is_production_evaluation,
+                "label_path": "labels/classification_external_labels.json",
+                "sample_count": len(label_samples),
+                **(manifest_extra or {}),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return "local_storage/external_acceptance/production_dataset/classification/classification_external_manifest.json"
+
+
+def test_external_classification_manifest_loads_top_level_label_path_and_text_files(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+
+    def fail_if_provider_called():
+        raise AssertionError("classification external evaluation must not call a real LLM provider")
+
+    monkeypatch.setattr(evaluation_service.classification_service.llm_provider, "get_llm_provider", fail_if_provider_called)
+    dataset_path = _write_external_classification_manifest(tmp_path)
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "classification", "dataset_name": "classification_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    metrics = result["metrics"]
+    assert result["sample_count"] == 6
+    assert result["failed_cases"] == []
+    assert metrics["accuracy"] == 1.0
+    assert metrics["confidence_threshold_accuracy"] == 1.0
+    assert metrics["human_review_flag_accuracy"] == 1.0
+    assert metrics["failed_case_count"] == 0
+    assert metrics["source_type"] == "synthetic_external_acceptance"
+    assert metrics["is_production_evaluation"] is False
+    assert metrics["external_acceptance_dataset"] is True
+
+
+def test_external_classification_manifest_fails_confidence_threshold(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_external_classification_manifest(
+        tmp_path,
+        samples=_classification_external_samples(expected_extra={"minimum_confidence": 0.99})[:1],
+    )
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "classification", "dataset_name": "classification_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"]
+    assert result["metrics"]["confidence_threshold_accuracy"] == 0.0
+    assert "minimum_confidence" in result["failed_cases"][0]["model_output"]["failed_checks"]
+
+
+def test_external_classification_manifest_fails_human_review_mismatch(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_external_classification_manifest(
+        tmp_path,
+        samples=_classification_external_samples(expected_extra={"need_human_review": True})[:1],
+    )
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "classification", "dataset_name": "classification_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"]
+    assert result["metrics"]["human_review_flag_accuracy"] == 0.0
+    assert "need_human_review" in result["failed_cases"][0]["model_output"]["failed_checks"]
+
+
+def test_external_classification_manifest_rejects_label_path_escape(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_external_classification_manifest(
+        tmp_path,
+        manifest_extra={"label_path": "../classification_external_labels.json"},
+    )
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "classification", "dataset_name": "classification_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 400
+    assert "label_path" in response.json()["detail"]
+
+
+def test_external_classification_manifest_rejects_file_path_escape(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_external_classification_manifest(
+        tmp_path,
+        samples=_classification_external_samples(sample_extra={"file_path": "../outside.txt"})[:1],
+    )
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "classification", "dataset_name": "classification_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 400
+    assert "file_path" in response.json()["detail"]
+
+
+def test_synthetic_external_classification_cannot_be_marked_production(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_external_classification_manifest(tmp_path, is_production_evaluation=True)
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "classification", "dataset_name": "classification_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    metrics = response.json()["metrics"]
+    assert metrics["is_production_evaluation"] is False
+    assert metrics["production_evaluation"] is False
+    assert "synthetic_external_acceptance cannot be marked as production_evaluation" in metrics["production_guard_warnings"]
+
+
 def test_evaluation_dataset_path_is_restricted() -> None:
     for dataset_path in ("../evals/datasets/manual_acceptance/dataset_manifest.json", "/etc/passwd"):
         response = client.post(

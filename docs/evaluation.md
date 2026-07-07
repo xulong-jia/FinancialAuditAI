@@ -151,9 +151,13 @@ This Azure integration result is recorded only as a sanitized summary. The `loca
 }
 ```
 
-The classification dataset runner uses the existing text-sample evaluator for `input.text` / `input.filename` and compares the predicted `doc_type` with `expected.doc_type`. It is not the full uploaded-document DB workflow, does not replace the normal document classification API path, and synthetic samples with `is_production_evaluation=false` are recorded as non-production evaluation.
+The classification dataset runner uses the existing text-sample evaluator for `input.text` / `input.filename` and compares the predicted `doc_type` with `expected.doc_type`. It also supports expected `minimum_confidence` and `need_human_review` checks when supplied by a dataset. It is not the full uploaded-document DB workflow, does not replace the normal document classification API path, and synthetic samples with `is_production_evaluation=false` are recorded as non-production evaluation.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=classification` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used six synthetic samples, produced zero failed cases, and reported `accuracy=1.0`, `macro_f1=1.0`, and `low_confidence_rate=0.0`. It remains a synthetic six-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage.
+
+Classification external acceptance manifests are supported under `local_storage/external_acceptance/production_dataset/classification`. A manifest can use top-level `label_path` to point to a local labels JSON with `samples`; each label sample can provide `file_path`, `file_type=text/plain`, `expected.doc_type`, `expected.minimum_confidence`, and `expected.need_human_review`. The runner reads text files only from `local_storage/external_acceptance`, rejects absolute paths and `..` traversal, and fills `sample.input.text` / filename before running deterministic/local classification. It does not call a real LLM Provider and does not require `RUN_PROVIDER_INTEGRATION=1`.
+
+`source_type=synthetic_external_acceptance` is forced to `is_production_evaluation=false`. This classification external runner proves local acceptance plumbing and deterministic classification behavior only; real or desensitized documents with reviewed labels remain an external dependency before production `fully_satisfied`.
 
 `extraction.json` contains synthetic text samples with expected fields:
 

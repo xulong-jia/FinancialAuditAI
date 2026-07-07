@@ -30,6 +30,7 @@ Supported eval types:
 - `rag`
 - `agent`
 - `end_to_end`
+- `full_db_workflow`
 - `regression`
 
 ## Manual Acceptance Datasets
@@ -45,6 +46,7 @@ evals/datasets/<dataset_name>/rule.json
 evals/datasets/<dataset_name>/rag.json
 evals/datasets/<dataset_name>/agent.json
 evals/datasets/<dataset_name>/e2e.json
+evals/datasets/<dataset_name>/full_db_workflow.json
 evals/datasets/<dataset_name>/regression.json
 ```
 
@@ -65,6 +67,7 @@ The manifest declares dataset metadata and the per-type files:
     "rag": "rag.json",
     "agent": "agent.json",
     "end_to_end": "e2e.json",
+    "full_db_workflow": "full_db_workflow.json",
     "regression": "regression.json"
   }
 }
@@ -195,7 +198,7 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 }
 ```
 
-The rule dataset runner currently supports `PROC_AMOUNT_001` as a synthetic deterministic amount consistency check. It compares contract, invoice, and payment amounts from `input.fields`, validates expected `rule_id`, `status`, `severity`, and required evidence presence, and stores evidence summaries without DB evidence IDs. This is not the full Rule Engine DB task workflow; full task/document/field rule execution still needs separate E2E coverage.
+The rule dataset runner calls the existing Rule Registry for supported `rule_id` values. It validates expected `rule_id`, `status`, `severity`, evidence presence, review routing, version, and parameters. The committed manual acceptance dataset covers procurement, sales, confirmation, interview, and contract-review rule boundaries. It is still synthetic and non-production; production rule coverage requires real or desensitized labeled cases.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=rule` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic `PROC_AMOUNT_001` samples, produced zero failed cases, and reported `rule_sample_pass_rate=1.0`, `rule_status_accuracy=1.0`, `rule_severity_accuracy=1.0`, `rule_evidence_coverage=1.0`, `rule_accuracy=1.0`, and false positive / false negative rates of `0.0`. `explainability_rate=0.5` is expected because only the fail sample requires evidence. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full DB task/document/field Rule Engine workflow coverage.
 
@@ -306,9 +309,47 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 
 The E2E dataset runner simulates the procurement walkthrough contract from inline `input.documents`: upload, OCR, classification, deterministic text extraction, business linkage, `PROC_AMOUNT_001`, report-generation flag, evidence-index flag, and high-risk auto-confirm guardrail. It does not create tasks, documents, reports, DB IDs, uploaded files, or local report files, and it does not call real OCR, LLM, Azure, or the full DB/API workflow.
 
-This E2E dataset path is not full task/document/OCR/classification/extraction/rule/report DB/API workflow coverage. Full DB/API E2E still needs separate integration tests.
+This E2E dataset path is not full task/document/OCR/classification/extraction/rule/report DB/API workflow coverage. Use `full_db_workflow` when the requirement is to verify persisted DB artifacts.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=end_to_end` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used one synthetic procurement walkthrough sample, produced zero failed cases, and reported `e2e_sample_pass_rate=1.0`, `required_step_coverage=1.0`, `document_classification_accuracy=1.0`, `business_key_accuracy=1.0`, `rule_result_accuracy=1.0`, `report_generation_accuracy=1.0`, `evidence_index_accuracy=1.0`, `high_risk_guardrail_accuracy=1.0`, `e2e_success_rate=1.0`, `control_table_accuracy=1.0`, `exception_detection_f1=1.0`, `evidence_completeness=1.0`, and `review_resolution_rate=1.0`. It remains a synthetic single-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full real DB/API workflow coverage.
+
+`full_db_workflow.json` contains a DB-backed workflow smoke sample:
+
+```json
+{
+  "eval_type": "full_db_workflow",
+  "dataset_name": "manual_acceptance",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "full_db_procurement_workflow_001",
+      "input": {
+        "documents": [
+          {"filename": "purchase_contract_sample.pdf", "text": "Purchase Contract\nContract No: PO-2026-001"},
+          {"filename": "invoice_sample.pdf", "text": "Invoice\nInvoice No: INV-2026-001"},
+          {"filename": "payment_receipt_sample.pdf", "text": "Payment Receipt\nPayment Purpose: Payment for contract PO-2026-001"}
+        ]
+      },
+      "expected": {
+        "required_steps": ["create_task", "create_upload_documents", "ocr", "classification", "extraction", "linkage", "rule_engine", "report_generation"],
+        "min_document_count": 3,
+        "min_document_page_count": 3,
+        "min_extracted_field_count": 10,
+        "min_document_relation_count": 1,
+        "min_audit_result_count": 1,
+        "min_report_count": 1,
+        "min_control_table_row_count": 1,
+        "min_evidence_ref_count": 1
+      }
+    }
+  ]
+}
+```
+
+The `full_db_workflow` runner creates runtime PDFs under ignored local storage, then calls the existing services: task creation, OCR, classification, extraction, linkage, Rule Engine, and report generation. It verifies persisted artifacts: `audit_tasks`, `documents`, `document_pages`, `extracted_fields`, `document_relations`, `audit_results`, `reports`, `control_table_rows`, and evidence refs. It records `provider_quality_evaluation=false`; deterministic/local Provider output proves workflow plumbing, not real Provider quality.
+
+`production_readiness` is a separate manifest for external real or desensitized evaluation data. It intentionally has zero committed samples and `external_resource_required=true`; running it returns `evaluation_status=blocked_external_dependency` until external data is supplied. This prevents synthetic/manual samples from being interpreted as fully satisfied production evaluation.
 
 `regression.json` contains manual acceptance aggregation samples:
 
@@ -322,7 +363,7 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
     {
       "sample_id": "regression_manual_acceptance_all_001",
       "input": {
-        "required_eval_types": ["ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end"],
+        "required_eval_types": ["ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end", "full_db_workflow"],
         "dataset_path": "evals/datasets/manual_acceptance/dataset_manifest.json"
       },
       "expected": {
@@ -330,18 +371,18 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
         "max_failed_cases": 0,
         "required_dataset_driven": true,
         "required_non_production_flag": true,
-        "required_eval_type_count": 7
+        "required_eval_type_count": 8
       }
     }
   ]
 }
 ```
 
-The regression dataset runner loads the same manifest and aggregates the seven allowed manual dataset types: `ocr`, `classification`, `extraction`, `rule`, `rag`, `agent`, and `end_to_end`. It does not call `regression` from inside regression, so recursive runs are blocked. It records per-eval sample counts, failed-case counts, pass rates, dataset-driven flags, and production flags, then checks `all_required_eval_types_pass`, `max_failed_cases`, `required_dataset_driven`, `required_non_production_flag`, and `required_eval_type_count`.
+The regression dataset runner loads the same manifest and aggregates the allowed manual dataset types: `ocr`, `classification`, `extraction`, `rule`, `rag`, `agent`, `end_to_end`, and `full_db_workflow`. It does not call `regression` from inside regression, so recursive runs are blocked. It records per-eval sample counts, failed-case counts, pass rates, dataset-driven flags, and production flags, then checks `all_required_eval_types_pass`, `max_failed_cases`, `required_dataset_driven`, `required_non_production_flag`, and `required_eval_type_count`.
 
 This regression dataset path is an aggregation of the manual acceptance runners. It is still non-production manual acceptance, mixes public and synthetic samples, and does not replace production-scale real/desensitized regression datasets or full DB/API workflow evaluation.
 
-Local manual validation has run successfully for `manual_acceptance` with `eval_type=regression` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used one synthetic/public aggregation sample, produced zero failed cases, and reported `regression_sample_pass_rate=1.0`, `required_eval_type_count=7`, `executed_eval_type_count=7`, `total_failed_cases=0`, `all_required_eval_types_pass=true`, `dataset_driven_coverage=1.0`, and `non_production_flag_accuracy=1.0`. The aggregated per-eval results were all pass: OCR `sample_count=1`, classification `sample_count=6`, extraction `sample_count=1`, rule `sample_count=2`, RAG `sample_count=2`, Agent `sample_count=2`, and E2E `sample_count=1`, each with `failed_cases_count=0` and `pass_rate=1.0`. It remains synthetic/public non-production manual acceptance and is not production-scale Evaluation coverage.
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=regression` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. It remains synthetic/public non-production manual acceptance and is not production-scale Evaluation coverage.
 
 ## Metrics
 
@@ -356,9 +397,18 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 
 Metrics identify the dataset kind and include limitations when sample size is small or the dataset is a built-in sample set. Built-in evaluations set `is_production_evaluation` to `false`; they are not production performance claims unless a real evaluation dataset is supplied and explicitly labeled.
 
+`evaluation_results.metrics.evaluation_status` distinguishes:
+
+- `production_evaluation`
+- `non_production_manual_acceptance`
+- `synthetic_only`
+- `blocked_external_dependency`
+- `failed`
+- `passed`
+
 ## Regression
 
-Without `dataset_path`, regression evaluations select Bad Cases marked for regression and determine pass/fail from validation results or expected-vs-actual output comparison. With a manual acceptance manifest, regression loads `regression.json` and aggregates the seven allowed dataset runners. Failed evaluation samples can become Bad Cases.
+Without `dataset_path`, regression evaluations select Bad Cases marked for regression and determine pass/fail from validation results or expected-vs-actual output comparison. With a manual acceptance manifest, regression loads `regression.json` and aggregates the allowed dataset runners except recursive `regression`. Failed evaluation samples can become Bad Cases.
 
 ## Boundaries
 

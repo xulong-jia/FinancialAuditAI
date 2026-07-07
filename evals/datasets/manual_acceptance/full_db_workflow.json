@@ -1,0 +1,83 @@
+{
+  "eval_type": "full_db_workflow",
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "synthetic",
+  "dataset_kind": "non_production_manual_acceptance",
+  "is_production_evaluation": false,
+  "labels": {
+    "workflow": "expected.required_steps",
+    "artifacts": "expected minimum DB artifact counts"
+  },
+  "expected_evidence": {
+    "artifacts": [
+      "audit_task",
+      "documents",
+      "document_pages",
+      "extracted_fields",
+      "document_relations",
+      "audit_results",
+      "report",
+      "control_table_rows",
+      "evidence_refs"
+    ]
+  },
+  "limitations": [
+    "Synthetic full DB workflow smoke sample.",
+    "Validates persisted workflow artifacts only.",
+    "Does not validate real Provider quality."
+  ],
+  "samples": [
+    {
+      "sample_id": "full_db_procurement_workflow_001",
+      "scenario": "procurement",
+      "input": {
+        "task_name": "Full DB workflow procurement sample",
+        "documents": [
+          {
+            "filename": "purchase_contract_sample.pdf",
+            "text": "Purchase Contract\nContract No: PO-2026-001\nSigning Date: 2026-07-01\nBuyer Name: Demo Company\nSupplier Name: Demo Supplier Pty Ltd\nItem: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1100.00; Amount: 1100.00\nAmount Including Tax: CNY 1100.00\nPayment Terms: Net 30"
+          },
+          {
+            "filename": "invoice_sample.pdf",
+            "text": "Invoice\nInvoice No: INV-2026-001\nInvoice Date: 2026-07-01\nSeller Name: Demo Supplier Pty Ltd\nBuyer Name: Demo Company\nItem: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1100.00; Amount: 1100.00\nAmount Including Tax: CNY 1100.00\nTax Amount: CNY 100.00"
+          },
+          {
+            "filename": "payment_receipt_sample.pdf",
+            "text": "Payment Receipt\nTransaction No: PAY-2026-001\nPayment Date: 2026-07-01\nPayer Name: Demo Company\nPayee Name: Demo Supplier Pty Ltd\nAmount: CNY 1100.00\nCurrency: CNY\nPayment Purpose: Payment for contract PO-2026-001 and invoice INV-2026-001"
+          }
+        ]
+      },
+      "expected": {
+        "status": "completed",
+        "required_steps": [
+          "create_task",
+          "create_upload_documents",
+          "ocr",
+          "classification",
+          "extraction",
+          "linkage",
+          "rule_engine",
+          "report_generation"
+        ],
+        "expected_doc_types": [
+          "purchase_contract",
+          "invoice",
+          "payment_receipt"
+        ],
+        "min_document_count": 3,
+        "min_document_page_count": 3,
+        "min_extracted_field_count": 10,
+        "min_document_relation_count": 1,
+        "min_audit_result_count": 1,
+        "min_report_count": 1,
+        "min_control_table_row_count": 1,
+        "min_evidence_ref_count": 1
+      }
+    }
+  ],
+  "notes": [
+    "This runner creates runtime files under local_storage/uploads and reports under local_storage/reports; local_storage remains ignored and must not be committed.",
+    "Use production/desensitized samples and real Provider integration separately before declaring final satisfaction."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "dataset_name": "production_readiness",
+  "version": "0.1.0",
+  "dataset_kind": "external_production_readiness",
+  "source_type": "external_desensitized_required",
+  "is_production_evaluation": false,
+  "external_resource_required": true,
+  "sample_count": 0,
+  "labels": {
+    "required": "Real or properly desensitized labels must be supplied outside the repository."
+  },
+  "expected_evidence": {
+    "required": [
+      "document labels",
+      "expected fields",
+      "source evidence",
+      "rule outcomes",
+      "workflow artifacts",
+      "provider readiness artifacts"
+    ]
+  },
+  "limitations": [
+    "No real or desensitized production-scale data is committed.",
+    "Running this dataset must return blocked_external_dependency until external resources are supplied."
+  ],
+  "eval_types": [
+    "classification",
+    "ocr",
+    "extraction",
+    "rule",
+    "rag",
+    "agent",
+    "end_to_end",
+    "full_db_workflow",
+    "regression"
+  ],
+  "files": {
+    "full_db_workflow": "full_db_workflow.json"
+  }
+}

@@ -72,6 +72,8 @@ def test_provider_readiness_is_sanitized_and_non_integrating_by_default(monkeypa
 
     assert response.status_code == 200
     body = response.json()
+    assert body["artifact_schema_version"] == "provider-readiness-v1"
+    assert body["run_timestamp"]
     assert body["run_integration"] is False
     assert body["providers"]["llm"]["status"] == "configured"
     assert body["providers"]["embedding"]["status"] == "configured"

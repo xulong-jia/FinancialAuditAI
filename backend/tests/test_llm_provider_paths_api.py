@@ -1,5 +1,7 @@
 import json
+from io import BytesIO
 from uuid import UUID
+from urllib.error import HTTPError
 
 import fitz
 from fastapi.testclient import TestClient
@@ -95,6 +97,76 @@ def test_openai_compatible_provider_classifies_and_extracts_with_invocation_meta
     assert invocations["extract"].status == "success"
     assert invocations["extract"].model_name == "audit-llm-v1"
     assert invocations["extract"].token_usage["total_tokens"] == 18
+
+
+def test_openai_compatible_provider_responses_mode_success(monkeypatch) -> None:
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen["url"] = request.full_url
+        seen["body"] = json.loads(request.data.decode())
+        return FakeChatResponse(
+            {
+                "output_text": json.dumps(
+                    {
+                        "doc_type": "invoice",
+                        "confidence": 0.97,
+                        "reason": "Responses API classified invoice.",
+                        "alternative_types": [],
+                    }
+                ),
+                "usage": {"input_tokens": 12, "output_tokens": 7, "total_tokens": 19},
+            }
+        )
+
+    monkeypatch.setattr(llm_provider.urllib.request, "urlopen", fake_urlopen)
+    placeholder_key = "unit-test-placeholder-key"
+    provider = llm_provider.OpenAICompatibleLlmProvider(
+        provider_kind="real",
+        provider_name="openai-compatible",
+        api_url="https://api.example.test/v1",
+        model="gpt-5.1",
+        api_mode="responses",
+        **{"api_key": placeholder_key},
+    )
+
+    result = provider.classify_document("invoice.pdf", "Invoice total", "procurement", ["invoice"])
+
+    assert result.status == "ok"
+    assert result.payload["doc_type"] == "invoice"
+    assert result.token_usage["total_tokens"] == 19
+    assert seen["url"] == "https://api.example.test/v1/responses"
+    assert seen["body"]["model"] == "gpt-5.1"
+    assert "Return JSON only." in seen["body"]["input"]
+    assert placeholder_key not in str(result)
+
+
+def test_openai_compatible_provider_http_error_body_is_sanitized(monkeypatch) -> None:
+    def fake_urlopen(request, timeout):
+        payload = {
+            "error": {
+                "message": "Bad key unit-test-placeholder-key in Authorization Bearer unit-test-placeholder-key",
+                "type": "invalid_request_error",
+            }
+        }
+        raise HTTPError(request.full_url, 401, "Unauthorized", {}, BytesIO(json.dumps(payload).encode()))
+
+    monkeypatch.setattr(llm_provider.urllib.request, "urlopen", fake_urlopen)
+    placeholder_key = "unit-test-placeholder-key"
+    provider = llm_provider.OpenAICompatibleLlmProvider(
+        provider_kind="real",
+        provider_name="openai-compatible",
+        api_url="https://api.example.test/v1",
+        model="audit-llm-v1",
+        api_mode="chat_completions",
+        **{"api_key": placeholder_key},
+    )
+
+    result = provider.classify_document("invoice.pdf", "Invoice total", "procurement", ["invoice"])
+
+    assert result.status == "error"
+    assert "[REDACTED]" in result.error
+    assert placeholder_key not in result.error
 
 
 def test_rag_rerank_answer_and_rule_explain_use_configured_llm_provider(monkeypatch) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +19,16 @@ from app.services.provider_readiness_service import readiness  # noqa: E402
 
 
 def main() -> int:
-    print(json.dumps(readiness(), ensure_ascii=False, indent=2, sort_keys=True))
+    parser = argparse.ArgumentParser(description="Write a sanitized provider readiness artifact.")
+    parser.add_argument("--output", help="Optional path for the sanitized JSON artifact.")
+    args = parser.parse_args()
+    artifact = readiness()
+    text = json.dumps(artifact, ensure_ascii=False, indent=2, sort_keys=True)
+    if args.output:
+        path = Path(args.output)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text + "\n", encoding="utf-8")
+    print(text)
     return 0
 
 

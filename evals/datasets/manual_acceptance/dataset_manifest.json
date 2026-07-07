@@ -1,8 +1,35 @@
 {
   "dataset_name": "manual_acceptance",
   "version": "0.1.0",
+  "dataset_kind": "non_production_manual_acceptance",
   "source_type": "public_and_desensitized",
   "is_production_evaluation": false,
+  "sample_count": 33,
+  "labels": {
+    "classification": "expected.doc_type",
+    "extraction": "expected.fields",
+    "rule": "expected.rule_id/status/severity/review_status/evidence",
+    "full_db_workflow": "expected artifact counts and workflow steps"
+  },
+  "expected_evidence": {
+    "rule": ["rule_id", "status", "severity", "evidence", "review_status", "rule_version", "parameters"],
+    "full_db_workflow": [
+      "audit task",
+      "documents",
+      "document_pages",
+      "extracted_fields",
+      "document_relations",
+      "audit_results",
+      "report",
+      "control_table_rows",
+      "evidence_refs"
+    ]
+  },
+  "limitations": [
+    "This manifest is non-production manual acceptance.",
+    "Synthetic/manual samples are not production quality evidence.",
+    "Real or desensitized production-scale labels remain an external dependency."
+  ],
   "description": "Manual acceptance evaluation dataset for FinancialAuditAI. This manifest records the dataset structure and evaluation intent. Set is_production_evaluation=true only after replacing placeholders with properly labeled public or desensitized samples.",
   "eval_types": [
     "ocr",
@@ -12,6 +39,7 @@
     "rag",
     "agent",
     "end_to_end",
+    "full_db_workflow",
     "regression"
   ],
   "external_resources": {
@@ -36,6 +64,7 @@
     "rag": "rag.json",
     "agent": "agent.json",
     "end_to_end": "e2e.json",
+    "full_db_workflow": "full_db_workflow.json",
     "regression": "regression.json"
   }
 }

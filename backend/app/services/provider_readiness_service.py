@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import datetime, timezone
 from time import perf_counter
 import urllib.error
 import urllib.parse
@@ -19,6 +20,8 @@ AZURE_OCR_PROVIDERS = {"azure", "azure-document-intelligence", "azure-document-i
 def readiness(run_integration: bool | None = None) -> dict:
     enabled = _integration_enabled(run_integration)
     return {
+        "artifact_schema_version": "provider-readiness-v1",
+        "run_timestamp": datetime.now(timezone.utc).isoformat(),
         "run_integration": enabled,
         "providers": {
             "llm": _llm_status(settings.llm_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, enabled),
@@ -57,6 +60,8 @@ def _configured_status(provider: str, api_url: str | None, api_key: str | None, 
 
 def _llm_status(provider: str, api_url: str | None, api_key: str | None, model: str, run_integration: bool, purpose: str | None = None) -> dict:
     status = _configured_status(provider, api_url, api_key, model)
+    if purpose:
+        status["purpose"] = purpose
     status["api_mode"] = _llm_api_mode(model)
     if not run_integration or status["status"] != "configured":
         return status

@@ -1,46 +1,62 @@
 {
   "eval_type": "rule",
   "dataset_name": "manual_acceptance",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "source_type": "synthetic",
+  "dataset_kind": "non_production_manual_acceptance",
   "is_production_evaluation": false,
+  "labels": {
+    "rule_id": "expected.rule_id",
+    "status": "expected.status",
+    "severity": "expected.severity",
+    "review_status": "expected.review_status"
+  },
+  "expected_evidence": {
+    "required_for": [
+      "fail",
+      "warning",
+      "need_review"
+    ],
+    "fields": [
+      "rule_id",
+      "status",
+      "severity",
+      "evidence",
+      "review_status",
+      "rule_version",
+      "parameters"
+    ]
+  },
+  "boundary_coverage": {
+    "procurement": ["pass", "fail", "warning", "need_review"],
+    "sales": ["pass", "fail", "warning", "need_review"],
+    "confirmation": ["pass", "fail", "warning", "need_review"],
+    "interview": ["pass", "warning", "need_review"],
+    "contract_review": ["pass", "warning", "need_review"]
+  },
+  "blocked_external_dependency": [
+    "Interview and contract-review deterministic rules do not define a pure fail verdict for legal/audit judgment; production fail boundary labels require reviewed real or desensitized cases."
+  ],
   "samples": [
     {
       "sample_id": "rule_proc_amount_pass_001",
       "scenario": "procurement",
       "rule_id": "PROC_AMOUNT_001",
       "input": {
+        "parameters": {"tolerance_amount": 1.0, "amount_basis": "including_tax"},
         "fields": {
-          "purchase_contract": {
-            "contract_no": "PO-2026-001",
-            "supplier_name": "Demo Supplier Pty Ltd",
-            "amount_including_tax": {
-              "amount": 1100.0,
-              "currency": "CNY"
-            }
-          },
-          "invoice": {
-            "invoice_no": "INV-2026-001",
-            "seller_name": "Demo Supplier Pty Ltd",
-            "amount_including_tax": {
-              "amount": 1100.0,
-              "currency": "CNY"
-            }
-          },
-          "payment_receipt": {
-            "transaction_no": "PAY-2026-001",
-            "payee": "Demo Supplier Pty Ltd",
-            "payment_amount": {
-              "amount": 1100.0,
-              "currency": "CNY"
-            }
-          }
+          "purchase_contract": {"amount_including_tax": {"amount": 1100.0, "currency": "CNY"}},
+          "invoice": {"amount_including_tax": {"amount": 1100.0, "currency": "CNY"}},
+          "payment_receipt": {"amount": {"amount": 1100.0, "currency": "CNY"}}
         }
       },
       "expected": {
         "rule_id": "PROC_AMOUNT_001",
         "status": "pass",
-        "severity": "low"
+        "severity": "info",
+        "review_status": "not_required",
+        "rule_version": "dataset-v1",
+        "parameters": {"tolerance_amount": 1.0, "amount_basis": "including_tax"}
       }
     },
     {
@@ -49,43 +65,318 @@
       "rule_id": "PROC_AMOUNT_001",
       "input": {
         "fields": {
-          "purchase_contract": {
-            "contract_no": "PO-2026-002",
-            "supplier_name": "Demo Supplier Pty Ltd",
-            "amount_including_tax": {
-              "amount": 1100.0,
-              "currency": "CNY"
-            }
-          },
-          "invoice": {
-            "invoice_no": "INV-2026-002",
-            "seller_name": "Demo Supplier Pty Ltd",
-            "amount_including_tax": {
-              "amount": 1250.0,
-              "currency": "CNY"
-            }
-          },
-          "payment_receipt": {
-            "transaction_no": "PAY-2026-002",
-            "payee": "Demo Supplier Pty Ltd",
-            "payment_amount": {
-              "amount": 1250.0,
-              "currency": "CNY"
-            }
-          }
+          "purchase_contract": {"amount_including_tax": {"amount": 1100.0, "currency": "CNY"}},
+          "invoice": {"amount_including_tax": {"amount": 1250.0, "currency": "CNY"}},
+          "payment_receipt": {"amount": {"amount": 1250.0, "currency": "CNY"}}
         }
       },
       "expected": {
         "rule_id": "PROC_AMOUNT_001",
         "status": "fail",
         "severity": "high",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_proc_name_warning_001",
+      "scenario": "procurement",
+      "rule_id": "PROC_NAME_001",
+      "input": {
+        "fields": {
+          "purchase_contract": {"supplier_name": "Demo Supplier Pty Ltd"},
+          "warehouse_receipt": {"supplier_name": "Other Supplier Pty Ltd"},
+          "invoice": {"seller_name": "Demo Supplier Pty Ltd"},
+          "payment_receipt": {"payee_name": "Demo Supplier Pty Ltd"}
+        }
+      },
+      "expected": {
+        "rule_id": "PROC_NAME_001",
+        "status": "warning",
+        "severity": "medium",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_proc_amount_missing_001",
+      "scenario": "procurement",
+      "rule_id": "PROC_AMOUNT_001",
+      "input": {
+        "fields": {
+          "purchase_contract": {"amount_including_tax": {"amount": 1100.0, "currency": "CNY"}},
+          "invoice": {},
+          "payment_receipt": {}
+        }
+      },
+      "expected": {
+        "rule_id": "PROC_AMOUNT_001",
+        "status": "need_review",
+        "severity": "medium",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_sales_amount_pass_001",
+      "scenario": "sales",
+      "rule_id": "SALES_AMOUNT_001",
+      "input": {
+        "fields": {
+          "sales_contract": {"amount_including_tax": {"amount": 2200.0, "currency": "CNY"}},
+          "sales_invoice": {"amount_including_tax": {"amount": 2200.0, "currency": "CNY"}},
+          "receipt_voucher": {"amount": {"amount": 2200.0, "currency": "CNY"}}
+        }
+      },
+      "expected": {
+        "rule_id": "SALES_AMOUNT_001",
+        "status": "pass",
+        "severity": "info",
+        "review_status": "not_required"
+      }
+    },
+    {
+      "sample_id": "rule_sales_amount_fail_001",
+      "scenario": "sales",
+      "rule_id": "SALES_AMOUNT_001",
+      "input": {
+        "fields": {
+          "sales_contract": {"amount_including_tax": {"amount": 2200.0, "currency": "CNY"}},
+          "sales_invoice": {"amount_including_tax": {"amount": 2600.0, "currency": "CNY"}},
+          "receipt_voucher": {"amount": {"amount": 2600.0, "currency": "CNY"}}
+        }
+      },
+      "expected": {
+        "rule_id": "SALES_AMOUNT_001",
+        "status": "fail",
+        "severity": "high",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_sales_revenue_warning_001",
+      "scenario": "sales",
+      "rule_id": "SALES_REVENUE_001",
+      "input": {
+        "fields": {
+          "logistics_receipt": {"signed_date": "2026-07-01"},
+          "sales_invoice": {"invoice_date": "2026-07-02"},
+          "accounting_voucher": {"voucher_date": "2026-09-15"}
+        }
+      },
+      "expected": {
+        "rule_id": "SALES_REVENUE_001",
+        "status": "warning",
+        "severity": "medium",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_sales_amount_missing_001",
+      "scenario": "sales",
+      "rule_id": "SALES_AMOUNT_001",
+      "input": {
+        "fields": {
+          "sales_contract": {"amount_including_tax": {"amount": 2200.0, "currency": "CNY"}},
+          "sales_invoice": {},
+          "receipt_voucher": {}
+        }
+      },
+      "expected": {
+        "rule_id": "SALES_AMOUNT_001",
+        "status": "need_review",
+        "severity": "medium",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_conf_amount_pass_001",
+      "scenario": "confirmation",
+      "rule_id": "CONF_AMOUNT_001",
+      "input": {
+        "fields": {
+          "confirmation_request": {"book_amount": {"amount": 5000.0, "currency": "CNY"}},
+          "confirmation_reply": {"confirmed_amount": {"amount": 5000.0, "currency": "CNY"}}
+        }
+      },
+      "expected": {
+        "rule_id": "CONF_AMOUNT_001",
+        "status": "pass",
+        "severity": "info",
+        "review_status": "not_required"
+      }
+    },
+    {
+      "sample_id": "rule_conf_date_fail_001",
+      "scenario": "confirmation",
+      "rule_id": "CONF_DATE_001",
+      "input": {
+        "fields": {
+          "confirmation_request": {"sent_date": "2026-07-10"},
+          "confirmation_reply": {"replied_date": "2026-07-01"}
+        }
+      },
+      "expected": {
+        "rule_id": "CONF_DATE_001",
+        "status": "fail",
+        "severity": "high",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_conf_seal_warning_001",
+      "scenario": "confirmation",
+      "rule_id": "CONF_SEAL_SIGN_001",
+      "input": {
+        "fields": {
+          "confirmation_reply": {
+            "seal_detected": "",
+            "signatory": "Signed by Counterparty"
+          }
+        }
+      },
+      "expected": {
+        "rule_id": "CONF_SEAL_SIGN_001",
+        "status": "warning",
+        "severity": "medium",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_conf_amount_missing_001",
+      "scenario": "confirmation",
+      "rule_id": "CONF_AMOUNT_001",
+      "input": {
+        "fields": {
+          "confirmation_request": {"book_amount": {"amount": 5000.0, "currency": "CNY"}},
+          "confirmation_reply": {}
+        }
+      },
+      "expected": {
+        "rule_id": "CONF_AMOUNT_001",
+        "status": "need_review",
+        "severity": "medium",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_interview_signature_pass_001",
+      "scenario": "interview",
+      "rule_id": "INTERVIEW_SIGNATURE_001",
+      "input": {
+        "fields": {
+          "interview_signature_page": {"signature_detected": "present"}
+        }
+      },
+      "expected": {
+        "rule_id": "INTERVIEW_SIGNATURE_001",
+        "status": "pass",
+        "severity": "info",
+        "review_status": "not_required"
+      }
+    },
+    {
+      "sample_id": "rule_interview_date_warning_001",
+      "scenario": "interview",
+      "rule_id": "INTERVIEW_DATE_001",
+      "input": {
+        "period_start": "2026-01-01",
+        "period_end": "2026-12-31",
+        "fields": {
+          "interview_record": {"interview_date": "2027-01-15"}
+        }
+      },
+      "expected": {
+        "rule_id": "INTERVIEW_DATE_001",
+        "status": "warning",
+        "severity": "medium",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_interview_date_missing_001",
+      "scenario": "interview",
+      "rule_id": "INTERVIEW_DATE_001",
+      "input": {
+        "fields": {
+          "interview_record": {}
+        }
+      },
+      "expected": {
+        "rule_id": "INTERVIEW_DATE_001",
+        "status": "need_review",
+        "severity": "medium",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_contract_terms_pass_001",
+      "scenario": "contract_review",
+      "rule_id": "CONTRACT_KEY_TERMS_001",
+      "input": {
+        "fields": {
+          "contract_review": {
+            "payment_terms": "Net 30",
+            "delivery_terms": "Deliver on site",
+            "acceptance_terms": "Written acceptance",
+            "breach_terms": "Standard breach liability",
+            "dispute_resolution": "Arbitration"
+          }
+        }
+      },
+      "expected": {
+        "rule_id": "CONTRACT_KEY_TERMS_001",
+        "status": "pass",
+        "severity": "info",
+        "review_status": "not_required"
+      }
+    },
+    {
+      "sample_id": "rule_contract_special_clause_warning_001",
+      "scenario": "contract_review",
+      "rule_id": "CONTRACT_SPECIAL_CLAUSE_001",
+      "input": {
+        "fields": {
+          "contract_review": {"auto_renewal_clause": "Automatically renews unless cancelled."}
+        }
+      },
+      "expected": {
+        "rule_id": "CONTRACT_SPECIAL_CLAUSE_001",
+        "status": "warning",
+        "severity": "high",
+        "review_status": "pending",
+        "must_include_evidence": true
+      }
+    },
+    {
+      "sample_id": "rule_contract_terms_missing_001",
+      "scenario": "contract_review",
+      "rule_id": "CONTRACT_KEY_TERMS_001",
+      "input": {
+        "fields": {
+          "contract_review": {"payment_terms": "Net 30"}
+        }
+      },
+      "expected": {
+        "rule_id": "CONTRACT_KEY_TERMS_001",
+        "status": "need_review",
+        "severity": "medium",
+        "review_status": "pending",
         "must_include_evidence": true
       }
     }
   ],
   "notes": [
     "Synthetic rule samples for manual acceptance.",
-    "This validates deterministic rule behavior only.",
+    "This validates deterministic rule behavior through the existing Rule Registry.",
     "This is not production evaluation.",
     "No real customer data is included."
   ]

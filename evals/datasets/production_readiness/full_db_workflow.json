@@ -1,0 +1,31 @@
+{
+  "eval_type": "full_db_workflow",
+  "dataset_name": "production_readiness",
+  "version": "0.1.0",
+  "dataset_kind": "external_production_readiness",
+  "source_type": "external_desensitized_required",
+  "is_production_evaluation": false,
+  "external_resource_required": true,
+  "sample_count": 0,
+  "labels": {
+    "required": "External real or desensitized full workflow labels."
+  },
+  "expected_evidence": {
+    "required": [
+      "audit task",
+      "documents",
+      "document_pages",
+      "extracted_fields",
+      "document_relations",
+      "audit_results",
+      "report",
+      "control_table_rows",
+      "evidence_refs"
+    ]
+  },
+  "limitations": [
+    "No production-scale full DB workflow samples are committed.",
+    "This dataset is intentionally blocked until external data is supplied."
+  ],
+  "samples": []
+}

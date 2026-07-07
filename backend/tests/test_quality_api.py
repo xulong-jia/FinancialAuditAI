@@ -6,7 +6,15 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
+from app.db.session import SessionLocal
+from app.models.audit_result import AuditResult
+from app.models.audit_task import AuditTask
+from app.models.control_table_row import ControlTableRow
 from app.models.document import Document
+from app.models.document_page import DocumentPage
+from app.models.document_relation import DocumentRelation
+from app.models.extracted_field import ExtractedField
+from app.models.report import Report
 from app.services import evaluation_service
 from app.main import app
 
@@ -615,6 +623,86 @@ def test_manual_acceptance_rule_manifest_runs_amount_samples() -> None:
         assert result["metrics"]["is_production_evaluation"] is False
     finally:
         shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
+def test_manual_acceptance_rule_manifest_covers_phase_a_scenarios() -> None:
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={
+            "eval_type": "rule",
+            "dataset_name": "manual_acceptance",
+            "dataset_path": "evals/datasets/manual_acceptance/dataset_manifest.json",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    metrics = result["metrics"]
+    assert result["sample_count"] >= 18
+    assert result["failed_cases"] == []
+    assert set(metrics["covered_scenarios"]) == {"procurement", "sales", "confirmation", "interview", "contract_review"}
+    assert {"pass", "fail", "warning", "need_review"}.issubset(set(metrics["covered_status_boundaries"]))
+    assert metrics["covered_rule_count"] >= 10
+    assert metrics["review_routing_accuracy"] == 1.0
+    assert metrics["rule_version_accuracy"] == 1.0
+    assert metrics["rule_parameter_accuracy"] == 1.0
+    assert metrics["evaluation_status"] == "synthetic_only"
+
+
+def test_full_db_workflow_manifest_creates_persisted_artifacts() -> None:
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={
+            "eval_type": "full_db_workflow",
+            "dataset_name": "manual_acceptance",
+            "dataset_path": "evals/datasets/manual_acceptance/dataset_manifest.json",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    metrics = result["metrics"]
+    assert result["sample_count"] == 1
+    assert result["failed_cases"] == []
+    assert metrics["full_db_workflow_pass_rate"] == 1.0
+    assert metrics["provider_quality_evaluation"] is False
+    assert metrics["evaluation_status"] == "synthetic_only"
+    with SessionLocal() as db:
+        assert db.query(AuditTask).count() >= 1
+        task = db.query(AuditTask).order_by(AuditTask.created_at.desc()).first()
+        assert task is not None
+        assert db.query(Document).filter(Document.task_id == task.id).count() >= 3
+        assert (
+            db.query(DocumentPage)
+            .join(Document, DocumentPage.document_id == Document.id)
+            .filter(Document.task_id == task.id)
+            .count()
+            >= 3
+        )
+        assert db.query(ExtractedField).filter(ExtractedField.task_id == task.id).count() >= 10
+        assert db.query(DocumentRelation).filter(DocumentRelation.task_id == task.id).count() >= 1
+        assert db.query(AuditResult).filter(AuditResult.task_id == task.id).count() >= 1
+        assert db.query(Report).filter(Report.task_id == task.id).count() >= 1
+        assert db.query(ControlTableRow).filter(ControlTableRow.task_id == task.id).count() >= 1
+
+
+def test_production_readiness_dataset_blocks_without_external_resources() -> None:
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={
+            "eval_type": "full_db_workflow",
+            "dataset_name": "production_readiness",
+            "dataset_path": "evals/datasets/production_readiness/dataset_manifest.json",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["sample_count"] == 0
+    assert result["failed_cases"] == []
+    assert result["metrics"]["external_resource_required"] is True
+    assert result["metrics"]["blocked_external_dependency_count"] == 1
+    assert result["metrics"]["evaluation_status"] == "blocked_external_dependency"
 
 
 def test_manual_acceptance_rag_manifest_runs_inline_documents(monkeypatch) -> None:

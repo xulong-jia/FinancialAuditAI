@@ -311,6 +311,7 @@ export type EvalType =
   | "rag"
   | "agent"
   | "end_to_end"
+  | "full_db_workflow"
   | "regression";
 
 export type BadCaseType =

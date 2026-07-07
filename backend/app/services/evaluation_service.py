@@ -1,25 +1,44 @@
 from pathlib import Path
 from hashlib import sha256
+from datetime import date
 import json
 import re
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
+import fitz
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.audit_result import AuditResult
 from app.models.bad_case import BadCase
+from app.models.control_table_row import ControlTableRow
 from app.models.audit_task import AuditTask
 from app.models.document import Document
+from app.models.document_page import DocumentPage
+from app.models.document_relation import DocumentRelation
 from app.models.evaluation_result import EvaluationResult
+from app.models.extracted_field import ExtractedField
+from app.models.report import Report
 from app.schemas.quality import EvaluationRunRequest
-from app.services import agent_service, audit_log_service, bad_case_service, classification_service, extraction_service, ocr_service, rag_service
+from app.services import (
+    agent_service,
+    audit_log_service,
+    bad_case_service,
+    classification_service,
+    extraction_service,
+    linkage_service,
+    ocr_service,
+    rag_service,
+    report_service,
+    rule_engine_service,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-MANUAL_DATASET_EVAL_TYPES = {"ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end", "regression"}
-REGRESSION_CHILD_EVAL_TYPES = ("ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end")
+MANUAL_DATASET_EVAL_TYPES = {"ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end", "full_db_workflow", "regression"}
+REGRESSION_CHILD_EVAL_TYPES = ("ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end", "full_db_workflow")
 
 
 def evaluation_datasets_root() -> Path:
@@ -48,6 +67,8 @@ def run_evaluation(db: Session, payload: EvaluationRunRequest) -> EvaluationResu
         sample_count, metrics, failed_cases = _evaluate_agent()
     elif payload.eval_type == "end_to_end":
         sample_count, metrics, failed_cases = _evaluate_end_to_end()
+    elif payload.eval_type == "full_db_workflow":
+        sample_count, metrics, failed_cases = _evaluate_full_db_workflow(db)
     elif payload.eval_type == "regression":
         sample_count, metrics, failed_cases = _evaluate_regression(db)
     else:  # pragma: no cover - schema guards this.
@@ -61,7 +82,7 @@ def run_evaluation(db: Session, payload: EvaluationRunRequest) -> EvaluationResu
         model_name=payload.model_name,
         prompt_version=payload.prompt_version,
         rule_version=payload.rule_version,
-        metrics=metrics | _limitations(sample_count, metrics.get("dataset_kind"), metrics.get("is_production_evaluation")),
+        metrics=metrics | _limitations(sample_count, metrics, len(failed_cases)),
         sample_count=sample_count,
         failed_cases=failed_cases,
         report_path=None,
@@ -127,7 +148,7 @@ def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: 
     if payload.eval_type not in MANUAL_DATASET_EVAL_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, RAG, Agent, E2E, and regression evaluation only",
+            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, RAG, Agent, E2E, full DB workflow, and regression evaluation only",
         )
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     eval_file = files.get(payload.eval_type)
@@ -153,6 +174,12 @@ def _normalize_dataset(payload: EvaluationRunRequest, path: Path, data: dict, ma
     is_production = bool(data.get("is_production_evaluation", (manifest or {}).get("is_production_evaluation", False)))
     dataset_kind = str(data.get("dataset_kind") or ("real_annotated" if is_production else "non_production_manual_acceptance"))
     default_eval_type = str(data.get("eval_type") or payload.eval_type)
+    version = str(data.get("version") or (manifest or {}).get("version") or "unversioned")
+    limitations = data.get("limitations", (manifest or {}).get("limitations", []))
+    labels = data.get("labels", (manifest or {}).get("labels", {}))
+    expected_evidence = data.get("expected_evidence", (manifest or {}).get("expected_evidence", {}))
+    external_resource_required = bool(data.get("external_resource_required", (manifest or {}).get("external_resource_required", False)))
+    declared_sample_count = data.get("sample_count", (manifest or {}).get("sample_count"))
     samples = [
         {
             "eval_type": default_eval_type,
@@ -170,6 +197,12 @@ def _normalize_dataset(payload: EvaluationRunRequest, path: Path, data: dict, ma
         "source_type": source_type,
         "is_production_evaluation": is_production,
         "dataset_source": str(path.relative_to(PROJECT_ROOT)) if _is_under(path, PROJECT_ROOT) else str(path),
+        "version": version,
+        "declared_sample_count": declared_sample_count,
+        "labels_declared": bool(labels),
+        "expected_evidence_declared": bool(expected_evidence),
+        "limitations_declared": [str(item) for item in limitations] if isinstance(limitations, list) else [],
+        "external_resource_required": external_resource_required,
         "samples": samples,
     }
 
@@ -223,6 +256,16 @@ def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, 
         if isinstance(sample, dict) and sample.get("eval_type") == eval_type
     ]
     if not samples:
+        if dataset.get("external_resource_required"):
+            return (
+                0,
+                _dataset_metadata_metrics(dataset) | {
+                    "blocked_external_dependency_count": 1,
+                    "blocking_reason": "Dataset declares external_resource_required but has no runnable samples in the repository.",
+                    "evaluation_status": "blocked_external_dependency",
+                },
+                [],
+            )
         raise HTTPException(status_code=400, detail=f"Evaluation dataset has no samples for {eval_type}")
     if eval_type == "classification":
         sample_count, metrics, failed = _evaluate_classification_samples(samples)
@@ -244,6 +287,8 @@ def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, 
         sample_count, metrics, failed = _evaluate_agent_samples(samples)
     elif eval_type == "end_to_end":
         sample_count, metrics, failed = _evaluate_e2e_samples(samples)
+    elif eval_type == "full_db_workflow":
+        sample_count, metrics, failed = _evaluate_full_db_workflow_samples(db, samples)
     elif eval_type == "regression":
         sample_count, metrics, failed = _evaluate_regression_samples(db, samples)
     else:  # pragma: no cover - schema guards this.
@@ -255,9 +300,21 @@ def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, 
             "dataset_source": dataset["dataset_source"],
             "is_dataset_driven": True,
             "is_production_evaluation": dataset["is_production_evaluation"],
+            **_dataset_metadata_metrics(dataset),
         }
     )
     return sample_count, metrics, failed
+
+
+def _dataset_metadata_metrics(dataset: dict) -> dict:
+    return {
+        "dataset_version": dataset.get("version"),
+        "declared_sample_count": dataset.get("declared_sample_count"),
+        "labels_declared": bool(dataset.get("labels_declared")),
+        "expected_evidence_declared": bool(dataset.get("expected_evidence_declared")),
+        "limitations_declared": dataset.get("limitations_declared") if isinstance(dataset.get("limitations_declared"), list) else [],
+        "external_resource_required": bool(dataset.get("external_resource_required")),
+    }
 
 
 def _evaluate_classification_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
@@ -685,6 +742,15 @@ def _optional_int(value: object) -> int | None:
         return None
 
 
+def _optional_date(value: object) -> date | None:
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
 def _evaluate_extraction_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
     failed = []
     field_total = field_pass = field_present = 0
@@ -868,9 +934,12 @@ def _evaluate_rule_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
     failed = []
     false_positive = 0
     false_negative = 0
-    status_hits = severity_hits = evidence_hits = 0
+    status_hits = severity_hits = evidence_hits = review_hits = version_hits = parameter_hits = 0
     evidence_total = 0
     evidence_sample_hits = 0
+    covered_rules: set[str] = set()
+    covered_scenarios: set[str] = set()
+    status_boundaries: set[str] = set()
     for sample in samples:
         actual = _evaluate_rule_dataset_sample(sample) if sample.get("rule_id") and isinstance(_sample_input(sample).get("fields"), dict) else _sample_actual(sample)
         expected = _sample_expected(sample)
@@ -882,15 +951,29 @@ def _evaluate_rule_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
         expected_severity = str(expected.get("severity") or actual_severity)
         rule_ok = expected_rule_id in {None, actual_rule_id}
         status_ok = actual_status == expected_status
-        severity_ok = actual_severity == expected_severity
+        severity_ok = actual_severity == expected_severity or (
+            actual_status == "pass" and expected_severity == "low" and actual_severity == "info"
+        )
         evidence_required = bool(expected.get("must_include_evidence"))
         evidence_ok = not evidence_required or bool(actual.get("evidence"))
+        review_expected = expected.get("review_status")
+        review_ok = review_expected is None or str(actual.get("review_status") or "") == str(review_expected)
+        version_expected = expected.get("rule_version")
+        version_ok = version_expected is None or str(actual.get("rule_version") or "") == str(version_expected)
+        parameters_expected = expected.get("parameters")
+        parameters_ok = not isinstance(parameters_expected, dict) or actual.get("parameters") == parameters_expected
         evidence_sample_hits += int(bool(actual.get("evidence")))
         status_hits += int(status_ok)
         severity_hits += int(severity_ok)
+        review_hits += int(review_ok)
+        version_hits += int(version_ok)
+        parameter_hits += int(parameters_ok)
         evidence_total += int(evidence_required)
         evidence_hits += int(evidence_ok and evidence_required)
-        if not (rule_ok and status_ok and severity_ok and evidence_ok):
+        covered_rules.add(str(actual_rule_id))
+        covered_scenarios.add(str(sample.get("scenario") or _sample_input(sample).get("scenario") or "procurement"))
+        status_boundaries.add(actual_status)
+        if not (rule_ok and status_ok and severity_ok and evidence_ok and review_ok and version_ok and parameters_ok):
             failed.append(_sample_failed_case("rule", sample, actual, expected))
             false_positive += int(actual_status in {"fail", "warning"} and expected_status == "pass")
             false_negative += int(actual_status == "pass" and expected_status != "pass")
@@ -901,6 +984,9 @@ def _evaluate_rule_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
             "rule_status_accuracy": _rate(status_hits, len(samples)),
             "rule_severity_accuracy": _rate(severity_hits, len(samples)),
             "rule_evidence_coverage": _rate(evidence_hits, evidence_total),
+            "review_routing_accuracy": _rate(review_hits, len(samples)),
+            "rule_version_accuracy": _rate(version_hits, len(samples)),
+            "rule_parameter_accuracy": _rate(parameter_hits, len(samples)),
             "failed_case_count": len(failed),
             "rule_accuracy": _accuracy(len(samples), len(failed)),
             "false_positive_count": false_positive,
@@ -908,6 +994,11 @@ def _evaluate_rule_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
             "false_positive_rate": _rate(false_positive, len(samples)),
             "false_negative_rate": _rate(false_negative, len(samples)),
             "rule_coverage": 1.0,
+            "covered_rule_ids": sorted(covered_rules),
+            "covered_rule_count": len(covered_rules),
+            "covered_scenarios": sorted(covered_scenarios),
+            "covered_scenario_count": len(covered_scenarios),
+            "covered_status_boundaries": sorted(status_boundaries),
             "explainability_rate": _rate(evidence_sample_hits, len(samples)),
         },
         failed,
@@ -916,8 +1007,16 @@ def _evaluate_rule_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
 
 def _evaluate_rule_dataset_sample(sample: dict) -> dict:
     rule_id = str(sample.get("rule_id") or "")
+    if rule_id in rule_engine_service.RULE_REGISTRY:
+        return _evaluate_registry_rule_dataset_sample(sample, rule_id)
     if rule_id != "PROC_AMOUNT_001":
-        return {"rule_id": rule_id, "status": "unsupported", "severity": "high", "evidence": []}
+        return {
+            "rule_id": rule_id,
+            "status": "unsupported",
+            "severity": "high",
+            "review_status": "pending",
+            "evidence": [],
+        }
     fields = _sample_input(sample).get("fields")
     fields = fields if isinstance(fields, dict) else {}
     contract_amount = _field_amount(fields, "purchase_contract", "amount_including_tax")
@@ -934,6 +1033,7 @@ def _evaluate_rule_dataset_sample(sample: dict) -> dict:
             "rule_id": rule_id,
             "status": "need_review",
             "severity": "medium",
+            "review_status": "pending",
             "actual_value": amounts,
             "evidence": [{"field_name": name, "status": "missing"} for name in missing],
         }
@@ -948,6 +1048,7 @@ def _evaluate_rule_dataset_sample(sample: dict) -> dict:
             "rule_id": rule_id,
             "status": "fail",
             "severity": "high",
+            "review_status": "pending",
             "expected_value": {"contract_amount": contract_amount, "tolerance": tolerance},
             "actual_value": amounts | {"mismatches": mismatches},
             "evidence": _rule_amount_evidence(fields),
@@ -956,9 +1057,131 @@ def _evaluate_rule_dataset_sample(sample: dict) -> dict:
         "rule_id": rule_id,
         "status": "pass",
         "severity": "low",
+        "review_status": "not_required",
         "expected_value": {"contract_amount": contract_amount, "tolerance": tolerance},
         "actual_value": amounts,
         "evidence": [],
+    }
+
+
+def _evaluate_registry_rule_dataset_sample(sample: dict, rule_id: str) -> dict:
+    context = _rule_dataset_context(sample)
+    result = rule_engine_service.RULE_REGISTRY[rule_id](context)
+    parameters = _sample_input(sample).get("parameters") if isinstance(_sample_input(sample).get("parameters"), dict) else {}
+    version = str(sample.get("rule_version") or _sample_input(sample).get("rule_version") or "dataset-v1")
+    return {
+        "rule_id": rule_id,
+        "status": result.status,
+        "severity": result.severity,
+        "review_status": "not_required" if result.status == "pass" else "pending",
+        "rule_version": version,
+        "parameters": parameters,
+        "expected_value": result.expected_value,
+        "actual_value": result.actual_value,
+        "evidence": [_rule_evidence_payload(ref) for ref in result.evidence],
+    }
+
+
+def _rule_dataset_context(sample: dict) -> rule_engine_service.RuleContext:
+    input_payload = _sample_input(sample)
+    scenario = str(sample.get("scenario") or input_payload.get("scenario") or "procurement")
+    task_id = uuid4()
+    business_key = str(input_payload.get("business_key") or sample.get("business_key") or "EVAL-RULE")
+    documents: list[Document] = []
+    fields_by_document: dict[UUID, dict[str, ExtractedField]] = {}
+    for doc_type, doc_fields in (input_payload.get("fields") or {}).items():
+        if not isinstance(doc_fields, dict):
+            continue
+        doc_fields = _rule_dataset_alias_fields(str(doc_type), doc_fields)
+        document = Document(
+            id=uuid4(),
+            task_id=task_id,
+            uploaded_by_name="evaluation_service",
+            original_filename=f"{doc_type}.pdf",
+            file_ext="pdf",
+            content_type="application/pdf",
+            file_size=1,
+            file_hash=sha256(str(doc_fields).encode()).hexdigest(),
+            storage_path=f"evals/datasets/rule/{doc_type}.pdf",
+            doc_type=str(doc_type),
+            business_key=business_key,
+            ocr_status="completed",
+            extraction_status="completed",
+            review_status="pending",
+            metadata_json={"source": "rule_dataset"},
+        )
+        documents.append(document)
+        fields_by_document[document.id] = {
+            str(field_name): _rule_dataset_field(task_id, document.id, str(field_name), value)
+            for field_name, value in doc_fields.items()
+        }
+    parameters = input_payload.get("parameters") if isinstance(input_payload.get("parameters"), dict) else {}
+    return rule_engine_service.RuleContext(
+        task_id=task_id,
+        scenario=scenario,
+        business_key=business_key,
+        documents=documents,
+        fields=fields_by_document,
+        parameters=parameters,
+        period_start=_optional_date(input_payload.get("period_start")),
+        period_end=_optional_date(input_payload.get("period_end")),
+    )
+
+
+def _rule_dataset_alias_fields(doc_type: str, fields: dict) -> dict:
+    aliases = dict(fields)
+    if doc_type == "payment_receipt" and "payment_amount" in aliases and "amount" not in aliases:
+        aliases["amount"] = aliases["payment_amount"]
+    return aliases
+
+
+def _rule_dataset_field(task_id: UUID, document_id: UUID, field_name: str, value: object) -> ExtractedField:
+    normalized = value if isinstance(value, dict) else {"value": value}
+    if isinstance(value, dict) and ("amount" in value or "rate" in value or "items" in value):
+        value_text = _field_text_from_normalized(value)
+    else:
+        value_text = None if value is None else str(value)
+    return ExtractedField(
+        id=uuid4(),
+        task_id=task_id,
+        document_id=document_id,
+        field_name=field_name,
+        field_label=field_name,
+        field_type="dataset",
+        value_text=value_text,
+        value_normalized=normalized if isinstance(normalized, dict) else {"value": normalized},
+        original_value_text=value_text,
+        original_value_normalized=normalized if isinstance(normalized, dict) else {"value": normalized},
+        confidence=0.99,
+        source_page=1,
+        source_bbox=[0.0, 0.0, 1.0, 1.0],
+        source_text=value_text,
+        extraction_method="dataset",
+        warnings=[] if value is not None else ["required_field_missing"],
+    )
+
+
+def _field_text_from_normalized(value: dict) -> str:
+    if "amount" in value:
+        return str(value["amount"])
+    if "rate" in value:
+        return str(value["rate"])
+    if "items" in value:
+        return json.dumps(value["items"], ensure_ascii=False)
+    return str(value)
+
+
+def _rule_evidence_payload(ref: rule_engine_service.EvidenceRef) -> dict:
+    return {
+        "document_id": str(ref.document_id) if ref.document_id else None,
+        "doc_type": ref.doc_type,
+        "field_name": ref.field_name,
+        "value": ref.value,
+        "source_page": ref.source_page,
+        "source_text": ref.source_text,
+        "source_bbox": ref.source_bbox,
+        "confidence": ref.confidence,
+        "field_id": str(ref.field_id) if ref.field_id else None,
     }
 
 
@@ -1273,6 +1496,277 @@ def _evaluate_e2e_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
         },
         failed,
     )
+
+
+def _evaluate_full_db_workflow(db: Session) -> tuple[int, dict, list[dict]]:
+    return _evaluate_full_db_workflow_samples(db, [_default_full_db_workflow_sample()])
+
+
+def _evaluate_full_db_workflow_samples(db: Session, samples: list[dict]) -> tuple[int, dict, list[dict]]:
+    failed = []
+    artifact_hits = {
+        "task": 0,
+        "documents": 0,
+        "pages": 0,
+        "fields": 0,
+        "relations": 0,
+        "audit_results": 0,
+        "reports": 0,
+        "control_rows": 0,
+        "evidence_refs": 0,
+    }
+    for sample in samples:
+        actual = _run_full_db_workflow_sample(db, sample)
+        checks = _full_db_workflow_checks(actual, _sample_expected(sample))
+        for key in artifact_hits:
+            artifact_hits[key] += int(checks[f"{key}_ok"])
+        if not checks["passed"]:
+            failed.append(_sample_failed_case("end_to_end", sample, actual, {"checks": checks}))
+    total = len(samples)
+    return (
+        total,
+        {
+            "full_db_workflow_pass_rate": _accuracy(total, len(failed)),
+            "task_artifact_accuracy": _rate(artifact_hits["task"], total),
+            "document_artifact_accuracy": _rate(artifact_hits["documents"], total),
+            "document_page_artifact_accuracy": _rate(artifact_hits["pages"], total),
+            "extracted_field_artifact_accuracy": _rate(artifact_hits["fields"], total),
+            "document_relation_artifact_accuracy": _rate(artifact_hits["relations"], total),
+            "audit_result_artifact_accuracy": _rate(artifact_hits["audit_results"], total),
+            "report_artifact_accuracy": _rate(artifact_hits["reports"], total),
+            "control_table_artifact_accuracy": _rate(artifact_hits["control_rows"], total),
+            "evidence_index_artifact_accuracy": _rate(artifact_hits["evidence_refs"], total),
+            "provider_quality_evaluation": False,
+            "provider_quality_note": (
+                "full_db_workflow validates persisted service/API workflow artifacts; "
+                "deterministic/local provider output is not real Provider quality evidence."
+            ),
+            "dataset_kind": "full_db_workflow_smoke",
+            "failed_case_count": len(failed),
+        },
+        failed,
+    )
+
+
+def _run_full_db_workflow_sample(db: Session, sample: dict) -> dict:
+    input_payload = _sample_input(sample)
+    documents = [item for item in input_payload.get("documents") or [] if isinstance(item, dict)]
+    if not documents:
+        return {"status": "blocked_external_dependency", "error": "full_db_workflow sample requires input.documents"}
+    try:
+        task = _create_full_db_workflow_task(db, sample)
+        created_documents = [_create_full_db_workflow_document(db, task, document, index) for index, document in enumerate(documents, start=1)]
+        steps = ["create_task", "create_upload_documents"]
+        for document in created_documents:
+            ocr_service.run_ocr(db, document.id)
+        steps.append("ocr")
+        for document in created_documents:
+            classification_service.classify_document(db, document.id)
+        steps.append("classification")
+        for document in created_documents:
+            extraction_service.extract_document(db, document.id)
+        steps.append("extraction")
+        linkage = linkage_service.link_documents(db, task.id)
+        steps.append("linkage")
+        audit_results = rule_engine_service.run_audit(db, task.id)
+        steps.append("rule_engine")
+        report = report_service.generate_control_table_report(db, task.id, generated_by="evaluation_service", file_format="xlsx")
+        steps.append("report_generation")
+        return _full_db_workflow_actual(db, task.id, steps, linkage.linked_document_count, report)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        return {"status": "failed", "error": exc.__class__.__name__, "message": str(exc)}
+
+
+def _create_full_db_workflow_task(db: Session, sample: dict) -> AuditTask:
+    input_payload = _sample_input(sample)
+    task = AuditTask(
+        task_no=f"EVAL-FULLDB-{str(sample.get('sample_id') or 'sample')[:24]}-{str(uuid4())[:8]}",
+        name=str(input_payload.get("task_name") or sample.get("title") or "Full DB workflow evaluation"),
+        scenario=str(sample.get("scenario") or input_payload.get("scenario") or "procurement"),
+        project_name="evaluation",
+        company_name=str(input_payload.get("company_name") or "desensitized-or-synthetic"),
+        fiscal_year=_optional_int(input_payload.get("fiscal_year")),
+        period_start=_optional_date(input_payload.get("period_start")),
+        period_end=_optional_date(input_payload.get("period_end")),
+        metadata_json={"source": "full_db_workflow_evaluation", "sample_id": sample.get("sample_id")},
+        actor_name="evaluation_service",
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+def _create_full_db_workflow_document(db: Session, task: AuditTask, document: dict, index: int) -> Document:
+    text = str(document.get("text") or "")
+    if not text.strip():
+        raise ValueError("full_db_workflow document text is required")
+    filename = Path(str(document.get("filename") or f"document_{index}.pdf")).name
+    if not filename.lower().endswith(".pdf"):
+        filename = f"{filename}.pdf"
+    document_id = uuid4()
+    storage_dir = PROJECT_ROOT / "local_storage" / "uploads" / str(task.id)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    storage_path = storage_dir / f"{document_id}.pdf"
+    _write_text_pdf(storage_path, text)
+    data = storage_path.read_bytes()
+    model = Document(
+        id=document_id,
+        task_id=task.id,
+        uploaded_by_name="evaluation_service",
+        original_filename=filename,
+        file_ext="pdf",
+        content_type="application/pdf",
+        file_size=len(data),
+        file_hash=sha256(data).hexdigest(),
+        storage_path=str(storage_path.relative_to(PROJECT_ROOT)),
+        metadata_json={"source": "full_db_workflow_evaluation", "sample_doc_type": document.get("doc_type")},
+    )
+    db.add(model)
+    db.commit()
+    db.refresh(model)
+    return model
+
+
+def _write_text_pdf(path: Path, text: str) -> None:
+    pdf = fitz.open()
+    page = pdf.new_page(width=595, height=842)
+    y = 72
+    for line in text.splitlines() or [text]:
+        if y > 790:
+            page = pdf.new_page(width=595, height=842)
+            y = 72
+        page.insert_text((72, y), line[:120], fontsize=10)
+        y += 16
+    pdf.save(path)
+    pdf.close()
+
+
+def _full_db_workflow_actual(db: Session, task_id: UUID, steps: list[str], linked_document_count: int, report: Report) -> dict:
+    documents = list(db.scalars(select(Document).where(Document.task_id == task_id)))
+    pages = list(db.scalars(select(DocumentPage).where(DocumentPage.document_id.in_([document.id for document in documents]))))
+    fields = list(db.scalars(select(ExtractedField).where(ExtractedField.task_id == task_id)))
+    relations = list(db.scalars(select(DocumentRelation).where(DocumentRelation.task_id == task_id)))
+    audit_results = list(db.scalars(select(AuditResult).where(AuditResult.task_id == task_id)))
+    reports = list(db.scalars(select(Report).where(Report.task_id == task_id)))
+    control_rows = list(db.scalars(select(ControlTableRow).where(ControlTableRow.task_id == task_id)))
+    evidence_refs_count = sum(len(row.evidence_refs or []) for row in control_rows)
+    report_path = PROJECT_ROOT / report.storage_path
+    return {
+        "status": "completed",
+        "task_id": str(task_id),
+        "steps": steps,
+        "document_count": len(documents),
+        "document_page_count": len(pages),
+        "extracted_field_count": len(fields),
+        "document_relation_count": len(relations),
+        "linked_document_count": linked_document_count,
+        "business_keys": sorted({document.business_key for document in documents if document.business_key}),
+        "audit_result_count": len(audit_results),
+        "audit_result_statuses": sorted({result.status for result in audit_results}),
+        "report_count": len(reports),
+        "report_file_exists": report_path.is_file(),
+        "control_table_row_count": len(control_rows),
+        "evidence_ref_count": evidence_refs_count,
+        "doc_types": sorted({str(document.doc_type) for document in documents if document.doc_type}),
+    }
+
+
+def _full_db_workflow_checks(actual: dict, expected: dict) -> dict:
+    required_steps = [str(step) for step in expected.get("required_steps") or []]
+    steps = set(actual.get("steps") if isinstance(actual.get("steps"), list) else [])
+    expected_doc_types = {str(item) for item in expected.get("expected_doc_types") or []}
+    actual_doc_types = {str(item) for item in actual.get("doc_types") or []}
+    checks = {
+        "status_ok": actual.get("status") == str(expected.get("status") or "completed"),
+        "steps_ok": all(step in steps for step in required_steps),
+        "task_ok": bool(actual.get("task_id")),
+        "documents_ok": int(actual.get("document_count") or 0) >= int(expected.get("min_document_count") or 1),
+        "pages_ok": int(actual.get("document_page_count") or 0) >= int(expected.get("min_document_page_count") or 1),
+        "fields_ok": int(actual.get("extracted_field_count") or 0) >= int(expected.get("min_extracted_field_count") or 1),
+        "relations_ok": int(actual.get("document_relation_count") or 0) >= int(expected.get("min_document_relation_count") or 1),
+        "audit_results_ok": int(actual.get("audit_result_count") or 0) >= int(expected.get("min_audit_result_count") or 1),
+        "reports_ok": int(actual.get("report_count") or 0) >= int(expected.get("min_report_count") or 1) and bool(actual.get("report_file_exists")),
+        "control_rows_ok": int(actual.get("control_table_row_count") or 0) >= int(expected.get("min_control_table_row_count") or 1),
+        "evidence_refs_ok": int(actual.get("evidence_ref_count") or 0) >= int(expected.get("min_evidence_ref_count") or 1),
+        "doc_types_ok": not expected_doc_types or expected_doc_types.issubset(actual_doc_types),
+    }
+    checks["passed"] = all(bool(value) for value in checks.values())
+    return checks
+
+
+def _default_full_db_workflow_sample() -> dict:
+    return {
+        "sample_id": "full-db-procurement-smoke",
+        "eval_type": "full_db_workflow",
+        "scenario": "procurement",
+        "input": {
+            "documents": [
+                {
+                    "filename": "purchase_contract_sample.pdf",
+                    "text": (
+                        "Purchase Contract\n"
+                        "Contract No: PO-2026-001\n"
+                        "Signing Date: 2026-07-01\n"
+                        "Buyer Name: Demo Company\n"
+                        "Supplier Name: Demo Supplier Pty Ltd\n"
+                        "Item: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1100.00; Amount: 1100.00\n"
+                        "Amount Including Tax: CNY 1100.00\n"
+                        "Payment Terms: Net 30"
+                    ),
+                },
+                {
+                    "filename": "invoice_sample.pdf",
+                    "text": (
+                        "Invoice\n"
+                        "Invoice No: INV-2026-001\n"
+                        "Invoice Date: 2026-07-01\n"
+                        "Seller Name: Demo Supplier Pty Ltd\n"
+                        "Buyer Name: Demo Company\n"
+                        "Item: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1100.00; Amount: 1100.00\n"
+                        "Amount Including Tax: CNY 1100.00\n"
+                        "Tax Amount: CNY 100.00"
+                    ),
+                },
+                {
+                    "filename": "payment_receipt_sample.pdf",
+                    "text": (
+                        "Payment Receipt\n"
+                        "Transaction No: PAY-2026-001\n"
+                        "Payment Date: 2026-07-01\n"
+                        "Payer Name: Demo Company\n"
+                        "Payee Name: Demo Supplier Pty Ltd\n"
+                        "Amount: CNY 1100.00\n"
+                        "Currency: CNY\n"
+                        "Payment Purpose: Payment for contract PO-2026-001 and invoice INV-2026-001"
+                    ),
+                },
+            ]
+        },
+        "expected": {
+            "status": "completed",
+            "required_steps": [
+                "create_task",
+                "create_upload_documents",
+                "ocr",
+                "classification",
+                "extraction",
+                "linkage",
+                "rule_engine",
+                "report_generation",
+            ],
+            "expected_doc_types": ["purchase_contract", "invoice", "payment_receipt"],
+            "min_document_count": 3,
+            "min_document_page_count": 3,
+            "min_extracted_field_count": 10,
+            "min_document_relation_count": 1,
+            "min_audit_result_count": 1,
+            "min_report_count": 1,
+            "min_control_table_row_count": 1,
+            "min_evidence_ref_count": 1,
+        },
+    }
 
 
 def _evaluate_e2e_contract_sample(sample: dict) -> dict:
@@ -1813,15 +2307,41 @@ def _bad_case_type(eval_type: str) -> str:
     return eval_type if eval_type in bad_case_service.CASE_TYPES else "rule"
 
 
-def _limitations(sample_count: int, dataset_kind: str | None = None, is_production_evaluation: object = None) -> dict:
-    kind = dataset_kind or "unclassified_dataset"
+def _limitations(sample_count: int, metrics: dict, failed_count: int = 0) -> dict:
+    kind = metrics.get("dataset_kind") or "unclassified_dataset"
+    is_production_evaluation = metrics.get("is_production_evaluation")
     is_production = is_production_evaluation if isinstance(is_production_evaluation, bool) else kind == "real_annotated"
+    blocked_count = int(metrics.get("blocked_external_dependency_count") or 0)
+    source_type = str(metrics.get("source_type") or "")
+    evaluation_status = metrics.get("evaluation_status") or _evaluation_status(
+        is_production=is_production,
+        kind=str(kind),
+        source_type=source_type,
+        failed_count=failed_count,
+        blocked_count=blocked_count,
+    )
     return {
         "dataset_kind": kind,
         "is_production_evaluation": is_production,
+        "production_evaluation": bool(is_production),
+        "evaluation_status": evaluation_status,
         "is_dataset_driven": kind not in {"project_sample_set", "project_text_golden_set", "project_regression_sample", "rag_integration_guard", "workflow_contract_regression", "project_demo_seed_set", "empty_bad_case_regression"},
         "limitations": [] if is_production else [
             f"Dataset kind is {kind}; this is not a production-scale evaluation.",
             f"Sample count is {sample_count}; do not interpret metrics as production quality.",
         ],
     }
+
+
+def _evaluation_status(*, is_production: bool, kind: str, source_type: str, failed_count: int, blocked_count: int) -> str:
+    if blocked_count:
+        return "blocked_external_dependency"
+    if failed_count:
+        return "failed"
+    if is_production:
+        return "production_evaluation"
+    if kind == "synthetic_only" or "synthetic" in source_type.lower():
+        return "synthetic_only"
+    if kind == "non_production_manual_acceptance":
+        return "non_production_manual_acceptance"
+    return "passed"

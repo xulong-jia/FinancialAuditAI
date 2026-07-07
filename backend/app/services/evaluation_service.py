@@ -1527,6 +1527,8 @@ def _evaluate_full_db_workflow_samples(db: Session, samples: list[dict]) -> tupl
         total,
         {
             "full_db_workflow_pass_rate": _accuracy(total, len(failed)),
+            "full_db_workflow_success_rate": _accuracy(total, len(failed)),
+            "full_db_workflow_failure_rate": _rate(len(failed), total),
             "task_artifact_accuracy": _rate(artifact_hits["task"], total),
             "document_artifact_accuracy": _rate(artifact_hits["documents"], total),
             "document_page_artifact_accuracy": _rate(artifact_hits["pages"], total),
@@ -1665,6 +1667,15 @@ def _full_db_workflow_actual(db: Session, task_id: UUID, steps: list[str], linke
         "business_keys": sorted({document.business_key for document in documents if document.business_key}),
         "audit_result_count": len(audit_results),
         "audit_result_statuses": sorted({result.status for result in audit_results}),
+        "rule_results": [
+            {
+                "rule_id": result.rule_code,
+                "status": result.status,
+                "severity": result.severity,
+                "evidence_count": len(result.evidence or []),
+            }
+            for result in audit_results
+        ],
         "report_count": len(reports),
         "report_file_exists": report_path.is_file(),
         "control_table_row_count": len(control_rows),
@@ -1678,6 +1689,9 @@ def _full_db_workflow_checks(actual: dict, expected: dict) -> dict:
     steps = set(actual.get("steps") if isinstance(actual.get("steps"), list) else [])
     expected_doc_types = {str(item) for item in expected.get("expected_doc_types") or []}
     actual_doc_types = {str(item) for item in actual.get("doc_types") or []}
+    expected_rules = [rule for rule in expected.get("expected_rule_results") or [] if isinstance(rule, dict)]
+    actual_rules = [rule for rule in actual.get("rule_results") or [] if isinstance(rule, dict)]
+    rule_hits = sum(1 for rule in expected_rules if any(_e2e_rule_matches(actual_rule, rule) for actual_rule in actual_rules))
     checks = {
         "status_ok": actual.get("status") == str(expected.get("status") or "completed"),
         "steps_ok": all(step in steps for step in required_steps),
@@ -1691,6 +1705,7 @@ def _full_db_workflow_checks(actual: dict, expected: dict) -> dict:
         "control_rows_ok": int(actual.get("control_table_row_count") or 0) >= int(expected.get("min_control_table_row_count") or 1),
         "evidence_refs_ok": int(actual.get("evidence_ref_count") or 0) >= int(expected.get("min_evidence_ref_count") or 1),
         "doc_types_ok": not expected_doc_types or expected_doc_types.issubset(actual_doc_types),
+        "rule_results_ok": rule_hits == len(expected_rules),
     }
     checks["passed"] = all(bool(value) for value in checks.values())
     return checks

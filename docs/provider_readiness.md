@@ -17,6 +17,7 @@ The JSON artifact contains:
 - `run_integration`
 - provider name and model
 - `api_mode` for LLM-backed paths
+- explicit `paths` for `classify`, `extract`, `explain`, `rag_answer`, `rag_rerank`, `embedding`, and `ocr`
 - configured/not configured key and URL status
 - `configured`, `ready`, `failed`, or `blocked_external_dependency`
 - latency when an integration probe runs
@@ -45,6 +46,8 @@ LLM-backed runtime paths support:
 - `LLM_API_MODE=auto`
 
 `auto` uses Responses API for `gpt-5*` models and Chat Completions for other models. Readiness and runtime classification/extraction/RAG answer/rerank/explain must use the same configured API mode.
+
+Runtime tests directly cover `auto` mode selecting Responses for `gpt-5*` models and Chat Completions for other models. Readiness tests use fake HTTP/embedding providers under `RUN_PROVIDER_INTEGRATION=1`; ordinary `pytest` does not call real external Providers.
 
 ## Boundaries
 

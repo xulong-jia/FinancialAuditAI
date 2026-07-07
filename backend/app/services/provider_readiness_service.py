@@ -19,17 +19,37 @@ AZURE_OCR_PROVIDERS = {"azure", "azure-document-intelligence", "azure-document-i
 
 def readiness(run_integration: bool | None = None) -> dict:
     enabled = _integration_enabled(run_integration)
+    llm_status = _llm_status(settings.llm_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, enabled)
+    embedding_status = _embedding_status(enabled)
+    ocr_status = _ocr_status(enabled)
+    rag_rerank_status = _llm_status(
+        settings.rag_rerank_provider,
+        settings.llm_api_url,
+        settings.llm_api_key,
+        settings.llm_model,
+        enabled,
+        purpose="rag_rerank",
+    )
+    rag_answer_status = _llm_status(
+        settings.rag_answer_provider,
+        settings.llm_api_url,
+        settings.llm_api_key,
+        settings.llm_model,
+        enabled,
+        purpose="rag_answer",
+    )
     return {
         "artifact_schema_version": "provider-readiness-v1",
         "run_timestamp": datetime.now(timezone.utc).isoformat(),
         "run_integration": enabled,
         "providers": {
-            "llm": _llm_status(settings.llm_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, enabled),
-            "embedding": _embedding_status(enabled),
-            "ocr": _ocr_status(enabled),
-            "rag_rerank": _llm_status(settings.rag_rerank_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, enabled, purpose="rag_rerank"),
-            "rag_answer": _llm_status(settings.rag_answer_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, enabled, purpose="rag_answer"),
+            "llm": llm_status,
+            "embedding": embedding_status,
+            "ocr": ocr_status,
+            "rag_rerank": rag_rerank_status,
+            "rag_answer": rag_answer_status,
         },
+        "paths": _path_statuses(enabled, embedding_status, ocr_status, rag_answer_status, rag_rerank_status),
     }
 
 
@@ -68,6 +88,18 @@ def _llm_status(provider: str, api_url: str | None, api_key: str | None, model: 
     return status | _probe_llm(api_url, api_key, model, status["api_mode"])
 
 
+def _path_statuses(run_integration: bool, embedding_status: dict, ocr_status: dict, rag_answer_status: dict, rag_rerank_status: dict) -> dict:
+    return {
+        "classify": _llm_status(settings.llm_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, run_integration, purpose="classify"),
+        "extract": _llm_status(settings.llm_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, run_integration, purpose="extract"),
+        "explain": _llm_status(settings.llm_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, run_integration, purpose="explain"),
+        "rag_answer": rag_answer_status,
+        "rag_rerank": rag_rerank_status,
+        "embedding": embedding_status,
+        "ocr": ocr_status,
+    }
+
+
 def _embedding_status(run_integration: bool) -> dict:
     api_url = settings.embedding_api_url or settings.llm_api_url
     api_key = settings.embedding_api_key or settings.llm_api_key
@@ -78,7 +110,7 @@ def _embedding_status(run_integration: bool) -> dict:
     try:
         rag_service._embedding_provider().embed("provider readiness probe")
     except Exception as exc:  # noqa: BLE001
-        return status | {"status": "failed", "error": str(exc)}
+        return status | {"status": "failed", "error": _sanitize(str(exc))}
     return status | {"status": "ready"}
 
 

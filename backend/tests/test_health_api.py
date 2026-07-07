@@ -79,15 +79,21 @@ def test_provider_readiness_is_sanitized_and_non_integrating_by_default(monkeypa
     assert body["providers"]["embedding"]["status"] == "configured"
     assert body["providers"]["ocr"]["status"] == "blocked_external_dependency"
     assert body["providers"]["llm"]["api_key_status"] == "configured"
+    assert set(body["paths"]) == {"classify", "extract", "explain", "rag_answer", "rag_rerank", "embedding", "ocr"}
+    assert body["paths"]["classify"]["purpose"] == "classify"
+    assert body["paths"]["extract"]["purpose"] == "extract"
+    assert body["paths"]["explain"]["purpose"] == "explain"
+    assert body["paths"]["embedding"]["status"] == "configured"
+    assert body["paths"]["ocr"]["status"] == "blocked_external_dependency"
     assert "unit-test-placeholder-key" not in str(body)
+    assert "Authorization" not in str(body)
 
 
 def test_provider_readiness_responses_mode_success(monkeypatch) -> None:
-    seen = {}
+    calls = []
 
     def fake_urlopen(request, timeout):
-        seen["url"] = request.full_url
-        seen["body"] = json.loads(request.data.decode())
+        calls.append((request.full_url, json.loads(request.data.decode())))
         return _FakeHttpResponse({"output_text": "ok"})
 
     monkeypatch.setenv("RUN_PROVIDER_INTEGRATION", "1")
@@ -104,8 +110,11 @@ def test_provider_readiness_responses_mode_success(monkeypatch) -> None:
     body = response.json()
     assert body["providers"]["llm"]["status"] == "ready"
     assert body["providers"]["llm"]["api_mode"] == "responses"
-    assert seen["url"] == "https://api.example.test/v1/responses"
-    assert seen["body"] == {"model": "gpt-5.5", "input": "Return exactly: ok"}
+    assert body["paths"]["classify"]["status"] == "ready"
+    assert body["paths"]["extract"]["status"] == "ready"
+    assert body["paths"]["explain"]["status"] == "ready"
+    assert {url for url, _body in calls} == {"https://api.example.test/v1/responses"}
+    assert all(body == {"model": "gpt-5.5", "input": "Return exactly: ok"} for _url, body in calls)
     assert "unit-test-placeholder-key" not in str(body)
 
 
@@ -167,7 +176,30 @@ def test_provider_readiness_azure_ocr_get_model_probe(monkeypatch) -> None:
     assert ocr["model_status"] == "present"
     assert seen["url"] == "https://azure.example.test/documentintelligence/documentModels/prebuilt-layout?api-version=2024-11-30"
     assert seen["key"] == "unit-test-azure-key"
+    assert response.json()["paths"]["ocr"]["status"] == "ready"
     assert "unit-test-azure-key" not in str(response.json())
+
+
+def test_provider_readiness_embedding_path_probe_is_sanitized(monkeypatch) -> None:
+    class FakeEmbeddingProvider:
+        def embed(self, text: str) -> list[float]:
+            assert text == "provider readiness probe"
+            return [0.1, 0.2, 0.3]
+
+    monkeypatch.setenv("RUN_PROVIDER_INTEGRATION", "1")
+    monkeypatch.setattr(settings, "embedding_provider", "openai-compatible")
+    monkeypatch.setattr(settings, "embedding_api_url", "https://embedding.example.test/v1")
+    monkeypatch.setattr(settings, "embedding_api_key", "unit-test-placeholder-key")
+    monkeypatch.setattr(provider_readiness_service.rag_service, "_embedding_provider", lambda: FakeEmbeddingProvider())
+
+    response = client.get("/api/v1/provider-readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["providers"]["embedding"]["status"] == "ready"
+    assert body["paths"]["embedding"]["status"] == "ready"
+    assert "unit-test-placeholder-key" not in str(body)
+    assert "Authorization" not in str(body)
 
 
 class _FakeHttpResponse:

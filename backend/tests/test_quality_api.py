@@ -3,6 +3,7 @@ import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
+import fitz
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
@@ -19,6 +20,13 @@ from app.services import evaluation_service
 from app.main import app
 
 client = TestClient(app)
+
+
+def make_pdf(text: str) -> bytes:
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), text)
+    return document.tobytes()
 
 
 def create_bad_case(status: str = "open", *, in_regression: bool = False) -> dict:
@@ -686,6 +694,145 @@ def test_full_db_workflow_manifest_creates_persisted_artifacts() -> None:
         assert db.query(ControlTableRow).filter(ControlTableRow.task_id == task.id).count() >= 1
 
 
+def test_full_db_workflow_manifest_records_failed_cases_for_bad_samples() -> None:
+    dataset_dir = evaluation_service.evaluation_datasets_root() / "phase_a_full_db_failures"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    dataset_path = dataset_dir / "full_db_workflow.json"
+    dataset_path.write_text(
+        json.dumps(
+            {
+                "eval_type": "full_db_workflow",
+                "dataset_name": "phase_a_full_db_failures",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "missing-documents",
+                        "input": {"documents": []},
+                        "expected": {"status": "completed"},
+                    },
+                    {
+                        "sample_id": "rule-result-mismatch",
+                        "input": {"documents": _phase_a_procurement_documents()},
+                        "expected": {
+                            "status": "completed",
+                            "expected_rule_results": [{"rule_id": "PROC_AMOUNT_001", "status": "fail"}],
+                        },
+                    },
+                    {
+                        "sample_id": "missing-evidence-index",
+                        "input": {"documents": _phase_a_procurement_documents()},
+                        "expected": {
+                            "status": "completed",
+                            "min_evidence_ref_count": 999,
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "full_db_workflow",
+                "dataset_name": "phase_a_full_db_failures",
+                "dataset_path": str(dataset_path.relative_to(evaluation_service.PROJECT_ROOT)),
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        result = response.json()
+        metrics = result["metrics"]
+        assert result["sample_count"] == 3
+        assert len(result["failed_cases"]) == 3
+        assert metrics["failed_case_count"] == 3
+        assert metrics["full_db_workflow_success_rate"] == 0.0
+        assert metrics["full_db_workflow_failure_rate"] == 1.0
+        assert metrics["full_db_workflow_pass_rate"] == 0.0
+        assert {case["title"] for case in result["failed_cases"]} == {
+            "missing-documents",
+            "rule-result-mismatch",
+            "missing-evidence-index",
+        }
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
+def test_phase_a_api_depth_e2e_runs_core_workflow_endpoints() -> None:
+    task_response = client.post("/api/v1/tasks", json={"name": "Phase A API-depth E2E", "scenario": "procurement"})
+    assert task_response.status_code == 200, task_response.text
+    task = task_response.json()
+
+    documents = []
+    for document in _phase_a_procurement_documents():
+        upload = client.post(
+            f"/api/v1/tasks/{task['id']}/documents",
+            files={"file": (document["filename"], make_pdf(document["text"]), "application/pdf")},
+        )
+        assert upload.status_code == 200, upload.text
+        documents.append(upload.json())
+
+    for document in documents:
+        ocr = client.post(f"/api/v1/documents/{document['id']}/ocr")
+        assert ocr.status_code == 200, ocr.text
+        pages = client.get(f"/api/v1/documents/{document['id']}/pages")
+        assert pages.status_code == 200, pages.text
+        assert len(pages.json()) >= 1
+
+        classify = client.post(f"/api/v1/documents/{document['id']}/classify")
+        assert classify.status_code == 200, classify.text
+        assert classify.json()["doc_type"] in {"purchase_contract", "invoice", "payment_receipt"}
+
+        extract = client.post(f"/api/v1/documents/{document['id']}/extract")
+        assert extract.status_code == 200, extract.text
+        assert extract.json()
+
+        fields = client.get(f"/api/v1/documents/{document['id']}/fields")
+        assert fields.status_code == 200, fields.text
+        assert fields.json()
+
+    task_fields = client.get(f"/api/v1/tasks/{task['id']}/fields")
+    assert task_fields.status_code == 200, task_fields.text
+    assert len(task_fields.json()) >= 10
+
+    linkage = client.post(f"/api/v1/tasks/{task['id']}/link-documents")
+    assert linkage.status_code == 200, linkage.text
+    assert linkage.json()["relation_count"] >= 1
+
+    relations = client.get(f"/api/v1/tasks/{task['id']}/document-relations")
+    assert relations.status_code == 200, relations.text
+    assert relations.json()
+
+    audit = client.post(f"/api/v1/tasks/{task['id']}/audit")
+    assert audit.status_code == 200, audit.text
+    audit_results = audit.json()
+    assert audit_results
+    assert any(result["evidence"] for result in audit_results)
+
+    listed_results = client.get(f"/api/v1/tasks/{task['id']}/audit-results")
+    assert listed_results.status_code == 200, listed_results.text
+    assert len(listed_results.json()) == len(audit_results)
+
+    result_detail = client.get(f"/api/v1/audit-results/{audit_results[0]['id']}")
+    assert result_detail.status_code == 200, result_detail.text
+    assert result_detail.json()["rule_code"]
+
+    report = client.post(f"/api/v1/tasks/{task['id']}/reports/control-table")
+    assert report.status_code == 200, report.text
+    report_body = report.json()
+    assert report_body["status"] == "completed"
+
+    reports = client.get(f"/api/v1/tasks/{task['id']}/reports")
+    assert reports.status_code == 200, reports.text
+    assert [item["id"] for item in reports.json()] == [report_body["id"]]
+
+    download = client.get(f"/api/v1/reports/{report_body['id']}/download")
+    assert download.status_code == 200, download.text
+    assert download.content
+
+
 def test_production_readiness_dataset_blocks_without_external_resources() -> None:
     response = client.post(
         "/api/v1/evaluations/run",
@@ -703,6 +850,50 @@ def test_production_readiness_dataset_blocks_without_external_resources() -> Non
     assert result["metrics"]["external_resource_required"] is True
     assert result["metrics"]["blocked_external_dependency_count"] == 1
     assert result["metrics"]["evaluation_status"] == "blocked_external_dependency"
+
+
+def _phase_a_procurement_documents() -> list[dict]:
+    return [
+        {
+            "filename": "purchase_contract_sample.pdf",
+            "text": (
+                "Purchase Contract\n"
+                "Contract No: PO-2026-001\n"
+                "Signing Date: 2026-07-01\n"
+                "Buyer Name: Demo Company\n"
+                "Supplier Name: Demo Supplier Pty Ltd\n"
+                "Item: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1100.00; Amount: 1100.00\n"
+                "Amount Including Tax: CNY 1100.00\n"
+                "Payment Terms: Net 30"
+            ),
+        },
+        {
+            "filename": "invoice_sample.pdf",
+            "text": (
+                "Invoice\n"
+                "Invoice No: INV-2026-001\n"
+                "Invoice Date: 2026-07-01\n"
+                "Seller Name: Demo Supplier Pty Ltd\n"
+                "Buyer Name: Demo Company\n"
+                "Item: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1100.00; Amount: 1100.00\n"
+                "Amount Including Tax: CNY 1100.00\n"
+                "Tax Amount: CNY 100.00"
+            ),
+        },
+        {
+            "filename": "payment_receipt_sample.pdf",
+            "text": (
+                "Payment Receipt\n"
+                "Transaction No: PAY-2026-001\n"
+                "Payment Date: 2026-07-01\n"
+                "Payer Name: Demo Company\n"
+                "Payee Name: Demo Supplier Pty Ltd\n"
+                "Amount: CNY 1100.00\n"
+                "Currency: CNY\n"
+                "Payment Purpose: Payment for contract PO-2026-001 and invoice INV-2026-001"
+            ),
+        },
+    ]
 
 
 def test_manual_acceptance_rag_manifest_runs_inline_documents(monkeypatch) -> None:

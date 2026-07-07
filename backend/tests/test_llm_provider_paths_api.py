@@ -141,6 +141,56 @@ def test_openai_compatible_provider_responses_mode_success(monkeypatch) -> None:
     assert placeholder_key not in str(result)
 
 
+def test_openai_compatible_provider_auto_mode_selects_responses_and_chat_success(monkeypatch) -> None:
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        body = json.loads(request.data.decode())
+        calls.append((request.full_url, body))
+        payload = {
+            "doc_type": "invoice",
+            "confidence": 0.96,
+            "reason": "Auto mode selected a compatible endpoint.",
+            "alternative_types": [],
+        }
+        if request.full_url.endswith("/responses"):
+            return FakeChatResponse({"output_text": json.dumps(payload), "usage": {"total_tokens": 11}})
+        return FakeChatResponse({"choices": [{"message": {"content": json.dumps(payload)}}], "usage": {"total_tokens": 12}})
+
+    monkeypatch.setattr(llm_provider.urllib.request, "urlopen", fake_urlopen)
+    placeholder_key = "unit-test-placeholder-key"
+    responses_provider = llm_provider.OpenAICompatibleLlmProvider(
+        provider_kind="real",
+        provider_name="openai-compatible",
+        api_url="https://api.example.test/v1",
+        model="gpt-5.1",
+        api_mode="auto",
+        **{"api_key": placeholder_key},
+    )
+    chat_provider = llm_provider.OpenAICompatibleLlmProvider(
+        provider_kind="real",
+        provider_name="openai-compatible",
+        api_url="https://api.example.test/v1",
+        model="audit-llm-v1",
+        api_mode="auto",
+        **{"api_key": placeholder_key},
+    )
+
+    responses_result = responses_provider.classify_document("invoice.pdf", "Invoice total", "procurement", ["invoice"])
+    chat_result = chat_provider.classify_document("invoice.pdf", "Invoice total", "procurement", ["invoice"])
+
+    assert responses_result.status == "ok"
+    assert chat_result.status == "ok"
+    assert [url for url, _body in calls] == [
+        "https://api.example.test/v1/responses",
+        "https://api.example.test/v1/chat/completions",
+    ]
+    assert "input" in calls[0][1]
+    assert "messages" in calls[1][1]
+    assert placeholder_key not in str(responses_result)
+    assert placeholder_key not in str(chat_result)
+
+
 def test_openai_compatible_provider_http_error_body_is_sanitized(monkeypatch) -> None:
     def fake_urlopen(request, timeout):
         payload = {

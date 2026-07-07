@@ -122,10 +122,10 @@ def _load_dataset(payload: EvaluationRunRequest) -> dict | None:
 
 
 def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: dict) -> dict:
-    if payload.eval_type not in {"ocr", "classification", "extraction", "rule"}:
+    if payload.eval_type not in {"ocr", "classification", "extraction", "rule", "rag"}:
         raise HTTPException(
             status_code=400,
-            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, and rule evaluation only",
+            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, and RAG evaluation only",
         )
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     eval_file = files.get(payload.eval_type)
@@ -850,11 +850,14 @@ def _rule_amount_evidence(fields: dict) -> list[dict]:
 
 def _evaluate_rag_samples(db: Session, samples: list[dict]) -> tuple[int, dict, list[dict]]:
     failed = []
-    recall_hits = citation_hits = grounded_hits = no_answer_hits = 0
+    answer_hits = citation_presence_hits = citation_document_hits = no_answer_hits = 0
+    answer_total = citation_presence_total = citation_document_total = no_answer_total = 0
     for sample in samples:
         input_payload = _sample_input(sample)
         expected = _sample_expected(sample)
-        if input_payload.get("query"):
+        if isinstance(input_payload.get("documents"), list):
+            actual = _evaluate_inline_rag_sample(sample)
+        elif input_payload.get("query"):
             result = rag_service.query(
                 db,
                 query_text=str(input_payload["query"]),
@@ -863,29 +866,124 @@ def _evaluate_rag_samples(db: Session, samples: list[dict]) -> tuple[int, dict, 
                 metadata_filter=input_payload.get("metadata_filter") if isinstance(input_payload.get("metadata_filter"), dict) else {},
                 task_id=None,
             )
-            actual = {"status": result["status"], "citation_count": len(result["citations"])}
+            actual = {
+                "status": result["status"],
+                "answer": result.get("answer"),
+                "citation_count": len(result["citations"]),
+                "citations": result.get("citations") or [],
+            }
         else:
             actual = _sample_actual(sample)
-        expected_status = expected.get("status")
-        min_citations = int(expected.get("min_citations") or expected.get("citation_count") or 0)
-        status_ok = expected_status is None or actual.get("status") == expected_status
-        citation_ok = int(actual.get("citation_count") or 0) >= min_citations
-        recall_hits += int(citation_ok)
-        citation_hits += int(citation_ok)
-        grounded_hits += int(status_ok and citation_ok)
-        no_answer_hits += int((actual.get("status") == "no_answer") == (expected_status == "no_answer"))
-        if not (status_ok and citation_ok):
-            failed.append(_sample_failed_case("rag", sample, actual, expected))
+        checks = _rag_expected_checks(actual, expected)
+        answer_total += checks["answer_total"]
+        citation_presence_total += checks["citation_presence_total"]
+        citation_document_total += checks["citation_document_total"]
+        no_answer_total += checks["no_answer_total"]
+        answer_hits += int(checks["answer_text_ok"] and checks["answer_total"])
+        citation_presence_hits += int(checks["citation_presence_ok"] and checks["citation_presence_total"])
+        citation_document_hits += int(checks["citation_document_ok"] and checks["citation_document_total"])
+        no_answer_hits += int(checks["no_answer_ok"] and checks["no_answer_total"])
+        if not checks["passed"]:
+            failed.append(_sample_failed_case("rag", sample, actual, expected | {"checks": checks}))
     return (
         len(samples),
         {
-            "recall_at_k": _rate(recall_hits, len(samples)),
-            "citation_accuracy": _rate(citation_hits, len(samples)),
-            "groundedness": _rate(grounded_hits, len(samples)),
-            "no_answer_accuracy": _rate(no_answer_hits, len(samples)),
+            "rag_sample_pass_rate": _accuracy(len(samples), len(failed)),
+            "answer_text_accuracy": _rate(answer_hits, answer_total),
+            "citation_presence_accuracy": _rate(citation_presence_hits, citation_presence_total),
+            "citation_document_accuracy": _rate(citation_document_hits, citation_document_total),
+            "no_answer_accuracy": _rate(no_answer_hits, no_answer_total),
+            "failed_case_count": len(failed),
+            "recall_at_k": _rate(citation_presence_hits, citation_presence_total),
+            "citation_accuracy": _rate(citation_presence_hits, citation_presence_total),
+            "groundedness": _accuracy(len(samples), len(failed)),
         },
         failed,
     )
+
+
+def _evaluate_inline_rag_sample(sample: dict) -> dict:
+    input_payload = _sample_input(sample)
+    query = str(input_payload.get("query") or "")
+    query_tokens = _rag_tokens(query)
+    ranked = []
+    for document in input_payload.get("documents") or []:
+        if not isinstance(document, dict):
+            continue
+        content = str(document.get("content") or document.get("text") or "")
+        score = len(query_tokens & _rag_tokens(content))
+        if score:
+            ranked.append((score, document, content))
+    ranked = sorted(ranked, key=lambda item: item[0], reverse=True)
+    if not ranked or ranked[0][0] < 2:
+        return {
+            "status": "evidence_insufficient",
+            "answer": "Evidence insufficient. No citation met the synthetic dataset threshold.",
+            "citation_count": 0,
+            "citations": [],
+            "retrieval_method": "synthetic_lexical",
+        }
+    score, document, content = ranked[0]
+    citation = {
+        "document_id": str(document.get("document_id") or document.get("id") or ""),
+        "title": str(document.get("title") or ""),
+        "quote": content,
+        "score": score,
+        "metadata": document.get("metadata") if isinstance(document.get("metadata"), dict) else {},
+    }
+    return {
+        "status": "answer",
+        "answer": f"Based on {citation['document_id']}: {content}",
+        "citation_count": 1,
+        "citations": [citation],
+        "retrieval_method": "synthetic_lexical",
+    }
+
+
+def _rag_expected_checks(actual: dict, expected: dict) -> dict:
+    answer = str(actual.get("answer") or "")
+    status = str(actual.get("status") or "")
+    citations = actual.get("citations") if isinstance(actual.get("citations"), list) else []
+    citation_count = int(actual.get("citation_count") or len(citations))
+    citation_ids = {str(citation.get("document_id") or citation.get("rag_document_id") or "") for citation in citations if isinstance(citation, dict)}
+    answer_terms = expected.get("answer_must_contain")
+    if isinstance(answer_terms, str):
+        answer_terms = [answer_terms]
+    answer_terms = [str(term) for term in answer_terms] if isinstance(answer_terms, list) else []
+    answer_text_ok = all(term.lower() in answer.lower() for term in answer_terms)
+    citation_presence_expected = expected.get("must_have_citation")
+    min_citations = expected.get("min_citations", expected.get("citation_count"))
+    citation_presence_ok = True
+    if citation_presence_expected is not None:
+        citation_presence_ok = citation_count > 0 if bool(citation_presence_expected) else citation_count == 0
+    elif min_citations is not None:
+        citation_presence_ok = citation_count >= int(min_citations or 0)
+    expected_citation_id = expected.get("expected_citation_document_id")
+    citation_document_ok = expected_citation_id is None or str(expected_citation_id) in citation_ids
+    expected_status = expected.get("expected_status", expected.get("status"))
+    status_ok = expected_status is None or status == str(expected_status)
+    no_answer_expected = expected.get("no_answer")
+    no_answer_ok = True
+    if no_answer_expected is not None:
+        actual_no_answer = status in {"no_answer", "evidence_insufficient"} and citation_count == 0
+        no_answer_ok = actual_no_answer if bool(no_answer_expected) else not actual_no_answer
+    return {
+        "answer_text_ok": answer_text_ok,
+        "answer_total": int(bool(answer_terms)),
+        "citation_presence_ok": citation_presence_ok,
+        "citation_presence_total": int(citation_presence_expected is not None or min_citations is not None),
+        "citation_document_ok": citation_document_ok,
+        "citation_document_total": int(expected_citation_id is not None),
+        "no_answer_ok": no_answer_ok,
+        "no_answer_total": int(no_answer_expected is not None),
+        "status_ok": status_ok,
+        "passed": answer_text_ok and citation_presence_ok and citation_document_ok and no_answer_ok and status_ok,
+    }
+
+
+def _rag_tokens(text: str) -> set[str]:
+    stopwords = {"a", "an", "and", "be", "do", "does", "for", "in", "is", "of", "on", "or", "the", "to", "what", "with"}
+    return {token for token in re.findall(r"[a-z0-9]+", text.lower()) if token not in stopwords}
 
 
 def _evaluate_agent_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:

@@ -34,7 +34,7 @@ Supported eval types:
 
 ## Manual Acceptance Datasets
 
-Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, and deterministic rule sample validation:
+Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, deterministic rule sample validation, and synthetic inline-document RAG validation:
 
 ```text
 evals/datasets/<dataset_name>/dataset_manifest.json
@@ -42,6 +42,7 @@ evals/datasets/<dataset_name>/ocr.json
 evals/datasets/<dataset_name>/classification.json
 evals/datasets/<dataset_name>/extraction.json
 evals/datasets/<dataset_name>/rule.json
+evals/datasets/<dataset_name>/rag.json
 ```
 
 When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, or `evals/datasets`.
@@ -57,7 +58,8 @@ The manifest declares dataset metadata and the per-type files:
     "ocr": "ocr.json",
     "classification": "classification.json",
     "extraction": "extraction.json",
-    "rule": "rule.json"
+    "rule": "rule.json",
+    "rag": "rag.json"
   }
 }
 ```
@@ -190,6 +192,42 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 The rule dataset runner currently supports `PROC_AMOUNT_001` as a synthetic deterministic amount consistency check. It compares contract, invoice, and payment amounts from `input.fields`, validates expected `rule_id`, `status`, `severity`, and required evidence presence, and stores evidence summaries without DB evidence IDs. This is not the full Rule Engine DB task workflow; full task/document/field rule execution still needs separate E2E coverage.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=rule` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic `PROC_AMOUNT_001` samples, produced zero failed cases, and reported `rule_sample_pass_rate=1.0`, `rule_status_accuracy=1.0`, `rule_severity_accuracy=1.0`, `rule_evidence_coverage=1.0`, `rule_accuracy=1.0`, and false positive / false negative rates of `0.0`. `explainability_rate=0.5` is expected because only the fail sample requires evidence. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full DB task/document/field Rule Engine workflow coverage.
+
+`rag.json` contains synthetic inline-document RAG samples:
+
+```json
+{
+  "eval_type": "rag",
+  "dataset_name": "manual_acceptance",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "rag_policy_answer_001",
+      "input": {
+        "query": "What is the approval requirement for procurement above CNY 1000?",
+        "documents": [
+          {
+            "document_id": "synthetic_regulation_procurement_policy_001",
+            "title": "Synthetic Procurement Approval Policy",
+            "content": "Procurement transactions above CNY 1000 require manager approval before payment."
+          }
+        ]
+      },
+      "expected": {
+        "answer_must_contain": ["manager approval", "above CNY 1000"],
+        "must_have_citation": true,
+        "expected_citation_document_id": "synthetic_regulation_procurement_policy_001",
+        "no_answer": false
+      }
+    }
+  ]
+}
+```
+
+The RAG dataset runner uses only the sample's inline `input.documents` and deterministic lexical matching. Citations are generated from the selected inline document's `document_id`; it does not call the persistent vector-store RAG workflow, real embedding, rerank, or answer providers. No-answer samples can assert `no_answer=true` and `expected_status=evidence_insufficient`. Real embedding/rerank/answer Provider readiness is verified separately and is not required for this synthetic runner.
+
+This RAG dataset path is not full persistent vector-store, four-library, workpaper-scope, or production RAG evaluation coverage.
 
 ## Metrics
 

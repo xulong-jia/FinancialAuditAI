@@ -1,0 +1,66 @@
+{
+  "eval_type": "rag",
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "rag_policy_answer_001",
+      "knowledge_base": "regulation",
+      "input": {
+        "query": "What is the approval requirement for procurement above CNY 1000?",
+        "documents": [
+          {
+            "document_id": "synthetic_regulation_procurement_policy_001",
+            "title": "Synthetic Procurement Approval Policy",
+            "content": "Procurement transactions above CNY 1000 require manager approval before payment. The approval evidence must be retained in the audit workpaper.",
+            "metadata": {
+              "source_type": "synthetic",
+              "section": "procurement_approval"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "answer_must_contain": [
+          "manager approval",
+          "above CNY 1000"
+        ],
+        "must_have_citation": true,
+        "expected_citation_document_id": "synthetic_regulation_procurement_policy_001",
+        "no_answer": false
+      }
+    },
+    {
+      "sample_id": "rag_no_answer_001",
+      "knowledge_base": "regulation",
+      "input": {
+        "query": "What is the required approval policy for cryptocurrency treasury staking?",
+        "documents": [
+          {
+            "document_id": "synthetic_regulation_procurement_policy_001",
+            "title": "Synthetic Procurement Approval Policy",
+            "content": "Procurement transactions above CNY 1000 require manager approval before payment. The approval evidence must be retained in the audit workpaper.",
+            "metadata": {
+              "source_type": "synthetic",
+              "section": "procurement_approval"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "answer_must_not_fabricate": true,
+        "must_have_citation": false,
+        "no_answer": true,
+        "expected_status": "evidence_insufficient"
+      }
+    }
+  ],
+  "notes": [
+    "Synthetic RAG samples for manual acceptance.",
+    "This validates citation/no-answer behavior only.",
+    "This is not production evaluation.",
+    "No real customer data is included."
+  ]
+}

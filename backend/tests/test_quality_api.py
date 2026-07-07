@@ -617,6 +617,101 @@ def test_manual_acceptance_rule_manifest_runs_amount_samples() -> None:
         shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
+def test_manual_acceptance_rag_manifest_runs_inline_documents(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_rag_unit"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": "manual_acceptance_rag_unit",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "files": {"rag": "rag.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "rag.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "rag",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "rag-answer",
+                        "input": {
+                            "query": "What is the approval requirement for procurement above CNY 1000?",
+                            "documents": [
+                                {
+                                    "document_id": "synthetic_regulation_procurement_policy_001",
+                                    "title": "Synthetic Procurement Approval Policy",
+                                    "content": "Procurement transactions above CNY 1000 require manager approval before payment.",
+                                }
+                            ],
+                        },
+                        "expected": {
+                            "answer_must_contain": ["manager approval", "above CNY 1000"],
+                            "must_have_citation": True,
+                            "expected_citation_document_id": "synthetic_regulation_procurement_policy_001",
+                            "no_answer": False,
+                        },
+                    },
+                    {
+                        "sample_id": "rag-no-answer",
+                        "input": {
+                            "query": "What is the required approval policy for cryptocurrency treasury staking?",
+                            "documents": [
+                                {
+                                    "document_id": "synthetic_regulation_procurement_policy_001",
+                                    "content": "Procurement transactions above CNY 1000 require manager approval before payment.",
+                                }
+                            ],
+                        },
+                        "expected": {
+                            "answer_must_not_fabricate": True,
+                            "must_have_citation": False,
+                            "no_answer": True,
+                            "expected_status": "evidence_insufficient",
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_if_rag_service_called(*args, **kwargs):
+        raise AssertionError("Inline RAG dataset runner must not call the persistent RAG service")
+
+    monkeypatch.setattr(evaluation_service.rag_service, "query", fail_if_rag_service_called)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "rag",
+                "dataset_name": "manual_acceptance_rag_unit",
+                "dataset_path": "evals/datasets/manual_acceptance_rag_unit/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["dataset_name"] == "manual_acceptance_rag_unit"
+        assert result["sample_count"] == 2
+        assert result["failed_cases"] == []
+        assert result["metrics"]["rag_sample_pass_rate"] == 1.0
+        assert result["metrics"]["answer_text_accuracy"] == 1.0
+        assert result["metrics"]["citation_presence_accuracy"] == 1.0
+        assert result["metrics"]["citation_document_accuracy"] == 1.0
+        assert result["metrics"]["no_answer_accuracy"] == 1.0
+        assert result["metrics"]["source_type"] == "synthetic"
+        assert result["metrics"]["dataset_kind"] == "non_production_manual_acceptance"
+        assert result["metrics"]["is_dataset_driven"] is True
+        assert result["metrics"]["is_production_evaluation"] is False
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
 def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_path_guard"
     dataset_dir.mkdir(parents=True, exist_ok=True)

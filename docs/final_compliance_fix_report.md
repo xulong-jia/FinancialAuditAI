@@ -36,6 +36,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | Manual extraction dataset-driven evaluation passed against the synthetic single-sample dataset | verified locally | `eval_type=extraction`, `dataset_name=manual_acceptance`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`; `sample_count=1`, `failed_cases=[]`, extraction/field/normalized/item/source page/source text metrics `1.0`, `source_bbox_coverage=0.0`, `source_type=synthetic`, `is_production_evaluation=false` |
 | Manual acceptance rule evaluation dataset support can load `rule.json` from the manifest and run synthetic deterministic `PROC_AMOUNT_001` amount checks | implemented for rule synthetic samples only | `backend/app/services/evaluation_service.py`, `backend/tests/test_quality_api.py::test_manual_acceptance_rule_manifest_runs_amount_samples`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/rule.json` |
 | Manual rule dataset-driven evaluation passed against the synthetic two-sample dataset | verified locally | `eval_type=rule`, `dataset_name=manual_acceptance`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`; `sample_count=2`, `failed_cases=[]`, rule status/severity/evidence metrics `1.0`, false positive / false negative rates `0.0`, `explainability_rate=0.5`, `source_type=synthetic`, `is_production_evaluation=false` |
+| Manual acceptance RAG evaluation dataset support can load `rag.json` from the manifest and run synthetic inline-document citation/no-answer checks | implemented for RAG inline synthetic samples only | `backend/app/services/evaluation_service.py`, `backend/tests/test_quality_api.py::test_manual_acceptance_rag_manifest_runs_inline_documents`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/rag.json` |
 
 ## Verification Completed
 
@@ -47,7 +48,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 172 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 173 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `cd frontend && npm test` | PASS, 4 node:test checks |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
@@ -60,8 +61,8 @@ Status: **verified locally; still not final execution-manual complete**.
 | Critical | Real OCR/LLM/RAG API keys and endpoints must remain local-only and must not be committed; external Provider verification remains `blocked_external_dependency` unless configured safely in local `.env` or deployment secrets. |
 | Medium | Browser-level frontend E2E/interaction tests are still absent. |
 | Medium | Report evidence quality still depends on upstream evidence/bbox/confidence completeness. Azure Document Intelligence real image E2E has verified OCR confidence/bbox/table_blocks on one public receipt, but PDF multi-page, complex tables, field extraction `source_bbox` propagation, and report evidence-index linkage remain unverified with a real sample. |
-| Medium | Manual acceptance dataset support currently covers OCR, classification text samples, extraction text samples, and a synthetic `PROC_AMOUNT_001` rule sample only. Classification/extraction/rule full DB workflows plus RAG, Agent, E2E, and regression datasets still need equivalent real/desensitized dataset runners before Evaluation Center can be considered complete against the execution manual. |
-| Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and passed with 172 tests / 5 warnings. |
+| Medium | Manual acceptance dataset support currently covers OCR, classification text samples, extraction text samples, a synthetic `PROC_AMOUNT_001` rule sample, and synthetic inline-document RAG samples only. Classification/extraction/rule full DB workflows plus RAG persistent vector-store/workpaper scope, Agent, E2E, and regression datasets still need equivalent real/desensitized dataset runners before Evaluation Center can be considered complete against the execution manual. |
+| Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and passed with 173 tests / 5 warnings. |
 
 ## Compliance Boundary
 
@@ -73,3 +74,4 @@ The successful manual OCR run used one public sample only. `.env`, API keys, and
 Manual classification dataset support uses synthetic text samples and records `is_production_evaluation=false`. The successful manual classification run used six synthetic samples with `accuracy=1.0`, `macro_f1=1.0`, and no failed cases, but it is not a production-scale classification evaluation and does not exercise the full uploaded-document DB workflow.
 Manual extraction dataset support uses synthetic text samples and records `is_production_evaluation=false`. The successful manual extraction run used one synthetic invoice sample with no failed cases; `source_bbox_coverage=0.0` is expected because `require_source_bbox=false`. It is not a production-scale extraction evaluation and does not exercise the full uploaded-document DB workflow.
 Manual rule dataset support uses synthetic field samples and records `is_production_evaluation=false`. The successful manual rule run used two synthetic `PROC_AMOUNT_001` samples with no failed cases; `explainability_rate=0.5` is expected because only the fail sample requires evidence. It validates amount consistency without DB evidence IDs, is not a production-scale rule evaluation, and does not exercise the full DB task/document/field Rule Engine workflow.
+Manual RAG dataset support uses synthetic inline documents and records `is_production_evaluation=false`. Citations are generated only from sample `input.documents` document IDs, and the runner does not call real embedding, rerank, or answer Providers. It is not production-scale RAG evaluation and does not exercise persistent vector-store, four-library isolation, or workpaper-scope retrieval.

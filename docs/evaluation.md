@@ -306,6 +306,8 @@ The E2E dataset runner simulates the procurement walkthrough contract from inlin
 
 This E2E dataset path is not full task/document/OCR/classification/extraction/rule/report DB/API workflow coverage. Full DB/API E2E still needs separate integration tests. Regression does not yet have equivalent dataset-driven coverage.
 
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=end_to_end` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used one synthetic procurement walkthrough sample, produced zero failed cases, and reported `e2e_sample_pass_rate=1.0`, `required_step_coverage=1.0`, `document_classification_accuracy=1.0`, `business_key_accuracy=1.0`, `rule_result_accuracy=1.0`, `report_generation_accuracy=1.0`, `evidence_index_accuracy=1.0`, `high_risk_guardrail_accuracy=1.0`, `e2e_success_rate=1.0`, `control_table_accuracy=1.0`, `exception_detection_f1=1.0`, `evidence_completeness=1.0`, and `review_resolution_rate=1.0`. It remains a synthetic single-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full real DB/API workflow coverage. OCR, classification, extraction, rule, RAG, Agent, and E2E have dataset-driven manual acceptance results; regression does not yet have equivalent dataset-driven coverage.
+
 ## Metrics
 
 `evaluation_results.metrics` stores compact metrics such as:

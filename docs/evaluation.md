@@ -35,7 +35,7 @@ Supported eval types:
 
 ## Manual Acceptance Datasets
 
-Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, deterministic rule sample validation, synthetic inline-document RAG validation, synthetic Agent workflow contract validation, synthetic E2E workflow contract validation, and regression aggregation:
+Evaluation Center supports a manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction source-evidence validation, deterministic rule sample validation, synthetic inline-document RAG validation, synthetic Agent workflow contract validation, persistent RAG DB workflow validation, Agent DB workflow validation, synthetic E2E workflow contract validation, full DB workflow validation, and regression aggregation:
 
 ```text
 evals/datasets/<dataset_name>/dataset_manifest.json
@@ -45,6 +45,8 @@ evals/datasets/<dataset_name>/extraction.json
 evals/datasets/<dataset_name>/rule.json
 evals/datasets/<dataset_name>/rag.json
 evals/datasets/<dataset_name>/agent.json
+evals/datasets/<dataset_name>/persistent_rag_workflow.json
+evals/datasets/<dataset_name>/agent_db_workflow.json
 evals/datasets/<dataset_name>/e2e.json
 evals/datasets/<dataset_name>/full_db_workflow.json
 evals/datasets/<dataset_name>/regression.json
@@ -66,6 +68,8 @@ The manifest declares dataset metadata and the per-type files:
     "rule": "rule.json",
     "rag": "rag.json",
     "agent": "agent.json",
+    "persistent_rag_workflow": "persistent_rag_workflow.json",
+    "agent_db_workflow": "agent_db_workflow.json",
     "end_to_end": "e2e.json",
     "full_db_workflow": "full_db_workflow.json",
     "regression": "regression.json"
@@ -163,9 +167,9 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 }
 ```
 
-The extraction dataset runner uses deterministic text extraction on `input.text` and compares `expected.fields` for field presence, `value`, `value_normalized`, `item_lines`, and field-level source traceability. `source_bbox` can be optional for text-only synthetic samples. This runner does not call a real LLM provider and does not exercise the full uploaded-document DB workflow.
+The extraction dataset runner uses deterministic extraction on `input.text` and compares `expected.fields` for field presence, `value`, `value_normalized`, `item_lines`, and field-level source traceability. Samples may include `input.ocr_pages` / `input.ocr_blocks`; when `require_source_bbox=true`, field and line-item bbox must resolve from those OCR blocks. Text-only samples may set `require_source_bbox=false`. This runner does not call a real LLM provider.
 
-Local manual validation has run successfully for `manual_acceptance` with `eval_type=extraction` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used one synthetic invoice sample, produced zero failed cases, and reported `extraction_sample_pass_rate=1.0`, `extraction_field_accuracy=1.0`, `field_presence_accuracy=1.0`, `normalized_value_accuracy=1.0`, `item_line_accuracy=1.0`, `source_page_coverage=1.0`, `source_text_coverage=1.0`, and `source_bbox_coverage=0.0`. The zero bbox coverage is expected for this text-only sample because `require_source_bbox=false`. It remains a synthetic single-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full uploaded-document DB workflow coverage.
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=extraction` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The committed dataset now includes a text-only sample and an OCR-block fixture sample that requires `source_bbox=true`; it validates field and line-item `source_page`, `source_text`, and `source_bbox` coverage. It remains synthetic, non-production manual acceptance; do not interpret it as production-scale extraction quality or real Provider evidence.
 
 `rule.json` contains synthetic deterministic rule samples:
 
@@ -240,6 +244,10 @@ This RAG dataset path is not full persistent vector-store, four-library, workpap
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=rag` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic inline-document samples, produced zero failed cases, and reported `rag_sample_pass_rate=1.0`, `answer_text_accuracy=1.0`, `citation_presence_accuracy=1.0`, `citation_document_accuracy=1.0`, `no_answer_accuracy=1.0`, `recall_at_k=1.0`, `citation_accuracy=1.0`, and `groundedness=1.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full persistent vector-store / four-library / workpaper-scope RAG workflow coverage. OCR, classification, extraction, rule, RAG, Agent, E2E, full DB workflow, and regression now have dataset-driven manual acceptance coverage; production-scale real/desensitized coverage remains external.
 
+`persistent_rag_workflow.json` contains a Phase B DB workflow sample. The runner creates real `rag_documents` and `rag_chunks`, indexes deterministic embeddings through the project RAG pipeline, queries `regulation`, `inquiry_case`, `prospectus`, and `workpaper`, validates chunk metadata, citations, no-answer behavior, metadata filters, and workpaper `task_id` scope isolation. Ordinary pytest uses deterministic/local providers; real embedding/rerank/answer Provider quality remains a separate external integration requirement.
+
+This persistent RAG workflow path closes the previous code/test gap for vector-store and workpaper-scope evaluation plumbing. It is still synthetic/manual acceptance and must not be described as production RAG fully satisfied without real/desensitized labeled RAG datasets and configured external Provider evidence.
+
 `agent.json` contains synthetic Agent workflow contract samples:
 
 ```json
@@ -273,6 +281,10 @@ The Agent dataset runner simulates workflow contract decisions from `input.avail
 This Agent dataset path is not full agent DB workflow, retry, review-center integration, report generation, or production Agent evaluation coverage. Real AgentService workflow still needs E2E or integration evaluation.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=agent` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic workflow contract samples, produced zero failed cases, and reported `agent_sample_pass_rate=1.0`, `workflow_success_accuracy=1.0`, `required_tool_coverage=1.0`, `forbidden_tool_violation_rate=0.0`, `review_routing_accuracy=1.0`, `conclusion_guardrail_accuracy=1.0`, `final_status_accuracy=1.0`, `workflow_success_rate=1.0`, `step_failure_rate=0.0`, `human_review_routing_accuracy=1.0`, `state_transition_validity=1.0`, `retry_recovery_rate=1.0`, `rule_engine_required=1.0`, and `high_risk_auto_confirm_rate=0.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full `agent_runs` / `agent_steps` DB workflow coverage.
+
+`agent_db_workflow.json` contains a Phase B DB workflow sample. The runner creates real `agent_runs` and `agent_steps`, uses whitelisted tools, validates state transitions, high-risk review routing, evidence-insufficient/no-citation guardrails, retry of a failed OCR step, and task-scoped Bad Case creation. It uses synthetic DB fixtures and deterministic/local providers in ordinary pytest.
+
+This Agent DB workflow path closes the previous code/test gap for `agent_runs` / `agent_steps`, retry, review routing, Bad Case, and citation guardrail evaluation plumbing. It is not production Agent quality evidence and must not be described as fully satisfied without real/desensitized workflow datasets and configured external Provider evidence.
 
 `e2e.json` contains synthetic workflow contract samples:
 
@@ -365,7 +377,7 @@ A separate API-depth Phase A test exercises the core FastAPI endpoints directly:
     {
       "sample_id": "regression_manual_acceptance_all_001",
       "input": {
-        "required_eval_types": ["ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end", "full_db_workflow"],
+        "required_eval_types": ["ocr", "classification", "extraction", "rule", "rag", "agent", "persistent_rag_workflow", "agent_db_workflow", "end_to_end", "full_db_workflow"],
         "dataset_path": "evals/datasets/manual_acceptance/dataset_manifest.json"
       },
       "expected": {
@@ -373,14 +385,14 @@ A separate API-depth Phase A test exercises the core FastAPI endpoints directly:
         "max_failed_cases": 0,
         "required_dataset_driven": true,
         "required_non_production_flag": true,
-        "required_eval_type_count": 8
+        "required_eval_type_count": 10
       }
     }
   ]
 }
 ```
 
-The regression dataset runner loads the same manifest and aggregates the allowed manual dataset types: `ocr`, `classification`, `extraction`, `rule`, `rag`, `agent`, `end_to_end`, and `full_db_workflow`. It does not call `regression` from inside regression, so recursive runs are blocked. It records per-eval sample counts, failed-case counts, pass rates, dataset-driven flags, and production flags, then checks `all_required_eval_types_pass`, `max_failed_cases`, `required_dataset_driven`, `required_non_production_flag`, and `required_eval_type_count`.
+The regression dataset runner loads the same manifest and aggregates the allowed manual dataset types: `ocr`, `classification`, `extraction`, `rule`, `rag`, `agent`, `persistent_rag_workflow`, `agent_db_workflow`, `end_to_end`, and `full_db_workflow`. It does not call `regression` from inside regression, so recursive runs are blocked. It records per-eval sample counts, failed-case counts, pass rates, dataset-driven flags, and production flags, then checks `all_required_eval_types_pass`, `max_failed_cases`, `required_dataset_driven`, `required_non_production_flag`, and `required_eval_type_count`.
 
 This regression dataset path is an aggregation of the manual acceptance runners. It is still non-production manual acceptance, mixes public and synthetic samples, and does not replace production-scale real/desensitized regression datasets or full DB/API workflow evaluation.
 

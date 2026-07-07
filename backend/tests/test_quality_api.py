@@ -8,13 +8,19 @@ from fastapi.testclient import TestClient
 
 from app.core.config import settings
 from app.db.session import SessionLocal
+from app.models.agent_run import AgentRun
+from app.models.agent_step import AgentStep
 from app.models.audit_result import AuditResult
 from app.models.audit_task import AuditTask
+from app.models.bad_case import BadCase
 from app.models.control_table_row import ControlTableRow
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.document_relation import DocumentRelation
 from app.models.extracted_field import ExtractedField
+from app.models.model_invocation import ModelInvocation
+from app.models.rag_chunk import RagChunk
+from app.models.rag_document import RagDocument
 from app.models.report import Report
 from app.services import evaluation_service
 from app.main import app
@@ -852,6 +858,26 @@ def test_production_readiness_dataset_blocks_without_external_resources() -> Non
     assert result["metrics"]["evaluation_status"] == "blocked_external_dependency"
 
 
+def test_phase_b_production_readiness_workflows_block_without_external_resources() -> None:
+    for eval_type in ("persistent_rag_workflow", "agent_db_workflow"):
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": eval_type,
+                "dataset_name": "production_readiness",
+                "dataset_path": "evals/datasets/production_readiness/dataset_manifest.json",
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["sample_count"] == 0
+        assert result["failed_cases"] == []
+        assert result["metrics"]["external_resource_required"] is True
+        assert result["metrics"]["blocked_external_dependency_count"] == 1
+        assert result["metrics"]["evaluation_status"] == "blocked_external_dependency"
+
+
 def _phase_a_procurement_documents() -> list[dict]:
     return [
         {
@@ -1101,6 +1127,75 @@ def test_manual_acceptance_agent_manifest_runs_workflow_contracts(monkeypatch) -
         shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
+def test_manual_acceptance_persistent_rag_workflow_uses_vector_store() -> None:
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={
+            "eval_type": "persistent_rag_workflow",
+            "dataset_name": "manual_acceptance",
+            "dataset_path": "evals/datasets/manual_acceptance/dataset_manifest.json",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    metrics = result["metrics"]
+    assert result["sample_count"] == 1
+    assert result["failed_cases"] == []
+    assert metrics["persistent_rag_workflow_success_rate"] == 1.0
+    assert metrics["knowledge_base_coverage"] == 1.0
+    assert metrics["chunk_metadata_accuracy"] == 1.0
+    assert metrics["embedding_invocation_accuracy"] == 1.0
+    assert metrics["retrieval_accuracy"] == 1.0
+    assert metrics["citation_accuracy"] == 1.0
+    assert metrics["no_answer_accuracy"] == 1.0
+    assert metrics["workpaper_scope_accuracy"] == 1.0
+    assert metrics["metadata_filter_accuracy"] == 1.0
+    assert metrics["provider_quality_evaluation"] is False
+    assert metrics["evaluation_status"] == "synthetic_only"
+
+    with SessionLocal() as db:
+        assert db.query(RagDocument).count() == 5
+        assert db.query(RagChunk).count() >= 5
+        assert db.query(ModelInvocation).filter(ModelInvocation.invocation_type == "embed").count() >= 10
+
+
+def test_manual_acceptance_agent_db_workflow_creates_runs_steps_retry_and_bad_cases() -> None:
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={
+            "eval_type": "agent_db_workflow",
+            "dataset_name": "manual_acceptance",
+            "dataset_path": "evals/datasets/manual_acceptance/dataset_manifest.json",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    metrics = result["metrics"]
+    assert result["sample_count"] == 1
+    assert result["failed_cases"] == []
+    assert metrics["agent_db_workflow_success_rate"] == 1.0
+    assert metrics["agent_run_artifact_accuracy"] == 1.0
+    assert metrics["agent_step_artifact_accuracy"] == 1.0
+    assert metrics["tool_whitelist_accuracy"] == 1.0
+    assert metrics["state_transition_accuracy"] == 1.0
+    assert metrics["retry_recovery_accuracy"] == 1.0
+    assert metrics["human_review_routing_accuracy"] == 1.0
+    assert metrics["evidence_insufficient_accuracy"] == 1.0
+    assert metrics["bad_case_creation_accuracy"] == 1.0
+    assert metrics["conclusion_guardrail_accuracy"] == 1.0
+    assert metrics["high_risk_auto_confirm_rate"] == 0.0
+    assert metrics["provider_quality_evaluation"] is False
+    assert metrics["evaluation_status"] == "synthetic_only"
+
+    with SessionLocal() as db:
+        assert db.query(AgentRun).count() >= 2
+        assert db.query(AgentStep).filter(AgentStep.tool_name == "retrieve_evidence").count() >= 1
+        assert db.query(AgentStep).filter(AgentStep.tool_name == "record_bad_case").count() >= 2
+        assert db.query(BadCase).filter(BadCase.case_type == "agent").count() >= 2
+
+
 def test_manual_acceptance_e2e_manifest_runs_procurement_contract(monkeypatch) -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_e2e_unit"
     dataset_dir.mkdir(parents=True, exist_ok=True)
@@ -1219,7 +1314,17 @@ def test_manual_acceptance_regression_manifest_aggregates_dataset_results(monkey
         ),
         encoding="utf-8",
     )
-    required_eval_types = ["ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end"]
+    required_eval_types = [
+        "ocr",
+        "classification",
+        "extraction",
+        "rule",
+        "rag",
+        "agent",
+        "persistent_rag_workflow",
+        "agent_db_workflow",
+        "end_to_end",
+    ]
     (dataset_dir / "regression.json").write_text(
         json.dumps(
             {
@@ -1238,7 +1343,7 @@ def test_manual_acceptance_regression_manifest_aggregates_dataset_results(monkey
                             "max_failed_cases": 0,
                             "required_dataset_driven": True,
                             "required_non_production_flag": True,
-                            "required_eval_type_count": 7,
+                            "required_eval_type_count": 9,
                         },
                     }
                 ],
@@ -1268,13 +1373,13 @@ def test_manual_acceptance_regression_manifest_aggregates_dataset_results(monkey
         assert [call[0] for call in calls] == required_eval_types
         assert result["failed_cases"] == []
         assert metrics["regression_sample_pass_rate"] == 1.0
-        assert metrics["required_eval_type_count"] == 7
-        assert metrics["executed_eval_type_count"] == 7
+        assert metrics["required_eval_type_count"] == 9
+        assert metrics["executed_eval_type_count"] == 9
         assert metrics["total_failed_cases"] == 0
         assert metrics["all_required_eval_types_pass"] is True
         assert metrics["dataset_driven_coverage"] == 1.0
         assert metrics["non_production_flag_accuracy"] == 1.0
-        assert len(metrics["per_eval_type_results"]) == 7
+        assert len(metrics["per_eval_type_results"]) == 9
         assert metrics["dataset_kind"] == "non_production_manual_acceptance"
         assert metrics["is_production_evaluation"] is False
     finally:
@@ -1436,6 +1541,20 @@ def test_evaluation_metrics_cover_required_metric_families() -> None:
         "classification": {"accuracy", "macro_f1", "low_confidence_rate"},
         "ocr": {"cer", "wer", "table_structure_accuracy", "numeric_accuracy", "bbox_quality"},
         "rag": {"recall_at_k", "citation_accuracy", "groundedness", "no_answer_accuracy"},
+        "persistent_rag_workflow": {
+            "persistent_rag_workflow_success_rate",
+            "knowledge_base_coverage",
+            "chunk_metadata_accuracy",
+            "embedding_invocation_accuracy",
+            "workpaper_scope_accuracy",
+        },
+        "agent_db_workflow": {
+            "agent_db_workflow_success_rate",
+            "agent_run_artifact_accuracy",
+            "agent_step_artifact_accuracy",
+            "retry_recovery_accuracy",
+            "bad_case_creation_accuracy",
+        },
         "end_to_end": {
             "e2e_success_rate",
             "control_table_accuracy",

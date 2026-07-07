@@ -49,6 +49,21 @@ Payloads store references and summaries, not full sensitive original text.
 
 Failed runs can retry the failed step through `POST /api/v1/agents/runs/{run_id}/retry`. Retry records another step entry for traceability.
 
+## Phase B Evaluation
+
+`agent_db_workflow` is the strict Phase B Evaluation Center runner for Agent DB workflow plumbing. It creates real `agent_runs` and `agent_steps`, verifies every used tool is whitelisted, checks state transition outcomes, routes high-risk/evidence-insufficient cases to review, retries a failed OCR step, and records task-scoped Bad Cases.
+
+The runner verifies:
+
+- `agent_runs` and ordered `agent_steps` are persisted;
+- tool payloads carry role and `must_not` constraints;
+- retry records a second failed step with `retry_of`;
+- `record_bad_case` creates Bad Case records for failed steps;
+- high-risk items are not auto-confirmed;
+- no conclusion/report is generated when citation evidence is insufficient.
+
+The committed runner uses synthetic DB fixtures and deterministic/local providers. It validates the DB workflow code path, but it is not production Agent quality evidence. Final fully satisfied status still requires real or properly desensitized workflow datasets and configured Provider integration artifacts.
+
 ## Hard Boundaries
 
 - Agent cannot write Rule Engine pass/fail results directly.

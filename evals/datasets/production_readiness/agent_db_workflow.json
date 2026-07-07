@@ -1,0 +1,29 @@
+{
+    "eval_type": "agent_db_workflow",
+    "dataset_name": "production_readiness",
+    "version": "0.1.0",
+    "dataset_kind": "external_production_readiness",
+    "source_type": "external_desensitized_required",
+    "is_production_evaluation": false,
+    "external_resource_required": true,
+    "sample_count": 0,
+    "samples": [],
+    "labels": {
+        "required": "Real or properly desensitized Agent DB workflow labels must be supplied outside the repository."
+    },
+    "expected_evidence": {
+        "required": [
+            "agent_runs",
+            "agent_steps",
+            "retry outcomes",
+            "review routing labels",
+            "evidence_insufficient labels",
+            "bad_case records",
+            "citation guardrail labels"
+        ]
+    },
+    "limitations": [
+        "No real or desensitized production-scale Agent workflow data is committed.",
+        "Running this dataset returns blocked_external_dependency until external resources are supplied."
+    ]
+}

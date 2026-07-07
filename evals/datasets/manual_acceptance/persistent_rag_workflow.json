@@ -1,0 +1,122 @@
+{
+    "eval_type": "persistent_rag_workflow",
+    "dataset_name": "manual_acceptance",
+    "version": "0.1.0",
+    "source_type": "synthetic",
+    "is_production_evaluation": false,
+    "samples": [
+        {
+            "sample_id": "persistent_rag_workflow_phase_b_001",
+            "input": {
+                "documents": [
+                    {
+                        "knowledge_base": "regulation",
+                        "title": "Phase B Regulation Amount Policy",
+                        "text": "PROC_AMOUNT_001 phaseb_regulation amount policy requires contract, invoice, and payment amounts to match.",
+                        "metadata": {
+                            "topic": "amount",
+                            "jurisdiction": "phase_b"
+                        }
+                    },
+                    {
+                        "knowledge_base": "inquiry_case",
+                        "title": "Phase B Inquiry Overpayment Case",
+                        "text": "PROC_AMOUNT_001 phaseb_inquiry overpayment case routed to reviewer with pending human review.",
+                        "metadata": {
+                            "topic": "overpayment",
+                            "case_type": "inquiry"
+                        }
+                    },
+                    {
+                        "knowledge_base": "prospectus",
+                        "title": "Phase B Prospectus Supplier Risk",
+                        "text": "phaseb_prospectus supplier contract risk disclosure links procurement amount evidence to source citation.",
+                        "metadata": {
+                            "topic": "supplier_risk",
+                            "issuer": "phase_b"
+                        }
+                    },
+                    {
+                        "knowledge_base": "workpaper",
+                        "title": "Phase B Primary Workpaper",
+                        "text": "phaseb_workpaper_primary scoped payment evidence belongs only to the primary task.",
+                        "metadata": {
+                            "topic": "workpaper_scope",
+                            "task_scope": "primary"
+                        }
+                    },
+                    {
+                        "knowledge_base": "workpaper",
+                        "title": "Phase B Secondary Workpaper",
+                        "text": "phaseb_workpaper_primary secondary task evidence must not appear in primary task scoped retrieval.",
+                        "metadata": {
+                            "topic": "workpaper_scope",
+                            "task_scope": "secondary"
+                        }
+                    }
+                ],
+                "queries": [
+                    {
+                        "name": "regulation",
+                        "knowledge_base": "regulation",
+                        "query": "phaseb_regulation PROC_AMOUNT_001 amount policy"
+                    },
+                    {
+                        "name": "inquiry_case",
+                        "knowledge_base": "inquiry_case",
+                        "query": "phaseb_inquiry overpayment reviewer"
+                    },
+                    {
+                        "name": "prospectus",
+                        "knowledge_base": "prospectus",
+                        "query": "phaseb_prospectus supplier contract risk"
+                    },
+                    {
+                        "name": "workpaper",
+                        "knowledge_base": "workpaper",
+                        "query": "phaseb_workpaper_primary scoped payment evidence",
+                        "metadata_filter": {
+                            "task_scope": "primary"
+                        }
+                    },
+                    {
+                        "name": "metadata_filter",
+                        "knowledge_base": "regulation",
+                        "query": "phaseb_regulation amount policy",
+                        "metadata_filter": {
+                            "topic": "amount"
+                        }
+                    }
+                ]
+            },
+            "expected": {
+                "status": "completed",
+                "required_knowledge_bases": [
+                    "regulation",
+                    "inquiry_case",
+                    "prospectus",
+                    "workpaper"
+                ],
+                "min_chunk_count": 5,
+                "min_embedding_invocation_count": 5,
+                "min_citation_count": 4,
+                "expected_query_statuses": {
+                    "regulation": "answer",
+                    "inquiry_case": "answer",
+                    "prospectus": "answer",
+                    "workpaper": "answer",
+                    "metadata_filter": "answer"
+                }
+            },
+            "notes": [
+                "Synthetic Phase B persistent RAG workflow sample.",
+                "This uses committed synthetic text only and deterministic/local providers in ordinary tests.",
+                "It validates DB rag_documents/rag_chunks, metadata filters, citations, no-answer, and workpaper task scope."
+            ]
+        }
+    ],
+    "notes": [
+        "Synthetic non-production persistent RAG workflow dataset.",
+        "This is not production-scale RAG quality evidence."
+    ]
+}

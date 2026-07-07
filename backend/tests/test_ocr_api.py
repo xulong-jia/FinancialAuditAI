@@ -300,6 +300,92 @@ def test_azure_document_intelligence_provider_normalizes_layout(monkeypatch) -> 
     assert calls[0].get_header("Ocp-apim-subscription-key") == "test-azure-key"
 
 
+def test_azure_document_intelligence_fixture_preserves_multi_page_complex_table(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "ocr_provider", "azure-document-intelligence")
+    monkeypatch.setattr(settings, "ocr_api_url", "https://azure.example.test")
+    monkeypatch.setattr(settings, "ocr_api_key", "test-azure-key")
+    monkeypatch.setattr(settings, "ocr_model", "prebuilt-layout")
+    monkeypatch.setattr(settings, "ocr_api_version", "2024-11-30")
+
+    azure_result = {
+        "status": "succeeded",
+        "analyzeResult": {
+            "content": "Page 1 Contract\nPage 2 Schedule\nItem Qty Amount\nAudit 2 1000.00",
+            "pages": [
+                {
+                    "pageNumber": 1,
+                    "width": 8.5,
+                    "height": 11,
+                    "unit": "inch",
+                    "lines": [{"content": "Page 1 Contract", "polygon": [1, 1, 4, 1, 4, 2, 1, 2]}],
+                    "words": [
+                        {"content": "Contract", "polygon": [2, 1, 4, 1, 4, 2, 2, 2], "confidence": 0.97}
+                    ],
+                },
+                {
+                    "pageNumber": 2,
+                    "width": 8.5,
+                    "height": 11,
+                    "unit": "inch",
+                    "lines": [
+                        {"content": "Page 2 Schedule", "polygon": [1, 1, 4, 1, 4, 2, 1, 2]},
+                        {"content": "Item Qty Amount", "polygon": [1, 3, 6, 3, 6, 4, 1, 4]},
+                        {"content": "Audit 2 1000.00", "polygon": [1, 4, 6, 4, 6, 5, 1, 5]},
+                    ],
+                    "words": [
+                        {"content": "Audit", "polygon": [1, 4, 2, 4, 2, 5, 1, 5], "confidence": 0.94},
+                        {"content": "1000.00", "polygon": [4, 4, 6, 4, 6, 5, 4, 5], "confidence": 0.92},
+                    ],
+                },
+            ],
+            "tables": [
+                {
+                    "rowCount": 2,
+                    "columnCount": 3,
+                    "boundingRegions": [{"pageNumber": 2, "polygon": [1, 3, 6, 3, 6, 5, 1, 5]}],
+                    "cells": [
+                        {"rowIndex": 0, "columnIndex": 0, "content": "Item", "boundingRegions": [{"pageNumber": 2, "polygon": [1, 3, 2, 3, 2, 4, 1, 4]}], "confidence": 0.96},
+                        {"rowIndex": 0, "columnIndex": 1, "content": "Qty", "boundingRegions": [{"pageNumber": 2, "polygon": [2, 3, 4, 3, 4, 4, 2, 4]}], "confidence": 0.95},
+                        {"rowIndex": 0, "columnIndex": 2, "content": "Amount", "boundingRegions": [{"pageNumber": 2, "polygon": [4, 3, 6, 3, 6, 4, 4, 4]}], "confidence": 0.94},
+                        {"rowIndex": 1, "columnIndex": 0, "content": "Audit", "boundingRegions": [{"pageNumber": 2, "polygon": [1, 4, 2, 4, 2, 5, 1, 5]}], "confidence": 0.93},
+                        {"rowIndex": 1, "columnIndex": 1, "content": "2", "boundingRegions": [{"pageNumber": 2, "polygon": [2, 4, 4, 4, 4, 5, 2, 5]}], "confidence": 0.92},
+                        {"rowIndex": 1, "columnIndex": 2, "content": "1000.00", "boundingRegions": [{"pageNumber": 2, "polygon": [4, 4, 6, 4, 6, 5, 4, 5]}], "confidence": 0.91},
+                    ],
+                }
+            ],
+        },
+    }
+
+    def fake_urlopen(request, timeout):
+        if request.get_method() == "POST":
+            return FakeOcrResponse({}, status=202, headers={"Operation-Location": "https://azure.example.test/operations/complex"})
+        return FakeOcrResponse(azure_result)
+
+    monkeypatch.setattr(ocr_service.urllib.request, "urlopen", fake_urlopen)
+    task = create_task()
+    uploaded = upload_file(task["id"], "complex.pdf", make_pdf(["native page one", "native page two"]), "application/pdf")
+
+    ocr_response = client.post(f"/api/v1/documents/{uploaded['id']}/ocr")
+
+    assert ocr_response.status_code == 200
+    assert ocr_response.json()["page_count"] == 2
+    pages = client.get(f"/api/v1/documents/{uploaded['id']}/pages").json()
+    assert [page["page_number"] for page in pages] == [1, 2]
+    assert pages[0]["raw_text"] == "Page 1 Contract"
+    assert pages[1]["raw_text"] == "Page 2 Schedule\nItem Qty Amount\nAudit 2 1000.00"
+    assert pages[0]["image_path"]
+    assert pages[1]["image_path"]
+    assert pages[1]["ocr_blocks"][0]["bbox"]
+    audit_word = next(block for block in pages[1]["ocr_blocks"] if block["text"] == "Audit")
+    assert audit_word["bbox"] == [1.0, 4.0, 2.0, 5.0]
+    assert audit_word["confidence"] == 0.94
+    assert pages[1]["table_blocks"][0]["type"] == "azure_table"
+    assert pages[1]["table_blocks"][0]["row_count"] == 2
+    assert pages[1]["table_blocks"][0]["column_count"] == 3
+    assert pages[1]["table_blocks"][0]["cells"][5]["text"] == "1000.00"
+    assert pages[1]["table_blocks"][0]["cells"][5]["bbox"] == [4.0, 4.0, 6.0, 5.0]
+
+
 def test_azure_document_intelligence_error_redacts_key(monkeypatch) -> None:
     monkeypatch.setattr(settings, "ocr_provider", "azure")
     monkeypatch.setattr(settings, "ocr_api_url", "https://azure.example.test")

@@ -1,0 +1,44 @@
+{
+    "eval_type": "agent_db_workflow",
+    "dataset_name": "manual_acceptance",
+    "version": "0.1.0",
+    "source_type": "synthetic",
+    "is_production_evaluation": false,
+    "samples": [
+        {
+            "sample_id": "agent_db_workflow_phase_b_001",
+            "input": {
+                "documents": [
+                    {
+                        "filename": "phase_b_purchase_contract.pdf",
+                        "text": "Purchase Contract\nContract No: PHASEB-AGENT-001\nSigning Date: 2026-07-01\nBuyer Name: Demo Company\nSupplier Name: Supplier Co\nItem: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1000.00; Amount: 1000.00\nAmount Including Tax: CNY 1000.00"
+                    },
+                    {
+                        "filename": "phase_b_invoice.pdf",
+                        "text": "Invoice\nInvoice No: PHASEB-INV-001\nInvoice Date: 2026-07-01\nSeller Name: Supplier Co\nBuyer Name: Demo Company\nItem: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1200.00; Amount: 1200.00\nAmount Including Tax: CNY 1200.00\nTax Amount: CNY 109.09"
+                    },
+                    {
+                        "filename": "phase_b_payment_receipt.pdf",
+                        "text": "Payment Receipt\nTransaction No: PHASEB-PAY-001\nPayment Date: 2026-07-01\nPayer Name: Demo Company\nPayee Name: Supplier Co\nAmount: CNY 1200.00\nCurrency: CNY\nPayment Purpose: Payment for contract PHASEB-AGENT-001 and invoice PHASEB-INV-001"
+                    }
+                ]
+            },
+            "expected": {
+                "status": "completed",
+                "min_agent_run_count": 3,
+                "min_review_step_count": 7,
+                "min_retry_failed_step_count": 2,
+                "min_bad_case_count": 2
+            },
+            "notes": [
+                "Synthetic Phase B Agent DB workflow sample.",
+                "This creates real agent_runs and agent_steps in the test database.",
+                "It validates retry, Bad Case creation, review routing, evidence_insufficient, and no-citation conclusion guardrails."
+            ]
+        }
+    ],
+    "notes": [
+        "Synthetic non-production Agent DB workflow dataset.",
+        "This is not production-scale Agent quality evidence."
+    ]
+}

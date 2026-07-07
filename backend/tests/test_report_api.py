@@ -9,6 +9,7 @@ from app.db.session import SessionLocal
 from app.models.audit_result import AuditResult
 from app.models.control_table_row import ControlTableRow
 from app.models.document import Document
+from app.models.document_page import DocumentPage
 from app.models.extracted_field import ExtractedField
 from app.models.report import Report
 from app.services import report_service
@@ -142,6 +143,73 @@ def test_report_xlsx_exports_exceptions_evidence_and_field_corrections() -> None
     field_id_index = evidence_rows[0].index("field_id")
     assert any(row[0] == "audit_result" and row[source_page_index] == 1 for row in evidence_rows[1:])
     assert any(row[0] == "audit_result" and row[field_id_index] for row in evidence_rows[1:])
+
+
+def test_report_evidence_index_round_trips_to_document_page_field_and_bbox() -> None:
+    task, _ = prepare_report_data()
+    with SessionLocal() as db:
+        task_uuid = UUID(task["id"])
+        field = db.query(ExtractedField).filter(ExtractedField.task_id == task_uuid).first()
+        assert field is not None
+        field.source_page = 1
+        field.source_text = field.source_text or f"{field.field_name}: {field.value_text}"
+        field.source_bbox = [10.0, 20.0, 180.0, 36.0]
+        if not db.query(DocumentPage).filter(DocumentPage.document_id == field.document_id).filter(DocumentPage.page_number == 1).first():
+            db.add(
+                DocumentPage(
+                    document_id=field.document_id,
+                    page_number=1,
+                    raw_text=field.source_text,
+                    ocr_blocks=[{"text": field.source_text, "bbox": field.source_bbox, "confidence": 0.99}],
+                    table_blocks=[],
+                    width=595,
+                    height=842,
+                    ocr_engine="report_evidence_test",
+                    warnings=[],
+                )
+            )
+        db.commit()
+    report_response = client.post(f"/api/v1/tasks/{task['id']}/reports/control-table")
+    assert report_response.status_code == 200
+
+    with SessionLocal() as db:
+        task_uuid = UUID(task["id"])
+        documents = db.query(Document).filter(Document.task_id == task_uuid).all()
+        fields = db.query(ExtractedField).filter(ExtractedField.task_id == task_uuid).all()
+        results = db.query(AuditResult).filter(AuditResult.task_id == task_uuid).all()
+        evidence_rows = report_service._evidence_rows(documents, fields, results)
+        headers = evidence_rows[0]
+        type_i = headers.index("reference_type")
+        document_i = headers.index("document_id")
+        field_i = headers.index("field_id")
+        audit_result_i = headers.index("audit_result_id")
+        page_i = headers.index("source_page")
+        bbox_i = headers.index("source_bbox")
+        text_i = headers.index("source_text")
+
+        field_row = next(
+            row
+            for row in evidence_rows[1:]
+            if row[type_i] == "extracted_field" and row[field_i] and row[bbox_i] not in {"", "null"}
+        )
+        field = db.get(ExtractedField, UUID(field_row[field_i]))
+        assert field is not None
+        document = db.get(Document, UUID(field_row[document_i]))
+        assert document is not None
+        page = db.query(DocumentPage).filter(DocumentPage.document_id == document.id).filter(DocumentPage.page_number == field_row[page_i]).one()
+        assert page.raw_text
+        assert field.source_text == field_row[text_i]
+        assert field.source_bbox
+        assert field_row[bbox_i] == report_service._json(field.source_bbox)
+
+        audit_row = next(row for row in evidence_rows[1:] if row[type_i] == "audit_result" and row[audit_result_i] and row[field_i])
+        audit_result = db.get(AuditResult, UUID(audit_row[audit_result_i]))
+        linked_field = db.get(ExtractedField, UUID(audit_row[field_i]))
+        assert audit_result is not None
+        assert linked_field is not None
+        assert linked_field.document_id == UUID(audit_row[document_i])
+        assert audit_row[text_i] == linked_field.source_text
+        assert audit_row[bbox_i] == report_service._json(linked_field.source_bbox)
 
 
 def test_control_table_report_generates_csv_download() -> None:

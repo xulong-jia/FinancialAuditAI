@@ -52,6 +52,21 @@ Citation fields include chunk id, document id, knowledge base, title, section/pa
 
 If retrieval cannot find enough evidence, the response is `no_answer` with limitations. The system does not fabricate citations or conclusions.
 
+## Phase B Evaluation
+
+`persistent_rag_workflow` is the strict Phase B Evaluation Center runner for RAG plumbing. It creates real `rag_documents` and `rag_chunks`, indexes deterministic embeddings through the project RAG service, and queries all four knowledge bases: `regulation`, `inquiry_case`, `prospectus`, and `workpaper`.
+
+The runner verifies:
+
+- chunk metadata is persisted with knowledge base, title, and source type;
+- embedding invocations are recorded;
+- retrieval returns grounded citations;
+- no-answer returns no citations;
+- metadata filters restrict results;
+- workpaper queries require and honor task-scoped `metadata_filter.task_id`.
+
+This is still synthetic/manual acceptance data. It validates the persistent vector-store and workpaper-scope code path, but it is not production RAG quality evidence. Final fully satisfied status still requires real or properly desensitized RAG labels and configured Provider integration artifacts.
+
 ## Boundary
 
 RAG can explain where supporting evidence is located. It cannot directly change `audit_results`, pass/fail status, review decisions, or report conclusions.

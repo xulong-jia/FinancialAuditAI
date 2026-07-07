@@ -27,14 +27,18 @@
     "classification",
     "ocr",
     "extraction",
-    "rule",
-    "rag",
-    "agent",
-    "end_to_end",
-    "full_db_workflow",
-    "regression"
-  ],
-  "files": {
-    "full_db_workflow": "full_db_workflow.json"
-  }
+        "rule",
+        "rag",
+        "agent",
+        "persistent_rag_workflow",
+        "agent_db_workflow",
+        "end_to_end",
+        "full_db_workflow",
+        "regression"
+    ],
+    "files": {
+        "persistent_rag_workflow": "persistent_rag_workflow.json",
+        "agent_db_workflow": "agent_db_workflow.json",
+        "full_db_workflow": "full_db_workflow.json"
+    }
 }

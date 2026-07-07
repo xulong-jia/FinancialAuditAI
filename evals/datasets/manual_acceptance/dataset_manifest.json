@@ -4,26 +4,46 @@
   "dataset_kind": "non_production_manual_acceptance",
   "source_type": "public_and_desensitized",
   "is_production_evaluation": false,
-  "sample_count": 33,
+    "sample_count": 36,
   "labels": {
     "classification": "expected.doc_type",
     "extraction": "expected.fields",
     "rule": "expected.rule_id/status/severity/review_status/evidence",
-    "full_db_workflow": "expected artifact counts and workflow steps"
+        "full_db_workflow": "expected artifact counts and workflow steps",
+        "persistent_rag_workflow": "expected four-knowledge-base persistent RAG workflow artifacts",
+        "agent_db_workflow": "expected agent_runs/agent_steps workflow artifacts"
   },
   "expected_evidence": {
     "rule": ["rule_id", "status", "severity", "evidence", "review_status", "rule_version", "parameters"],
-    "full_db_workflow": [
-      "audit task",
-      "documents",
-      "document_pages",
-      "extracted_fields",
-      "document_relations",
-      "audit_results",
-      "report",
-      "control_table_rows",
-      "evidence_refs"
-    ]
+        "full_db_workflow": [
+            "audit task",
+            "documents",
+            "document_pages",
+            "extracted_fields",
+            "document_relations",
+            "audit_results",
+            "report",
+            "control_table_rows",
+            "evidence_refs"
+        ],
+        "persistent_rag_workflow": [
+            "rag_documents",
+            "rag_chunks",
+            "chunk metadata",
+            "embedding invocation",
+            "retrieval citation",
+            "no-answer",
+            "workpaper task scope"
+        ],
+        "agent_db_workflow": [
+            "agent_runs",
+            "agent_steps",
+            "retry",
+            "review routing",
+            "evidence_insufficient",
+            "bad_case",
+            "no-citation guardrail"
+        ]
   },
   "limitations": [
     "This manifest is non-production manual acceptance.",
@@ -36,9 +56,11 @@
     "classification",
     "extraction",
     "rule",
-    "rag",
-    "agent",
-    "end_to_end",
+        "rag",
+        "agent",
+        "persistent_rag_workflow",
+        "agent_db_workflow",
+        "end_to_end",
     "full_db_workflow",
     "regression"
   ],
@@ -61,9 +83,11 @@
     "classification": "classification.json",
     "extraction": "extraction.json",
     "rule": "rule.json",
-    "rag": "rag.json",
-    "agent": "agent.json",
-    "end_to_end": "e2e.json",
+        "rag": "rag.json",
+        "agent": "agent.json",
+        "persistent_rag_workflow": "persistent_rag_workflow.json",
+        "agent_db_workflow": "agent_db_workflow.json",
+        "end_to_end": "e2e.json",
     "full_db_workflow": "full_db_workflow.json",
     "regression": "regression.json"
   }

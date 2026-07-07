@@ -310,6 +310,8 @@ export type EvalType =
   | "rule"
   | "rag"
   | "agent"
+  | "persistent_rag_workflow"
+  | "agent_db_workflow"
   | "end_to_end"
   | "full_db_workflow"
   | "regression";

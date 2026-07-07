@@ -1,0 +1,29 @@
+{
+    "eval_type": "persistent_rag_workflow",
+    "dataset_name": "production_readiness",
+    "version": "0.1.0",
+    "dataset_kind": "external_production_readiness",
+    "source_type": "external_desensitized_required",
+    "is_production_evaluation": false,
+    "external_resource_required": true,
+    "sample_count": 0,
+    "samples": [],
+    "labels": {
+        "required": "Real or properly desensitized persistent RAG labels must be supplied outside the repository."
+    },
+    "expected_evidence": {
+        "required": [
+            "rag_documents",
+            "rag_chunks",
+            "chunk metadata",
+            "embedding traces",
+            "retrieval citations",
+            "no-answer labels",
+            "workpaper task scope labels"
+        ]
+    },
+    "limitations": [
+        "No real or desensitized production-scale RAG data is committed.",
+        "Running this dataset returns blocked_external_dependency until external resources are supplied."
+    ]
+}

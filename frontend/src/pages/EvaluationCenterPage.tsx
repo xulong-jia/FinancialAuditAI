@@ -25,6 +25,8 @@ const evalTypeOptions: { label: string; value: EvalType }[] = [
   { label: "rule", value: "rule" },
   { label: "rag", value: "rag" },
   { label: "agent", value: "agent" },
+  { label: "persistent_rag_workflow", value: "persistent_rag_workflow" },
+  { label: "agent_db_workflow", value: "agent_db_workflow" },
   { label: "end_to_end", value: "end_to_end" },
   { label: "full_db_workflow", value: "full_db_workflow" },
   { label: "regression", value: "regression" },

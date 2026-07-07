@@ -13,25 +13,27 @@
           "classification",
           "extraction",
           "rule",
-          "rag",
-          "agent",
-          "end_to_end",
-          "full_db_workflow"
-        ],
+                    "rag",
+                    "agent",
+                    "persistent_rag_workflow",
+                    "agent_db_workflow",
+                    "end_to_end",
+                    "full_db_workflow"
+                ],
         "dataset_path": "evals/datasets/manual_acceptance/dataset_manifest.json"
       },
       "expected": {
         "all_required_eval_types_pass": true,
         "max_failed_cases": 0,
-        "required_dataset_driven": true,
-        "required_non_production_flag": true,
-        "required_eval_type_count": 8
-      }
-    }
-  ],
-  "notes": [
-    "Manual acceptance regression sample aggregates previously defined OCR, classification, extraction, rule, RAG, Agent, E2E, and full DB workflow datasets.",
-    "This is not production evaluation.",
+                "required_dataset_driven": true,
+                "required_non_production_flag": true,
+                "required_eval_type_count": 10
+            }
+        }
+    ],
+    "notes": [
+        "Manual acceptance regression sample aggregates previously defined OCR, classification, extraction, rule, RAG, Agent, persistent RAG workflow, Agent DB workflow, E2E, and full DB workflow datasets.",
+        "This is not production evaluation.",
     "This does not add real customer data.",
     "This should not be interpreted as full production regression coverage."
   ]

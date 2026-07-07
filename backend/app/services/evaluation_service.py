@@ -1,6 +1,7 @@
 from pathlib import Path
 from hashlib import sha256
 from datetime import date
+import asyncio
 import json
 import re
 from types import SimpleNamespace
@@ -8,7 +9,7 @@ from uuid import UUID, uuid4
 
 import fitz
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.audit_result import AuditResult
@@ -20,6 +21,8 @@ from app.models.document_page import DocumentPage
 from app.models.document_relation import DocumentRelation
 from app.models.evaluation_result import EvaluationResult
 from app.models.extracted_field import ExtractedField
+from app.models.model_invocation import ModelInvocation
+from app.models.rag_chunk import RagChunk
 from app.models.report import Report
 from app.schemas.quality import EvaluationRunRequest
 from app.services import (
@@ -37,8 +40,31 @@ from app.services import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-MANUAL_DATASET_EVAL_TYPES = {"ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end", "full_db_workflow", "regression"}
-REGRESSION_CHILD_EVAL_TYPES = ("ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end", "full_db_workflow")
+MANUAL_DATASET_EVAL_TYPES = {
+    "ocr",
+    "classification",
+    "extraction",
+    "rule",
+    "rag",
+    "agent",
+    "persistent_rag_workflow",
+    "agent_db_workflow",
+    "end_to_end",
+    "full_db_workflow",
+    "regression",
+}
+REGRESSION_CHILD_EVAL_TYPES = (
+    "ocr",
+    "classification",
+    "extraction",
+    "rule",
+    "rag",
+    "agent",
+    "persistent_rag_workflow",
+    "agent_db_workflow",
+    "end_to_end",
+    "full_db_workflow",
+)
 
 
 def evaluation_datasets_root() -> Path:
@@ -65,6 +91,10 @@ def run_evaluation(db: Session, payload: EvaluationRunRequest) -> EvaluationResu
         sample_count, metrics, failed_cases = _evaluate_rag(db)
     elif payload.eval_type == "agent":
         sample_count, metrics, failed_cases = _evaluate_agent()
+    elif payload.eval_type == "persistent_rag_workflow":
+        sample_count, metrics, failed_cases = _evaluate_persistent_rag_workflow(db)
+    elif payload.eval_type == "agent_db_workflow":
+        sample_count, metrics, failed_cases = _evaluate_agent_db_workflow(db)
     elif payload.eval_type == "end_to_end":
         sample_count, metrics, failed_cases = _evaluate_end_to_end()
     elif payload.eval_type == "full_db_workflow":
@@ -148,7 +178,7 @@ def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: 
     if payload.eval_type not in MANUAL_DATASET_EVAL_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, RAG, Agent, E2E, full DB workflow, and regression evaluation only",
+            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, RAG, Agent, persistent RAG workflow, Agent DB workflow, E2E, full DB workflow, and regression evaluation only",
         )
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     eval_file = files.get(payload.eval_type)
@@ -285,6 +315,10 @@ def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, 
         sample_count, metrics, failed = _evaluate_rag_samples(db, samples)
     elif eval_type == "agent":
         sample_count, metrics, failed = _evaluate_agent_samples(samples)
+    elif eval_type == "persistent_rag_workflow":
+        sample_count, metrics, failed = _evaluate_persistent_rag_workflow_samples(db, samples)
+    elif eval_type == "agent_db_workflow":
+        sample_count, metrics, failed = _evaluate_agent_db_workflow_samples(db, samples)
     elif eval_type == "end_to_end":
         sample_count, metrics, failed = _evaluate_e2e_samples(samples)
     elif eval_type == "full_db_workflow":
@@ -775,7 +809,12 @@ def _evaluate_extraction_samples(samples: list[dict]) -> tuple[int, dict, list[d
             )
             continue
 
-        actual_fields = _extract_text_sample_fields(doc_type, text, str(input_payload.get("scenario") or "procurement"))
+        actual_fields = _extract_text_sample_fields(
+            doc_type,
+            text,
+            str(input_payload.get("scenario") or "procurement"),
+            input_payload,
+        )
         checks = _check_extraction_expected_fields(actual_fields, expected_fields, expected)
         field_total += checks["field_total"]
         field_pass += checks["field_pass"]
@@ -815,12 +854,17 @@ def _evaluate_extraction_samples(samples: list[dict]) -> tuple[int, dict, list[d
     )
 
 
-def _extract_text_sample_fields(doc_type: str, text: str, scenario: str) -> dict[str, dict]:
-    page = SimpleNamespace(page_number=1, raw_text=text, ocr_blocks=[])
+def _extract_text_sample_fields(
+    doc_type: str,
+    text: str,
+    scenario: str,
+    input_payload: dict | None = None,
+) -> dict[str, dict]:
+    pages = _extraction_sample_pages(text, input_payload or {})
     currency = extraction_service._normalize_currency(text)
     fields = {}
     for spec in extraction_service.schema_specs_for(scenario, doc_type):
-        value = extraction_service._extract_field(spec, [page])
+        value = extraction_service._extract_field(spec, pages)
         value_normalized = value.value_normalized
         if currency and isinstance(value_normalized, dict) and "amount" in value_normalized and "currency" not in value_normalized:
             value_normalized = value_normalized | {"currency": currency}
@@ -833,6 +877,28 @@ def _extract_text_sample_fields(doc_type: str, text: str, scenario: str) -> dict
             "warnings": value.warnings,
         }
     return fields
+
+
+def _extraction_sample_pages(text: str, input_payload: dict) -> list[SimpleNamespace]:
+    raw_pages = input_payload.get("ocr_pages") or input_payload.get("pages")
+    pages = raw_pages if isinstance(raw_pages, list) else []
+    normalized = []
+    for index, page in enumerate(pages, start=1):
+        if not isinstance(page, dict):
+            continue
+        page_text = str(page.get("raw_text") or page.get("text") or "")
+        blocks = [block for block in page.get("ocr_blocks") or [] if isinstance(block, dict)]
+        normalized.append(
+            SimpleNamespace(
+                page_number=int(page.get("page_number") or index),
+                raw_text=page_text,
+                ocr_blocks=blocks,
+            )
+        )
+    if normalized:
+        return normalized
+    blocks = [block for block in input_payload.get("ocr_blocks") or [] if isinstance(block, dict)]
+    return [SimpleNamespace(page_number=1, raw_text=text, ocr_blocks=blocks)]
 
 
 def _check_extraction_expected_fields(actual_fields: dict[str, dict], expected_fields: dict, expected: dict) -> dict:
@@ -1346,6 +1412,334 @@ def _rag_tokens(text: str) -> set[str]:
     return {token for token in re.findall(r"[a-z0-9]+", text.lower()) if token not in stopwords}
 
 
+def _evaluate_persistent_rag_workflow(db: Session) -> tuple[int, dict, list[dict]]:
+    return _evaluate_persistent_rag_workflow_samples(db, [_default_persistent_rag_workflow_sample()])
+
+
+def _evaluate_persistent_rag_workflow_samples(db: Session, samples: list[dict]) -> tuple[int, dict, list[dict]]:
+    failed = []
+    hits = {
+        "knowledge_base": 0,
+        "chunk_metadata": 0,
+        "embedding": 0,
+        "retrieval": 0,
+        "citation": 0,
+        "no_answer": 0,
+        "workpaper_scope": 0,
+        "metadata_filter": 0,
+    }
+    for sample in samples:
+        actual = _run_persistent_rag_workflow_sample(db, sample)
+        checks = _persistent_rag_workflow_checks(actual, _sample_expected(sample))
+        for key in hits:
+            hits[key] += int(checks[f"{key}_ok"])
+        if not checks["passed"]:
+            failed.append(_sample_failed_case("rag", sample, actual, {"checks": checks}))
+    total = len(samples)
+    return (
+        total,
+        {
+            "persistent_rag_workflow_pass_rate": _accuracy(total, len(failed)),
+            "persistent_rag_workflow_success_rate": _accuracy(total, len(failed)),
+            "knowledge_base_coverage": _rate(hits["knowledge_base"], total),
+            "chunk_metadata_accuracy": _rate(hits["chunk_metadata"], total),
+            "embedding_invocation_accuracy": _rate(hits["embedding"], total),
+            "retrieval_accuracy": _rate(hits["retrieval"], total),
+            "citation_accuracy": _rate(hits["citation"], total),
+            "no_answer_accuracy": _rate(hits["no_answer"], total),
+            "workpaper_scope_accuracy": _rate(hits["workpaper_scope"], total),
+            "metadata_filter_accuracy": _rate(hits["metadata_filter"], total),
+            "failed_case_count": len(failed),
+            "provider_quality_evaluation": False,
+            "provider_quality_note": (
+                "persistent_rag_workflow validates DB vector-store plumbing with deterministic/local providers; "
+                "it is not real Provider quality evidence."
+            ),
+            "dataset_kind": "persistent_rag_workflow_smoke",
+        },
+        failed,
+    )
+
+
+def _run_persistent_rag_workflow_sample(db: Session, sample: dict) -> dict:
+    input_payload = _sample_input(sample)
+    task_ids = _create_rag_workflow_tasks(db, sample)
+    documents = input_payload.get("documents") if isinstance(input_payload.get("documents"), list) else None
+    documents = documents or _default_persistent_rag_documents()
+    queries = input_payload.get("queries") if isinstance(input_payload.get("queries"), list) else None
+    queries = queries or _default_persistent_rag_queries()
+    initial_embedding_count = _model_invocation_count(db, "embed")
+    try:
+        indexed_documents = [
+            _create_and_index_rag_document(db, document, task_ids)
+            for document in documents
+            if isinstance(document, dict)
+        ]
+        query_results = {
+            str(query.get("name") or query.get("knowledge_base") or index): _run_persistent_rag_query(db, query, task_ids)
+            for index, query in enumerate(queries, start=1)
+            if isinstance(query, dict)
+        }
+        no_answer = _run_persistent_rag_query(
+            db,
+            {
+                "name": "no_answer",
+                "query": "phaseb unmatched custody valuation token",
+                "knowledge_base": "regulation",
+                "metadata_filter": {"phase_b_no_answer": "missing"},
+            },
+            task_ids,
+        )
+        chunks = list(
+            db.scalars(
+                select(RagChunk).where(
+                    RagChunk.rag_document_id.in_([UUID(document["document_id"]) for document in indexed_documents])
+                )
+            )
+        )
+        workpaper_result = query_results.get("workpaper", {})
+        metadata_result = query_results.get("metadata_filter", {})
+        embedding_count = _model_invocation_count(db, "embed") - initial_embedding_count
+        return {
+            "status": "completed",
+            "task_ids": {key: str(value) for key, value in task_ids.items()},
+            "document_count": len(indexed_documents),
+            "chunk_count": len(chunks),
+            "knowledge_bases_indexed": sorted({document["knowledge_base"] for document in indexed_documents}),
+            "chunk_metadata_complete": bool(chunks) and all(
+                chunk.metadata_json.get("knowledge_base") == chunk.knowledge_base
+                and chunk.metadata_json.get("title")
+                and chunk.metadata_json.get("source_type")
+                for chunk in chunks
+            ),
+            "embedding_invocation_count": embedding_count,
+            "query_results": query_results,
+            "retrieval_answer_count": sum(1 for result in query_results.values() if result.get("status") == "answer"),
+            "citation_count": sum(int(result.get("citation_count") or 0) for result in query_results.values()),
+            "no_answer_status": no_answer.get("status"),
+            "no_answer_citation_count": no_answer.get("citation_count"),
+            "workpaper_scope_isolated": bool(workpaper_result.get("citations"))
+            and {citation.get("title") for citation in workpaper_result.get("citations", [])} == {"Phase B Primary Workpaper"},
+            "metadata_filter_matched": bool(metadata_result.get("citations"))
+            and {citation.get("title") for citation in metadata_result.get("citations", [])} == {"Phase B Regulation Amount Policy"},
+        }
+    except HTTPException as exc:
+        db.rollback()
+        status = "blocked_external_dependency" if _looks_like_external_dependency(str(exc.detail)) else "failed"
+        return {"status": status, "error": str(exc.detail)}
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        status = "blocked_external_dependency" if _looks_like_external_dependency(str(exc)) else "failed"
+        return {"status": status, "error": exc.__class__.__name__, "message": str(exc)}
+
+
+def _create_rag_workflow_tasks(db: Session, sample: dict) -> dict[str, UUID]:
+    primary = AuditTask(
+        task_no=f"EVAL-RAG-PRIMARY-{str(sample.get('sample_id') or 'sample')[:18]}-{str(uuid4())[:8]}",
+        name="Phase B persistent RAG primary task",
+        scenario="procurement",
+        project_name="evaluation",
+        company_name="desensitized-or-synthetic",
+        metadata_json={"source": "persistent_rag_workflow_evaluation", "sample_id": sample.get("sample_id")},
+        actor_name="evaluation_service",
+    )
+    secondary = AuditTask(
+        task_no=f"EVAL-RAG-SECONDARY-{str(sample.get('sample_id') or 'sample')[:16]}-{str(uuid4())[:8]}",
+        name="Phase B persistent RAG secondary task",
+        scenario="procurement",
+        project_name="evaluation",
+        company_name="desensitized-or-synthetic",
+        metadata_json={"source": "persistent_rag_workflow_evaluation", "sample_id": sample.get("sample_id")},
+        actor_name="evaluation_service",
+    )
+    db.add_all([primary, secondary])
+    db.commit()
+    return {"primary": primary.id, "secondary": secondary.id}
+
+
+def _create_and_index_rag_document(db: Session, document: dict, task_ids: dict[str, UUID]) -> dict:
+    knowledge_base = str(document.get("knowledge_base") or "regulation")
+    metadata = document.get("metadata") if isinstance(document.get("metadata"), dict) else {}
+    metadata = _rag_workflow_metadata(metadata, knowledge_base, task_ids)
+    rag_document = asyncio.run(
+        rag_service.create_document(
+            db,
+            knowledge_base=knowledge_base,
+            title=str(document.get("title") or f"Phase B {knowledge_base} document"),
+            source_type=str(document.get("source_type") or "phase_b_synthetic"),
+            metadata=metadata,
+            created_by="evaluation_service",
+            content_text=str(document.get("text") or document.get("content") or ""),
+        )
+    )
+    index_result = rag_service.index_document(db, rag_document.id)
+    return {
+        "document_id": str(rag_document.id),
+        "knowledge_base": rag_document.knowledge_base,
+        "title": rag_document.title,
+        "chunk_count": int(index_result.get("chunk_count") or 0),
+        "metadata": metadata,
+    }
+
+
+def _rag_workflow_metadata(metadata: dict, knowledge_base: str, task_ids: dict[str, UUID]) -> dict:
+    resolved = dict(metadata)
+    task_scope = resolved.pop("task_scope", None)
+    if task_scope:
+        resolved["task_id"] = str(task_ids.get(str(task_scope), task_ids["primary"]))
+    elif knowledge_base == "workpaper" and not resolved.get("task_id"):
+        resolved["task_id"] = str(task_ids["primary"])
+    return resolved
+
+
+def _run_persistent_rag_query(db: Session, query: dict, task_ids: dict[str, UUID]) -> dict:
+    knowledge_base = str(query.get("knowledge_base") or "regulation")
+    metadata_filter = query.get("metadata_filter") if isinstance(query.get("metadata_filter"), dict) else {}
+    metadata_filter = _rag_workflow_metadata(metadata_filter, knowledge_base, task_ids)
+    task_id = task_ids["primary"] if knowledge_base == "workpaper" else None
+    result = rag_service.query(
+        db,
+        query_text=str(query.get("query") or ""),
+        knowledge_base=knowledge_base,
+        top_k=int(query.get("top_k") or 3),
+        metadata_filter=metadata_filter,
+        task_id=task_id,
+    )
+    return {
+        "status": result["status"],
+        "answer": result.get("answer"),
+        "citation_count": len(result.get("citations") or []),
+        "citations": [
+            {
+                "document_id": str(citation.get("document_id")),
+                "chunk_id": str(citation.get("chunk_id")),
+                "knowledge_base": citation.get("knowledge_base"),
+                "title": citation.get("title"),
+                "metadata": citation.get("metadata"),
+            }
+            for citation in result.get("citations") or []
+            if isinstance(citation, dict)
+        ],
+    }
+
+
+def _persistent_rag_workflow_checks(actual: dict, expected: dict) -> dict:
+    required_kbs = [str(item) for item in expected.get("required_knowledge_bases") or ["regulation", "inquiry_case", "prospectus", "workpaper"]]
+    query_results = actual.get("query_results") if isinstance(actual.get("query_results"), dict) else {}
+    expected_query_statuses = expected.get("expected_query_statuses") if isinstance(expected.get("expected_query_statuses"), dict) else {}
+    retrieval_ok = all((query_results.get(name) or {}).get("status") == status for name, status in expected_query_statuses.items())
+    if not expected_query_statuses:
+        retrieval_ok = int(actual.get("retrieval_answer_count") or 0) >= int(expected.get("min_answer_queries") or 4)
+    min_chunks = int(expected.get("min_chunk_count") or len(required_kbs))
+    min_embeddings = int(expected.get("min_embedding_invocation_count") or len(required_kbs))
+    min_citations = int(expected.get("min_citation_count") or len(required_kbs))
+    checks = {
+        "status_ok": actual.get("status") == str(expected.get("status") or "completed"),
+        "knowledge_base_ok": set(required_kbs).issubset(set(actual.get("knowledge_bases_indexed") or [])),
+        "chunk_metadata_ok": bool(actual.get("chunk_metadata_complete")) and int(actual.get("chunk_count") or 0) >= min_chunks,
+        "embedding_ok": int(actual.get("embedding_invocation_count") or 0) >= min_embeddings,
+        "retrieval_ok": retrieval_ok,
+        "citation_ok": int(actual.get("citation_count") or 0) >= min_citations,
+        "no_answer_ok": actual.get("no_answer_status") == "no_answer" and int(actual.get("no_answer_citation_count") or 0) == 0,
+        "workpaper_scope_ok": bool(actual.get("workpaper_scope_isolated")),
+        "metadata_filter_ok": bool(actual.get("metadata_filter_matched")),
+    }
+    checks["passed"] = all(bool(value) for value in checks.values())
+    return checks
+
+
+def _default_persistent_rag_workflow_sample() -> dict:
+    return {
+        "sample_id": "persistent-rag-workflow-phase-b",
+        "eval_type": "persistent_rag_workflow",
+        "input": {
+            "documents": _default_persistent_rag_documents(),
+            "queries": _default_persistent_rag_queries(),
+        },
+        "expected": {
+            "status": "completed",
+            "required_knowledge_bases": ["regulation", "inquiry_case", "prospectus", "workpaper"],
+            "min_chunk_count": 5,
+            "min_embedding_invocation_count": 5,
+            "min_citation_count": 4,
+            "expected_query_statuses": {
+                "regulation": "answer",
+                "inquiry_case": "answer",
+                "prospectus": "answer",
+                "workpaper": "answer",
+                "metadata_filter": "answer",
+            },
+        },
+    }
+
+
+def _default_persistent_rag_documents() -> list[dict]:
+    return [
+        {
+            "knowledge_base": "regulation",
+            "title": "Phase B Regulation Amount Policy",
+            "text": "PROC_AMOUNT_001 phaseb_regulation amount policy requires contract, invoice, and payment amounts to match.",
+            "metadata": {"topic": "amount", "jurisdiction": "phase_b"},
+        },
+        {
+            "knowledge_base": "inquiry_case",
+            "title": "Phase B Inquiry Overpayment Case",
+            "text": "PROC_AMOUNT_001 phaseb_inquiry overpayment case routed to reviewer with pending human review.",
+            "metadata": {"topic": "overpayment", "case_type": "inquiry"},
+        },
+        {
+            "knowledge_base": "prospectus",
+            "title": "Phase B Prospectus Supplier Risk",
+            "text": "phaseb_prospectus supplier contract risk disclosure links procurement amount evidence to source citation.",
+            "metadata": {"topic": "supplier_risk", "issuer": "phase_b"},
+        },
+        {
+            "knowledge_base": "workpaper",
+            "title": "Phase B Primary Workpaper",
+            "text": "phaseb_workpaper_primary scoped payment evidence belongs only to the primary task.",
+            "metadata": {"topic": "workpaper_scope", "task_scope": "primary"},
+        },
+        {
+            "knowledge_base": "workpaper",
+            "title": "Phase B Secondary Workpaper",
+            "text": "phaseb_workpaper_primary secondary task evidence must not appear in primary task scoped retrieval.",
+            "metadata": {"topic": "workpaper_scope", "task_scope": "secondary"},
+        },
+    ]
+
+
+def _default_persistent_rag_queries() -> list[dict]:
+    return [
+        {
+            "name": "regulation",
+            "knowledge_base": "regulation",
+            "query": "phaseb_regulation PROC_AMOUNT_001 amount policy",
+        },
+        {
+            "name": "inquiry_case",
+            "knowledge_base": "inquiry_case",
+            "query": "phaseb_inquiry overpayment reviewer",
+        },
+        {
+            "name": "prospectus",
+            "knowledge_base": "prospectus",
+            "query": "phaseb_prospectus supplier contract risk",
+        },
+        {
+            "name": "workpaper",
+            "knowledge_base": "workpaper",
+            "query": "phaseb_workpaper_primary scoped payment evidence",
+            "metadata_filter": {"task_scope": "primary"},
+        },
+        {
+            "name": "metadata_filter",
+            "knowledge_base": "regulation",
+            "query": "phaseb_regulation amount policy",
+            "metadata_filter": {"topic": "amount"},
+        },
+    ]
+
+
 def _evaluate_agent_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
     failed = []
     workflow_hits = required_tool_hits = required_tool_total = forbidden_violations = forbidden_total = 0
@@ -1454,6 +1848,320 @@ def _agent_expected_checks(actual: dict, expected: dict) -> dict:
         )
     )
     return checks
+
+
+def _evaluate_agent_db_workflow(db: Session) -> tuple[int, dict, list[dict]]:
+    return _evaluate_agent_db_workflow_samples(db, [_default_agent_db_workflow_sample()])
+
+
+def _evaluate_agent_db_workflow_samples(db: Session, samples: list[dict]) -> tuple[int, dict, list[dict]]:
+    failed = []
+    hits = {
+        "agent_run": 0,
+        "agent_step": 0,
+        "tool_whitelist": 0,
+        "state_transition": 0,
+        "retry": 0,
+        "review": 0,
+        "evidence_insufficient": 0,
+        "bad_case": 0,
+        "citation_guardrail": 0,
+    }
+    high_risk_auto_confirm_count = 0
+    for sample in samples:
+        actual = _run_agent_db_workflow_sample(db, sample)
+        checks = _agent_db_workflow_checks(actual, _sample_expected(sample))
+        for key in hits:
+            hits[key] += int(checks[f"{key}_ok"])
+        high_risk_auto_confirm_count += int(actual.get("high_risk_auto_confirmed") is True)
+        if not checks["passed"]:
+            failed.append(_sample_failed_case("agent", sample, actual, {"checks": checks}))
+    total = len(samples)
+    return (
+        total,
+        {
+            "agent_db_workflow_pass_rate": _accuracy(total, len(failed)),
+            "agent_db_workflow_success_rate": _accuracy(total, len(failed)),
+            "agent_run_artifact_accuracy": _rate(hits["agent_run"], total),
+            "agent_step_artifact_accuracy": _rate(hits["agent_step"], total),
+            "tool_whitelist_accuracy": _rate(hits["tool_whitelist"], total),
+            "state_transition_accuracy": _rate(hits["state_transition"], total),
+            "retry_recovery_accuracy": _rate(hits["retry"], total),
+            "human_review_routing_accuracy": _rate(hits["review"], total),
+            "evidence_insufficient_accuracy": _rate(hits["evidence_insufficient"], total),
+            "bad_case_creation_accuracy": _rate(hits["bad_case"], total),
+            "conclusion_guardrail_accuracy": _rate(hits["citation_guardrail"], total),
+            "high_risk_auto_confirm_rate": _rate(high_risk_auto_confirm_count, total),
+            "failed_case_count": len(failed),
+            "provider_quality_evaluation": False,
+            "provider_quality_note": (
+                "agent_db_workflow validates persisted agent_runs/agent_steps and guardrails with deterministic/local providers; "
+                "it is not real Provider quality evidence."
+            ),
+            "dataset_kind": "agent_db_workflow_smoke",
+        },
+        failed,
+    )
+
+
+def _run_agent_db_workflow_sample(db: Session, sample: dict) -> dict:
+    input_payload = _sample_input(sample)
+    documents = input_payload.get("documents") if isinstance(input_payload.get("documents"), list) else None
+    documents = documents or _default_agent_db_workflow_documents()
+    try:
+        review_task = _create_agent_db_workflow_task(db, sample, "review")
+        created_documents = [
+            _create_agent_db_ready_document(db, review_task, document, index)
+            for index, document in enumerate(documents, start=1)
+        ]
+        review_run = agent_service.create_run(db, review_task.id)
+        review_steps = agent_service.list_steps(db, review_run.id)
+        audit_results = list(db.scalars(select(AuditResult).where(AuditResult.task_id == review_task.id)))
+        evidence_step = next((step for step in review_steps if step.tool_name == "retrieve_evidence"), None)
+        failed_run, retry_run, retry_steps, bad_case_count = _run_agent_db_retry_probe(db, sample)
+        failed_steps = [step for step in retry_steps if step.status == "failed"]
+        record_bad_case_steps = [step for step in retry_steps if step.tool_name == "record_bad_case"]
+        high_risk_results = [result for result in audit_results if result.status != "pass" and result.severity == "high"]
+        tool_names = [step.tool_name for step in review_steps + retry_steps]
+        output_refs = review_run.output_refs or {}
+        evidence_output = evidence_step.output_payload if evidence_step is not None else {}
+        return {
+            "status": "completed",
+            "review_task_id": str(review_task.id),
+            "document_ids": [str(document.id) for document in created_documents],
+            "agent_run_ids": [str(review_run.id), str(failed_run.id), str(retry_run.id)],
+            "review_run_status": review_run.status,
+            "review_run_state": review_run.current_state,
+            "review_step_count": len(review_steps),
+            "retry_step_count": len(retry_steps),
+            "used_tools": sorted(set(tool_names)),
+            "tool_whitelist_violations": [tool for tool in tool_names if tool not in agent_service.TOOL_WHITELIST],
+            "state_transition_valid": review_run.status == "waiting_review" and review_run.current_state == "HUMAN_REVIEW_REQUIRED",
+            "review_routed": review_run.status == "waiting_review" and bool(output_refs.get("review_queue")),
+            "evidence_insufficient": bool(evidence_output.get("evidence_insufficient")),
+            "conclusion_generated": bool(evidence_output.get("conclusion_generated")),
+            "report_id": output_refs.get("report_id"),
+            "high_risk_result_count": len(high_risk_results),
+            "high_risk_auto_confirmed": any(result.review_status == "confirmed" for result in high_risk_results),
+            "retry_failed_step_count": len(failed_steps),
+            "retry_of_recorded": len(failed_steps) >= 2 and failed_steps[-1].input_payload.get("retry_of") == str(failed_steps[0].id),
+            "bad_case_count": bad_case_count,
+            "record_bad_case_step_count": len(record_bad_case_steps),
+            "audit_result_count": len(audit_results),
+        }
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        status = "blocked_external_dependency" if _looks_like_external_dependency(str(exc)) else "failed"
+        return {"status": status, "error": exc.__class__.__name__, "message": str(exc)}
+
+
+def _run_agent_db_retry_probe(db: Session, sample: dict):
+    task = _create_agent_db_workflow_task(db, sample, "retry")
+    document_id = uuid4()
+    storage_dir = PROJECT_ROOT / "local_storage" / "uploads" / str(task.id)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    storage_path = storage_dir / f"{document_id}.jpg"
+    storage_path.write_bytes(b"\xff\xd8\xffnot-real-image")
+    document = Document(
+        id=document_id,
+        task_id=task.id,
+        uploaded_by_name="evaluation_service",
+        original_filename="phase_b_retry_probe.jpg",
+        file_ext="jpg",
+        content_type="image/jpeg",
+        file_size=storage_path.stat().st_size,
+        file_hash=sha256(storage_path.read_bytes()).hexdigest(),
+        storage_path=str(storage_path.relative_to(PROJECT_ROOT)),
+        metadata_json={"source": "agent_db_workflow_evaluation", "sample_id": sample.get("sample_id")},
+    )
+    db.add(document)
+    db.commit()
+    failed_run = agent_service.create_run(db, task.id)
+    retry_run = agent_service.retry_run(db, failed_run.id)
+    retry_steps = agent_service.list_steps(db, failed_run.id)
+    bad_case_count = db.scalar(select(func.count(BadCase.id)).where(BadCase.task_id == task.id)) or 0
+    return failed_run, retry_run, retry_steps, bad_case_count
+
+
+def _create_agent_db_ready_document(db: Session, task: AuditTask, document: dict, index: int) -> Document:
+    model = _create_full_db_workflow_document(db, task, document, index, source="agent_db_workflow_evaluation")
+    doc_type = str(document.get("doc_type") or _e2e_doc_type(document) or "unknown")
+    business_key = str(document.get("business_key") or "CONTRACT-PHASEB-AGENT-001")
+    model.doc_type = doc_type
+    model.doc_type_confidence = 1.0
+    model.classification_reason = "Phase B Agent DB workflow fixture."
+    model.ocr_status = "completed"
+    model.extraction_status = "completed"
+    model.page_count = 1
+    model.business_key = business_key
+    model.review_status = "pending"
+    text = str(document.get("text") or "")
+    db.add(
+        DocumentPage(
+            document_id=model.id,
+            page_number=1,
+            raw_text=text,
+            ocr_blocks=[{"text": line, "bbox": [10.0, float(20 + i * 16), 500.0, float(34 + i * 16)], "confidence": 0.98} for i, line in enumerate(text.splitlines()) if line.strip()],
+            table_blocks=[],
+            image_path=None,
+            width=595,
+            height=842,
+            ocr_engine="phase_b_fixture",
+            warnings=[],
+        )
+    )
+    for field in _agent_db_fixture_fields(task.id, model.id, doc_type, document):
+        db.add(field)
+    db.commit()
+    db.refresh(model)
+    return model
+
+
+def _agent_db_fixture_fields(task_id: UUID, document_id: UUID, doc_type: str, document: dict) -> list[ExtractedField]:
+    values = document.get("fields") if isinstance(document.get("fields"), dict) else _default_agent_db_fields(doc_type)
+    fields = []
+    for index, (field_name, value) in enumerate(values.items(), start=1):
+        normalized = value if isinstance(value, dict) else {"value": value}
+        amount = normalized.get("amount") if isinstance(normalized, dict) else None
+        value_text = str(amount if amount is not None else normalized.get("value", value))
+        field_type = "money" if amount is not None else "text"
+        fields.append(
+            ExtractedField(
+                task_id=task_id,
+                document_id=document_id,
+                field_name=str(field_name),
+                field_label=str(field_name).replace("_", " ").title(),
+                field_type=field_type,
+                value_text=value_text,
+                value_normalized=normalized,
+                confidence=0.99,
+                source_page=1,
+                source_bbox=[10.0, float(20 + index * 16), 240.0, float(34 + index * 16)],
+                source_text=f"{field_name}: {value_text}",
+                extraction_method="phase_b_fixture",
+                is_required=True,
+                warnings=[],
+            )
+        )
+    return fields
+
+
+def _default_agent_db_fields(doc_type: str) -> dict:
+    if doc_type == "purchase_contract":
+        return {
+            "contract_no": {"value": "PHASEB-AGENT-001"},
+            "supplier_name": {"value": "Supplier Co"},
+            "amount_including_tax": {"amount": 1000.0, "currency": "CNY"},
+        }
+    if doc_type == "invoice":
+        return {
+            "invoice_no": {"value": "PHASEB-INV-001"},
+            "seller_name": {"value": "Supplier Co"},
+            "amount_including_tax": {"amount": 1200.0, "currency": "CNY"},
+        }
+    if doc_type == "payment_receipt":
+        return {
+            "payment_no": {"value": "PHASEB-PAY-001"},
+            "payee_name": {"value": "Supplier Co"},
+            "amount": {"amount": 1200.0, "currency": "CNY"},
+            "payment_purpose": {"value": "Payment for contract PHASEB-AGENT-001 and invoice PHASEB-INV-001"},
+        }
+    return {}
+
+
+def _create_agent_db_workflow_task(db: Session, sample: dict, suffix: str) -> AuditTask:
+    task = AuditTask(
+        task_no=f"EVAL-AGENTDB-{suffix.upper()}-{str(sample.get('sample_id') or 'sample')[:16]}-{str(uuid4())[:8]}",
+        name=f"Agent DB workflow evaluation {suffix}",
+        scenario=str(sample.get("scenario") or _sample_input(sample).get("scenario") or "procurement"),
+        project_name="evaluation",
+        company_name="desensitized-or-synthetic",
+        metadata_json={"source": "agent_db_workflow_evaluation", "sample_id": sample.get("sample_id"), "probe": suffix},
+        actor_name="evaluation_service",
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+def _agent_db_workflow_checks(actual: dict, expected: dict) -> dict:
+    min_review_steps = int(expected.get("min_review_step_count") or 7)
+    min_retry_failed_steps = int(expected.get("min_retry_failed_step_count") or 2)
+    min_bad_cases = int(expected.get("min_bad_case_count") or 2)
+    checks = {
+        "status_ok": actual.get("status") == str(expected.get("status") or "completed"),
+        "agent_run_ok": len(actual.get("agent_run_ids") or []) >= int(expected.get("min_agent_run_count") or 3),
+        "agent_step_ok": int(actual.get("review_step_count") or 0) >= min_review_steps and int(actual.get("retry_step_count") or 0) >= 2,
+        "tool_whitelist_ok": not actual.get("tool_whitelist_violations"),
+        "state_transition_ok": bool(actual.get("state_transition_valid")),
+        "retry_ok": int(actual.get("retry_failed_step_count") or 0) >= min_retry_failed_steps and bool(actual.get("retry_of_recorded")),
+        "review_ok": bool(actual.get("review_routed")) and int(actual.get("high_risk_result_count") or 0) >= 1,
+        "evidence_insufficient_ok": bool(actual.get("evidence_insufficient")),
+        "bad_case_ok": int(actual.get("bad_case_count") or 0) >= min_bad_cases and int(actual.get("record_bad_case_step_count") or 0) >= min_bad_cases,
+        "citation_guardrail_ok": not bool(actual.get("conclusion_generated")) and not actual.get("report_id"),
+        "high_risk_auto_confirm_ok": not bool(actual.get("high_risk_auto_confirmed")),
+    }
+    checks["passed"] = all(bool(value) for value in checks.values())
+    return checks
+
+
+def _default_agent_db_workflow_sample() -> dict:
+    return {
+        "sample_id": "agent-db-workflow-phase-b",
+        "eval_type": "agent_db_workflow",
+        "input": {"documents": _default_agent_db_workflow_documents()},
+        "expected": {
+            "status": "completed",
+            "min_agent_run_count": 3,
+            "min_review_step_count": 7,
+            "min_retry_failed_step_count": 2,
+            "min_bad_case_count": 2,
+        },
+    }
+
+
+def _default_agent_db_workflow_documents() -> list[dict]:
+    return [
+        {
+            "filename": "phase_b_purchase_contract.pdf",
+            "text": (
+                "Purchase Contract\n"
+                "Contract No: PHASEB-AGENT-001\n"
+                "Signing Date: 2026-07-01\n"
+                "Buyer Name: Demo Company\n"
+                "Supplier Name: Supplier Co\n"
+                "Item: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1000.00; Amount: 1000.00\n"
+                "Amount Including Tax: CNY 1000.00"
+            ),
+        },
+        {
+            "filename": "phase_b_invoice.pdf",
+            "text": (
+                "Invoice\n"
+                "Invoice No: PHASEB-INV-001\n"
+                "Invoice Date: 2026-07-01\n"
+                "Seller Name: Supplier Co\n"
+                "Buyer Name: Demo Company\n"
+                "Item: Audit Service; Quantity: 1; Unit: pcs; Unit Price: 1200.00; Amount: 1200.00\n"
+                "Amount Including Tax: CNY 1200.00\n"
+                "Tax Amount: CNY 109.09"
+            ),
+        },
+        {
+            "filename": "phase_b_payment_receipt.pdf",
+            "text": (
+                "Payment Receipt\n"
+                "Transaction No: PHASEB-PAY-001\n"
+                "Payment Date: 2026-07-01\n"
+                "Payer Name: Demo Company\n"
+                "Payee Name: Supplier Co\n"
+                "Amount: CNY 1200.00\n"
+                "Currency: CNY\n"
+                "Payment Purpose: Payment for contract PHASEB-AGENT-001 and invoice PHASEB-INV-001"
+            ),
+        },
+    ]
 
 
 def _evaluate_e2e_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
@@ -1600,7 +2308,13 @@ def _create_full_db_workflow_task(db: Session, sample: dict) -> AuditTask:
     return task
 
 
-def _create_full_db_workflow_document(db: Session, task: AuditTask, document: dict, index: int) -> Document:
+def _create_full_db_workflow_document(
+    db: Session,
+    task: AuditTask,
+    document: dict,
+    index: int,
+    source: str = "full_db_workflow_evaluation",
+) -> Document:
     text = str(document.get("text") or "")
     if not text.strip():
         raise ValueError("full_db_workflow document text is required")
@@ -1623,7 +2337,7 @@ def _create_full_db_workflow_document(db: Session, task: AuditTask, document: di
         file_size=len(data),
         file_hash=sha256(data).hexdigest(),
         storage_path=str(storage_path.relative_to(PROJECT_ROOT)),
-        metadata_json={"source": "full_db_workflow_evaluation", "sample_doc_type": document.get("doc_type")},
+        metadata_json={"source": source, "sample_doc_type": document.get("doc_type")},
     )
     db.add(model)
     db.commit()
@@ -1788,7 +2502,12 @@ def _evaluate_e2e_contract_sample(sample: dict) -> dict:
     documents = [document for document in _sample_input(sample).get("documents") or [] if isinstance(document, dict)]
     classified = [_e2e_doc_type(document) for document in documents]
     fields_by_doc = {
-        doc_type: _extract_text_sample_fields(doc_type, str(document.get("text") or ""), str(sample.get("scenario") or "procurement"))
+        doc_type: _extract_text_sample_fields(
+            doc_type,
+            str(document.get("text") or ""),
+            str(sample.get("scenario") or "procurement"),
+            document,
+        )
         for document, doc_type in zip(documents, classified, strict=False)
         if doc_type
     }
@@ -2203,6 +2922,15 @@ def _transition_ok(current: str, next_state: str) -> bool:
     except HTTPException:
         return False
     return True
+
+
+def _model_invocation_count(db: Session, invocation_type: str) -> int:
+    return int(db.scalar(select(func.count(ModelInvocation.id)).where(ModelInvocation.invocation_type == invocation_type)) or 0)
+
+
+def _looks_like_external_dependency(message: str) -> bool:
+    lowered = message.lower()
+    return any(token in lowered for token in ("api key", "endpoint", "provider", "configured", "credential", "external"))
 
 
 def _failed_case(

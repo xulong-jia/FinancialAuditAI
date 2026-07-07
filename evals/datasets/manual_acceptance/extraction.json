@@ -63,13 +63,92 @@
         "require_source_text": true,
         "require_source_bbox": false
       },
-      "notes": [
-        "Synthetic invoice extraction sample.",
-        "This validates normalized values and source traceability where available.",
-        "source_bbox is not required for this text-only synthetic sample."
-      ]
-    }
-  ],
+            "notes": [
+                "Synthetic invoice extraction sample.",
+                "This validates normalized values and source traceability where available.",
+                "source_bbox is not required for this text-only synthetic sample."
+            ]
+        },
+        {
+            "sample_id": "extraction_invoice_bbox_001",
+            "doc_type": "invoice",
+            "input": {
+                "filename": "invoice_bbox_sample.pdf",
+                "text": "Invoice\nInvoice No: INV-BBOX-001\nInvoice Date: 2026-07-05\nSeller Name: Demo Supplier Pty Ltd\nBuyer Name: Demo Company\nItem: Audit Evidence; Quantity: 3; Unit: pcs; Unit Price: 200.00; Amount: 600.00\nAmount Including Tax: CNY 600.00",
+                "ocr_pages": [
+                    {
+                        "page_number": 1,
+                        "raw_text": "Invoice\nInvoice No: INV-BBOX-001\nInvoice Date: 2026-07-05\nSeller Name: Demo Supplier Pty Ltd\nBuyer Name: Demo Company\nItem: Audit Evidence; Quantity: 3; Unit: pcs; Unit Price: 200.00; Amount: 600.00\nAmount Including Tax: CNY 600.00",
+                        "ocr_blocks": [
+                            {
+                                "text": "Invoice No: INV-BBOX-001",
+                                "bbox": [
+                                    10.0,
+                                    20.0,
+                                    160.0,
+                                    36.0
+                                ],
+                                "confidence": 0.98
+                            },
+                            {
+                                "text": "Item: Audit Evidence; Quantity: 3; Unit: pcs; Unit Price: 200.00; Amount: 600.00",
+                                "bbox": [
+                                    10.0,
+                                    90.0,
+                                    420.0,
+                                    110.0
+                                ],
+                                "confidence": 0.96
+                            },
+                            {
+                                "text": "Amount Including Tax: CNY 600.00",
+                                "bbox": [
+                                    10.0,
+                                    120.0,
+                                    260.0,
+                                    136.0
+                                ],
+                                "confidence": 0.97
+                            }
+                        ]
+                    }
+                ]
+            },
+            "expected": {
+                "fields": {
+                    "invoice_no": {
+                        "value": "INV-BBOX-001"
+                    },
+                    "amount_including_tax": {
+                        "value_normalized": {
+                            "amount": 600.0,
+                            "currency": "CNY"
+                        }
+                    },
+                    "item_lines": {
+                        "min_items": 1,
+                        "items": [
+                            {
+                                "item_name": "Audit Evidence",
+                                "quantity": 3.0,
+                                "unit": "pcs",
+                                "unit_price": 200.0,
+                                "amount": 600.0
+                            }
+                        ]
+                    }
+                },
+                "require_source_page": true,
+                "require_source_text": true,
+                "require_source_bbox": true
+            },
+            "notes": [
+                "Synthetic OCR-block fixture for Phase B extraction evidence closure.",
+                "This sample requires field and line-item source_bbox coverage.",
+                "No real customer data is included."
+            ]
+        }
+    ],
   "notes": [
     "Synthetic extraction samples for manual acceptance.",
     "This is not production evaluation.",

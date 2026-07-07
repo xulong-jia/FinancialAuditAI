@@ -229,6 +229,8 @@ The RAG dataset runner uses only the sample's inline `input.documents` and deter
 
 This RAG dataset path is not full persistent vector-store, four-library, workpaper-scope, or production RAG evaluation coverage.
 
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=rag` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic inline-document samples, produced zero failed cases, and reported `rag_sample_pass_rate=1.0`, `answer_text_accuracy=1.0`, `citation_presence_accuracy=1.0`, `citation_document_accuracy=1.0`, `no_answer_accuracy=1.0`, `recall_at_k=1.0`, `citation_accuracy=1.0`, and `groundedness=1.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full persistent vector-store / four-library / workpaper-scope RAG workflow coverage. OCR, classification, extraction, and rule also have dataset-driven manual acceptance results; Agent, E2E, and regression do not yet have equivalent dataset-driven coverage.
+
 ## Metrics
 
 `evaluation_results.metrics` stores compact metrics such as:

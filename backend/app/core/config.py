@@ -18,6 +18,7 @@ TEST_PROVIDER_ENV = {
     "OCR_PROVIDER": "pymupdf-local",
     "OCR_API_URL": "",
     "OCR_API_KEY": "",
+    "OCR_API_VERSION": "2024-11-30",
     "RAG_RERANK_PROVIDER": "deterministic-fallback",
     "RAG_ANSWER_PROVIDER": "deterministic-fallback",
 }
@@ -65,6 +66,7 @@ class Settings(BaseModel):
     ocr_api_url: str | None = None
     ocr_api_key: str | None = None
     ocr_model: str = "financialauditai-ocr"
+    ocr_api_version: str = "2024-11-30"
     ocr_timeout_seconds: float = 30.0
     llm_provider: str = "deterministic-fallback"
     llm_api_url: str | None = None
@@ -104,6 +106,7 @@ def get_settings() -> Settings:
         ocr_api_url=os.getenv("OCR_API_URL") or None,
         ocr_api_key=os.getenv("OCR_API_KEY") or None,
         ocr_model=os.getenv("OCR_MODEL", "financialauditai-ocr"),
+        ocr_api_version=os.getenv("OCR_API_VERSION", "2024-11-30"),
         ocr_timeout_seconds=float(os.getenv("OCR_TIMEOUT_SECONDS", "30")),
         llm_provider=os.getenv("LLM_PROVIDER", "deterministic-fallback"),
         llm_api_url=os.getenv("LLM_API_URL") or None,

@@ -140,6 +140,34 @@ def test_provider_readiness_http_error_is_sanitized(monkeypatch) -> None:
     assert "unit-test-placeholder-key" not in str(response.json())
 
 
+def test_provider_readiness_azure_ocr_get_model_probe(monkeypatch) -> None:
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen["url"] = request.full_url
+        seen["key"] = request.get_header("Ocp-apim-subscription-key")
+        return _FakeHttpResponse({"modelId": "prebuilt-layout"})
+
+    monkeypatch.setenv("RUN_PROVIDER_INTEGRATION", "1")
+    monkeypatch.setattr(settings, "ocr_provider", "azure-document-intelligence")
+    monkeypatch.setattr(settings, "ocr_api_url", "https://azure.example.test")
+    monkeypatch.setattr(settings, "ocr_api_key", "unit-test-azure-key")
+    monkeypatch.setattr(settings, "ocr_model", "prebuilt-layout")
+    monkeypatch.setattr(settings, "ocr_api_version", "2024-11-30")
+    monkeypatch.setattr(provider_readiness_service.urllib.request, "urlopen", fake_urlopen)
+
+    response = client.get("/api/v1/provider-readiness")
+
+    assert response.status_code == 200
+    ocr = response.json()["providers"]["ocr"]
+    assert ocr["status"] == "ready"
+    assert ocr["probe"] == "get_model_no_document_upload"
+    assert ocr["model_status"] == "present"
+    assert seen["url"] == "https://azure.example.test/documentintelligence/documentModels/prebuilt-layout?api-version=2024-11-30"
+    assert seen["key"] == "unit-test-azure-key"
+    assert "unit-test-azure-key" not in str(response.json())
+
+
 class _FakeHttpResponse:
     def __init__(self, payload: dict) -> None:
         self.payload = payload

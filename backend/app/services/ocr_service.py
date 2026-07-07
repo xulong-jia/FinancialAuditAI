@@ -3,8 +3,9 @@ from __future__ import annotations
 import base64
 import json
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, sleep
 import urllib.error
+import urllib.parse
 import urllib.request
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
@@ -20,6 +21,10 @@ from app.core.config import settings
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.services import audit_log_service, model_invocation_service
+
+
+AZURE_OCR_PROVIDERS = {"azure", "azure-document-intelligence", "azure-document-intelligence-layout"}
+AZURE_API_VERSION = "2024-11-30"
 
 
 class BasicImageOcrProvider:
@@ -62,6 +67,37 @@ class BasicImageOcrProvider:
                 warnings=warnings,
             )
         ]
+
+
+class AzureDocumentIntelligenceOcrProvider:
+    name = "azure-document-intelligence"
+
+    def parse(self, document: Document, path: Path) -> list[DocumentPage]:
+        if not settings.ocr_api_url or not settings.ocr_api_key:
+            raise ValueError("OCR_API_URL and OCR_API_KEY are required for Azure Document Intelligence")
+        analyze_url = _azure_analyze_url(settings.ocr_api_url, settings.ocr_model, settings.ocr_api_version)
+        payload = {"base64Source": base64.b64encode(path.read_bytes()).decode()}
+        request = urllib.request.Request(
+            analyze_url,
+            data=json.dumps(payload).encode(),
+            headers=_azure_headers(settings.ocr_api_key),
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=settings.ocr_timeout_seconds) as response:
+                status = getattr(response, "status", 200)
+                if status == 202:
+                    operation_url = response.headers.get("Operation-Location")
+                    if not operation_url:
+                        raise ValueError("Azure OCR response did not include Operation-Location")
+                    provider_payload = _poll_azure_operation(operation_url, settings.ocr_api_key)
+                else:
+                    provider_payload = json.loads(response.read().decode() or "{}")
+        except urllib.error.HTTPError as exc:
+            raise ValueError(f"Azure OCR request failed: {_http_error_message(exc)}") from exc
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            raise ValueError(f"Azure OCR request failed: {_sanitize_error(str(exc))}") from exc
+        return _pages_from_azure_payload(document, path, provider_payload)
 
 
 class HttpOcrProvider:
@@ -216,13 +252,326 @@ def _parse_document(document: Document, path: Path) -> list[DocumentPage]:
     raise ValueError(f"OCR is not supported for .{document.file_ext}")
 
 
-def _configured_ocr_provider() -> HttpOcrProvider | None:
+def _configured_ocr_provider() -> AzureDocumentIntelligenceOcrProvider | HttpOcrProvider | None:
     provider = (settings.ocr_provider or "pymupdf-local").strip().lower()
     if provider in {"pymupdf", "pymupdf-local", "local"}:
         return None
+    if provider in AZURE_OCR_PROVIDERS:
+        return AzureDocumentIntelligenceOcrProvider()
     if provider in {"http", "external-http", "real"}:
         return HttpOcrProvider()
     raise ValueError("Configured OCR provider is not enabled")
+
+
+def _azure_headers(api_key: str) -> dict[str, str]:
+    return {"Content-Type": "application/json", "Ocp-Apim-Subscription-Key": api_key}
+
+
+def _azure_analyze_url(endpoint: str, model: str, api_version: str | None) -> str:
+    api_version = api_version or AZURE_API_VERSION
+    if "/documentintelligence/documentModels/" in endpoint:
+        return _append_api_version(endpoint, api_version)
+    base = endpoint.rstrip("/")
+    model_id = urllib.parse.quote(model or "prebuilt-layout", safe="")
+    query = urllib.parse.urlencode({"_overload": "analyzeDocument", "api-version": api_version})
+    return f"{base}/documentintelligence/documentModels/{model_id}:analyze?{query}"
+
+
+def _append_api_version(url: str, api_version: str) -> str:
+    if "api-version=" in url:
+        return url
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}{urllib.parse.urlencode({'api-version': api_version})}"
+
+
+def _poll_azure_operation(operation_url: str, api_key: str) -> dict:
+    deadline = perf_counter() + settings.ocr_timeout_seconds
+    last_status = "unknown"
+    while perf_counter() < deadline:
+        request = urllib.request.Request(
+            operation_url,
+            headers=_azure_headers(api_key),
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=settings.ocr_timeout_seconds) as response:
+                payload = json.loads(response.read().decode() or "{}")
+                last_status = str(payload.get("status") or "").lower()
+                if last_status == "succeeded":
+                    return payload
+                if last_status == "failed":
+                    raise ValueError(f"Azure OCR analysis failed: {_azure_result_error(payload)}")
+                if "analyzeResult" in payload and not last_status:
+                    return payload
+                if last_status not in {"notstarted", "running"}:
+                    raise ValueError(f"Azure OCR polling returned unexpected status {last_status or 'missing'}")
+                retry_after = _retry_after_seconds(response.headers.get("Retry-After"))
+        except urllib.error.HTTPError as exc:
+            raise ValueError(f"Azure OCR polling failed: {_http_error_message(exc)}") from exc
+        except (OSError, ValueError, urllib.error.URLError) as exc:
+            raise ValueError(f"Azure OCR polling failed: {_sanitize_error(str(exc))}") from exc
+        sleep(retry_after)
+    raise TimeoutError(f"Azure OCR polling timed out with status {last_status or 'unknown'}")
+
+
+def _retry_after_seconds(value: str | None) -> float:
+    try:
+        return min(max(float(value or 1), 0), 2)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _azure_result_error(payload: dict) -> str:
+    error = payload.get("error")
+    if isinstance(error, dict):
+        message = str(error.get("message") or error.get("code") or "unknown error")
+        return _sanitize_error(message)
+    return "unknown error"
+
+
+def _pages_from_azure_payload(document: Document, path: Path, payload: object) -> list[DocumentPage]:
+    result = payload.get("analyzeResult") if isinstance(payload, dict) else None
+    if not isinstance(result, dict) or not isinstance(result.get("pages"), list):
+        raise ValueError("Azure OCR response must contain analyzeResult.pages")
+    content = str(result.get("content") or "")
+    image_map = _provider_page_images(document, path)
+    tables_by_page = _azure_tables_by_page(result.get("tables"), content)
+    pages = []
+    for index, item in enumerate(result["pages"], start=1):
+        if not isinstance(item, dict):
+            continue
+        page_number = _int_or_none(item.get("pageNumber")) or index
+        raw_text = _azure_page_text(item, content)
+        blocks = _azure_page_blocks(item, content)
+        warnings: list[str] = []
+        confidences = [
+            block["confidence"]
+            for block in blocks
+            if isinstance(block.get("confidence"), (int, float))
+        ]
+        if not blocks and raw_text:
+            warnings.append("azure_blocks_missing")
+            blocks = [{"text": raw_text, "bbox": None, "confidence": None, "confidence_source": "not_reported_by_provider"}]
+        ocr_confidence = round(sum(confidences) / len(confidences), 4) if confidences else None
+        if ocr_confidence is None:
+            warnings.extend(["confidence_unavailable", "ocr_confidence_not_reported_by_provider"])
+        else:
+            warnings.append("ocr_confidence_derived_from_azure_blocks")
+        image_path, image_width, image_height = image_map.get(page_number, (None, None, None))
+        pages.append(
+            DocumentPage(
+                document_id=document.id,
+                page_number=page_number,
+                raw_text=raw_text,
+                ocr_blocks=blocks,
+                table_blocks=tables_by_page.get(page_number, []),
+                image_path=image_path,
+                width=_int_or_none(item.get("width")) or image_width,
+                height=_int_or_none(item.get("height")) or image_height,
+                ocr_engine=f"azure-document-intelligence:{settings.ocr_model}",
+                ocr_confidence=ocr_confidence,
+                warnings=sorted(set(warnings)),
+            )
+        )
+    if not pages:
+        raise ValueError("Azure OCR provider returned no pages")
+    return pages
+
+
+def _azure_page_text(page: dict, content: str) -> str:
+    lines = page.get("lines")
+    if isinstance(lines, list):
+        text = "\n".join(str(line.get("content") or "") for line in lines if isinstance(line, dict)).strip()
+        if text:
+            return text
+    text = _azure_spans_text(content, page.get("spans")).strip()
+    if text:
+        return text
+    words = page.get("words")
+    if isinstance(words, list):
+        return " ".join(str(word.get("content") or "") for word in words if isinstance(word, dict)).strip()
+    return ""
+
+
+def _azure_page_blocks(page: dict, content: str) -> list[dict]:
+    unit = str(page.get("unit") or "") or None
+    blocks = []
+    for line in page.get("lines") or []:
+        if not isinstance(line, dict):
+            continue
+        text = str(line.get("content") or _azure_spans_text(content, line.get("spans"))).strip()
+        if text:
+            blocks.append(
+                {
+                    "text": text,
+                    "bbox": _azure_bbox(line.get("polygon") or line.get("boundingPolygon")),
+                    "confidence": _confidence_or_none(line.get("confidence")),
+                    "confidence_source": "azure_line" if line.get("confidence") is not None else "not_reported_by_provider",
+                    "source": "azure_line",
+                    "unit": unit,
+                }
+            )
+    for word in page.get("words") or []:
+        if not isinstance(word, dict):
+            continue
+        text = str(word.get("content") or _azure_spans_text(content, word.get("span") or word.get("spans"))).strip()
+        if text:
+            blocks.append(
+                {
+                    "text": text,
+                    "bbox": _azure_bbox(word.get("polygon") or word.get("boundingPolygon")),
+                    "confidence": _confidence_or_none(word.get("confidence")),
+                    "confidence_source": "azure_word" if word.get("confidence") is not None else "not_reported_by_provider",
+                    "source": "azure_word",
+                    "unit": unit,
+                }
+            )
+    return blocks
+
+
+def _azure_tables_by_page(raw_tables: object, content: str) -> dict[int, list[dict]]:
+    tables_by_page: dict[int, list[dict]] = {}
+    if not isinstance(raw_tables, list):
+        return tables_by_page
+    for table_index, table in enumerate(raw_tables):
+        if not isinstance(table, dict):
+            continue
+        page_number = _azure_region_page(table.get("boundingRegions")) or _azure_first_cell_page(table.get("cells")) or 1
+        cells = _azure_table_cells(table.get("cells"), content)
+        table_confidence = _average_confidence(cells)
+        table_block = {
+            "type": "azure_table",
+            "table_index": table_index,
+            "row_count": _int_or_none(table.get("rowCount")),
+            "column_count": _int_or_none(table.get("columnCount")),
+            "bbox": _azure_region_bbox(table.get("boundingRegions")),
+            "confidence": table_confidence,
+            "confidence_source": "azure_cells" if table_confidence is not None else "not_reported_by_provider",
+            "cells": cells,
+            "rows": _azure_table_rows(cells),
+        }
+        tables_by_page.setdefault(page_number, []).append(table_block)
+    return tables_by_page
+
+
+def _azure_table_cells(raw_cells: object, content: str) -> list[dict]:
+    cells = []
+    if not isinstance(raw_cells, list):
+        return cells
+    for cell in raw_cells:
+        if not isinstance(cell, dict):
+            continue
+        text = str(cell.get("content") or _azure_spans_text(content, cell.get("spans"))).strip()
+        cells.append(
+            {
+                "row_index": _int_or_none(cell.get("rowIndex")),
+                "column_index": _int_or_none(cell.get("columnIndex")),
+                "row_span": _int_or_none(cell.get("rowSpan")) or 1,
+                "column_span": _int_or_none(cell.get("columnSpan")) or 1,
+                "kind": cell.get("kind"),
+                "text": text,
+                "source_text": text,
+                "bbox": _azure_region_bbox(cell.get("boundingRegions")),
+                "page_number": _azure_region_page(cell.get("boundingRegions")),
+                "confidence": _confidence_or_none(cell.get("confidence")),
+            }
+        )
+    return cells
+
+
+def _azure_table_rows(cells: list[dict]) -> list[dict]:
+    rows: dict[int, list[dict]] = {}
+    for cell in cells:
+        row_index = cell.get("row_index")
+        if isinstance(row_index, int):
+            rows.setdefault(row_index, []).append(cell)
+    result = []
+    for row_index in sorted(rows):
+        row_cells = sorted(rows[row_index], key=lambda item: item.get("column_index") if isinstance(item.get("column_index"), int) else -1)
+        text_cells = [str(cell.get("text") or "") for cell in row_cells]
+        result.append({"row_index": row_index, "cells": text_cells, "source_text": " | ".join(text_cells)})
+    return result
+
+
+def _azure_first_cell_page(raw_cells: object) -> int | None:
+    if not isinstance(raw_cells, list):
+        return None
+    for cell in raw_cells:
+        if isinstance(cell, dict):
+            page_number = _azure_region_page(cell.get("boundingRegions"))
+            if page_number is not None:
+                return page_number
+    return None
+
+
+def _azure_region_page(regions: object) -> int | None:
+    if not isinstance(regions, list) or not regions or not isinstance(regions[0], dict):
+        return None
+    return _int_or_none(regions[0].get("pageNumber"))
+
+
+def _azure_region_bbox(regions: object) -> list[float] | None:
+    if not isinstance(regions, list) or not regions or not isinstance(regions[0], dict):
+        return None
+    return _azure_bbox(regions[0].get("polygon") or regions[0].get("boundingPolygon"))
+
+
+def _azure_bbox(polygon: object) -> list[float] | None:
+    points: list[tuple[float, float]] = []
+    if isinstance(polygon, list):
+        if all(isinstance(item, (int, float)) for item in polygon):
+            values = [float(item) for item in polygon]
+            points = list(zip(values[0::2], values[1::2], strict=False))
+        else:
+            for item in polygon:
+                if isinstance(item, dict) and isinstance(item.get("x"), (int, float)) and isinstance(item.get("y"), (int, float)):
+                    points.append((float(item["x"]), float(item["y"])))
+    if not points:
+        return None
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return [min(xs), min(ys), max(xs), max(ys)]
+
+
+def _azure_spans_text(content: str, spans: object) -> str:
+    if isinstance(spans, dict):
+        spans = [spans]
+    if not isinstance(spans, list):
+        return ""
+    parts = []
+    for span in spans:
+        if not isinstance(span, dict):
+            continue
+        offset = _int_or_none(span.get("offset"))
+        length = _int_or_none(span.get("length"))
+        if offset is not None and length is not None:
+            parts.append(content[offset : offset + length])
+    return " ".join(part for part in parts if part)
+
+
+def _average_confidence(items: list[dict]) -> float | None:
+    confidences = [item["confidence"] for item in items if isinstance(item.get("confidence"), (int, float))]
+    return round(sum(confidences) / len(confidences), 4) if confidences else None
+
+
+def _http_error_message(exc: urllib.error.HTTPError) -> str:
+    raw = exc.read().decode(errors="replace")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return _sanitize_error(f"HTTP {exc.code}: {raw[:500] or exc.reason}")
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(error, dict):
+        message = error.get("message") or exc.reason
+        code = error.get("code")
+        return _sanitize_error(f"HTTP {exc.code}: {code}: {message}" if code else f"HTTP {exc.code}: {message}")
+    return _sanitize_error(f"HTTP {exc.code}: {exc.reason}")
+
+
+def _sanitize_error(text: str) -> str:
+    if settings.ocr_api_key:
+        text = text.replace(settings.ocr_api_key, "[REDACTED]")
+    return text
 
 
 def _pages_from_provider_payload(document: Document, path: Path, payload: object) -> list[DocumentPage]:

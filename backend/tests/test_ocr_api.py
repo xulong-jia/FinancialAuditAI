@@ -21,8 +21,10 @@ ONE_PIXEL_PNG = (
 
 
 class FakeOcrResponse:
-    def __init__(self, payload: dict) -> None:
+    def __init__(self, payload: dict, status: int = 200, headers: dict | None = None) -> None:
         self.payload = payload
+        self.status = status
+        self.headers = headers or {}
 
     def __enter__(self):
         return self
@@ -32,6 +34,9 @@ class FakeOcrResponse:
 
     def read(self) -> bytes:
         return json.dumps(self.payload).encode()
+
+    def close(self) -> None:
+        return None
 
 
 def make_pdf(page_texts: list[str]) -> bytes:
@@ -189,6 +194,134 @@ def test_http_ocr_provider_preserves_provider_confidence(monkeypatch) -> None:
         assert invocation.provider == "external-ocr-v1"
         assert invocation.invocation_type == "ocr"
         assert invocation.status == "success"
+
+
+def test_azure_document_intelligence_provider_normalizes_layout(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "ocr_provider", "azure-document-intelligence")
+    monkeypatch.setattr(settings, "ocr_api_url", "https://azure.example.test")
+    monkeypatch.setattr(settings, "ocr_api_key", "test-azure-key")
+    monkeypatch.setattr(settings, "ocr_model", "prebuilt-layout")
+    monkeypatch.setattr(settings, "ocr_api_version", "2024-11-30")
+
+    calls = []
+    azure_result = {
+        "status": "succeeded",
+        "analyzeResult": {
+            "content": "Invoice Total\nInvoice\n100.00",
+            "pages": [
+                {
+                    "pageNumber": 1,
+                    "width": 8.5,
+                    "height": 11,
+                    "unit": "inch",
+                    "lines": [
+                        {
+                            "content": "Invoice Total",
+                            "polygon": [1, 1, 3, 1, 3, 2, 1, 2],
+                        }
+                    ],
+                    "words": [
+                        {
+                            "content": "Invoice",
+                            "polygon": [1, 1, 1.8, 1, 1.8, 2, 1, 2],
+                            "confidence": 0.97,
+                        },
+                        {
+                            "content": "Total",
+                            "polygon": [2, 1, 3, 1, 3, 2, 2, 2],
+                            "confidence": 0.95,
+                        },
+                    ],
+                }
+            ],
+            "tables": [
+                {
+                    "rowCount": 1,
+                    "columnCount": 2,
+                    "boundingRegions": [{"pageNumber": 1, "polygon": [1, 3, 5, 3, 5, 4, 1, 4]}],
+                    "cells": [
+                        {
+                            "rowIndex": 0,
+                            "columnIndex": 0,
+                            "content": "Invoice",
+                            "boundingRegions": [{"pageNumber": 1, "polygon": [1, 3, 3, 3, 3, 4, 1, 4]}],
+                            "confidence": 0.91,
+                        },
+                        {
+                            "rowIndex": 0,
+                            "columnIndex": 1,
+                            "content": "100.00",
+                            "boundingRegions": [{"pageNumber": 1, "polygon": [3, 3, 5, 3, 5, 4, 3, 4]}],
+                            "confidence": 0.93,
+                        },
+                    ],
+                }
+            ],
+        },
+    }
+
+    def fake_urlopen(request, timeout):
+        calls.append(request)
+        if request.get_method() == "POST":
+            payload = json.loads(request.data.decode())
+            assert payload["base64Source"]
+            return FakeOcrResponse(
+                {},
+                status=202,
+                headers={"Operation-Location": "https://azure.example.test/operations/1"},
+            )
+        return FakeOcrResponse(azure_result)
+
+    monkeypatch.setattr(ocr_service.urllib.request, "urlopen", fake_urlopen)
+    task = create_task()
+    uploaded = upload_file(task["id"], "contract.pdf", make_pdf(["native text ignored by azure"]), "application/pdf")
+
+    ocr_response = client.post(f"/api/v1/documents/{uploaded['id']}/ocr")
+
+    assert ocr_response.status_code == 200
+    assert ocr_response.json()["ocr_status"] == "completed"
+    pages = client.get(f"/api/v1/documents/{uploaded['id']}/pages").json()
+    assert pages[0]["raw_text"] == "Invoice Total"
+    assert pages[0]["ocr_engine"] == "azure-document-intelligence:prebuilt-layout"
+    assert pages[0]["ocr_confidence"] == 0.96
+    invoice_word = next(block for block in pages[0]["ocr_blocks"] if block["text"] == "Invoice")
+    assert invoice_word["bbox"] == [1.0, 1.0, 1.8, 2.0]
+    assert invoice_word["confidence"] == 0.97
+    assert invoice_word["confidence_source"] == "azure_word"
+    assert pages[0]["table_blocks"][0]["type"] == "azure_table"
+    assert pages[0]["table_blocks"][0]["confidence"] == 0.92
+    assert pages[0]["table_blocks"][0]["cells"][0]["bbox"] == [1.0, 3.0, 3.0, 4.0]
+
+    assert calls[0].full_url == (
+        "https://azure.example.test/documentintelligence/documentModels/"
+        "prebuilt-layout:analyze?_overload=analyzeDocument&api-version=2024-11-30"
+    )
+    assert calls[1].full_url == "https://azure.example.test/operations/1"
+    assert calls[0].get_header("Ocp-apim-subscription-key") == "test-azure-key"
+
+
+def test_azure_document_intelligence_error_redacts_key(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "ocr_provider", "azure")
+    monkeypatch.setattr(settings, "ocr_api_url", "https://azure.example.test")
+    monkeypatch.setattr(settings, "ocr_api_key", "test-azure-key")
+    monkeypatch.setattr(settings, "ocr_model", "prebuilt-layout")
+    monkeypatch.setattr(settings, "ocr_api_version", "2024-11-30")
+
+    def fake_urlopen(request, timeout):
+        payload = {"error": {"code": "InvalidKey", "message": "bad test-azure-key"}}
+        raise ocr_service.urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, FakeOcrResponse(payload))
+
+    monkeypatch.setattr(ocr_service.urllib.request, "urlopen", fake_urlopen)
+    task = create_task()
+    uploaded = upload_file(task["id"], "contract.pdf", make_pdf(["text"]), "application/pdf")
+
+    response = client.post(f"/api/v1/documents/{uploaded['id']}/ocr")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ocr_status"] == "failed"
+    assert "test-azure-key" not in body["ocr_error"]
+    assert "[REDACTED]" in body["ocr_error"]
 
 
 def test_ocr_failure_does_not_hide_task_or_document() -> None:

@@ -11,6 +11,8 @@
 | 项目 | 状态 | 代码证据 | 测试证据 |
 | --- | --- | --- | --- |
 | OCR Provider 配置路径 | 已补齐 HTTP Provider 基础闭环 | `backend/app/core/config.py`, `backend/app/services/ocr_service.py`, `.env.example` | `backend/tests/test_ocr_api.py::test_http_ocr_provider_preserves_provider_confidence` |
+| Azure Document Intelligence OCR Provider | 已补齐 `azure-document-intelligence` / `azure` / `azure-document-intelligence-layout` adapter；使用 Azure Document Intelligence REST API `2024-11-30`、`prebuilt-layout`，将 Azure `analyzeResult.pages` / lines / words / tables 正规化为 `DocumentPage` / `ocr_blocks` / `table_blocks` / confidence / bbox | `backend/app/services/ocr_service.py`, `backend/app/core/config.py`, `.env.example` | `backend/tests/test_ocr_api.py::test_azure_document_intelligence_provider_normalizes_layout`, `backend/tests/test_ocr_api.py::test_azure_document_intelligence_error_redacts_key` |
+| Azure OCR readiness | 已补齐 Azure Provider configured/blocked/ready 状态；`RUN_PROVIDER_INTEGRATION=1` 使用 `GET documentModels/{model}` 轻量探测，不上传真实 OCR 文件 | `backend/app/services/provider_readiness_service.py` | `backend/tests/test_health_api.py::test_provider_readiness_azure_ocr_get_model_probe` |
 | OCR Provider 配置展示 | 已补齐 Admin Center 展示 | `backend/app/api/router.py`, `frontend/src/types/api.ts`, `frontend/src/pages/AdminCenterPage.tsx` | `npm run build` |
 | Embedding Provider 独立配置 | 已补齐 endpoint/key/model 配置 | `backend/app/core/config.py`, `backend/app/services/rag_service.py`, `.env.example` | `backend/tests/test_final_gap_closure_api.py::test_real_embedding_provider_requests_configured_vector_dimensions` |
 | Embedding 维度兼容 | 已在真实 provider 请求中显式传入 32 维 | `backend/app/services/rag_service.py` | 同上 |
@@ -40,7 +42,7 @@
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 159 passed, 5 warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 166 passed, 5 warnings |
 | `cd frontend && npm test` | PASS, 4 tests |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
@@ -75,7 +77,7 @@
 | --- | --- | --- |
 | deterministic classification fallback | 默认未配置 Provider 时仍存在；OpenAI-compatible provider path 已测 | 是，直到真实/本地 Provider 配置完成 |
 | regex extraction fallback | 默认未配置 Provider 时仍存在；OpenAI-compatible provider path 已测 | 是，直到真实/本地 Provider 配置完成 |
-| PyMuPDF OCR confidence unavailable | 默认本地路径仍存在 warning；HTTP OCR Provider 可保留真实 confidence | 默认路径仍影响完全满足 |
+| PyMuPDF OCR confidence unavailable | 默认本地路径仍存在 warning；Azure Document Intelligence / HTTP OCR Provider 可保留真实 confidence、bbox、table_blocks | 默认路径仍影响完全满足；Azure 真实调用依赖本地 `.env` 和 Azure key |
 | deterministic/local RAG embedding/rerank/answer | 默认未配置 Provider 时仍存在；embedding/rerank/answer provider path 已测 | 是，直到真实/本地 Provider 完成验收 |
 | explain deterministic fallback | 默认未配置 Provider 时仍 fallback；OpenAI-compatible explain provider path 已测 | 是，直到真实/本地 Provider 完成验收 |
 | agent failure bad case | 失败步骤已自动进入 `agent` Bad Case，重试会保留独立记录 | 不再作为 Bad Case 闭环缺口 |
@@ -91,7 +93,9 @@
 - OpenAI-compatible readiness 支持 `LLM_API_MODE=auto` / `responses` / `chat_completions`；`auto` 对 `gpt-5*` readiness 使用 Responses API，其余默认兼容旧 `/chat/completions` provider。
 - 真实网络 integration 只能显式设置 `RUN_PROVIDER_INTEGRATION=1` 后触发；无 key 或 endpoint 时状态为 `blocked_external_dependency`，不能声明 fully satisfied。
 - readiness 输出只包含 provider/model 和 `api_url_status` / `api_key_status`，不得输出 API key。
-- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider，结果为 163 passed / 5 warnings。OCR 仍为 `pymupdf-local` fallback，真实 OCR confidence 仍属于 `blocked_external_dependency`。
+- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider；本轮新增 Azure OCR adapter 后结果为 166 passed / 5 warnings。
+- Azure Document Intelligence OCR adapter 已实现；真实 readiness 依赖本地 `.env` 中 `OCR_PROVIDER=azure-document-intelligence`、`OCR_API_URL`、`OCR_API_KEY`、`OCR_MODEL=prebuilt-layout`，并通过显式 `RUN_PROVIDER_INTEGRATION=1` 触发轻量 model probe。OCR confidence、bbox、table_blocks 必须来自 Azure 原始响应，不得伪造；无 Azure key/endpoint 时仍属于 `blocked_external_dependency`。
+- Azure Document Intelligence 可使用 F0 免费层进行学习和小规模验证，但免费层页数和速率有限，不能替代最终真实样本验收。
 
 ## 下一轮最高优先级
 

@@ -19,6 +19,7 @@ TEST_PROVIDER_ENV = {
     "OCR_PROVIDER": "pymupdf-local",
     "OCR_API_URL": "",
     "OCR_API_KEY": "",
+    "OCR_API_VERSION": "2024-11-30",
     "RAG_RERANK_PROVIDER": "deterministic-fallback",
     "RAG_ANSWER_PROVIDER": "deterministic-fallback",
 }

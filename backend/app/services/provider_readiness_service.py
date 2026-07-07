@@ -5,6 +5,7 @@ import os
 import re
 from time import perf_counter
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from app.core.config import settings
@@ -12,6 +13,7 @@ from app.services import rag_service
 
 REAL_PROVIDERS = {"openai", "openai-compatible", "real"}
 LOCAL_LLM_PROVIDERS = {"local", "local-http", "local-llm"}
+AZURE_OCR_PROVIDERS = {"azure", "azure-document-intelligence", "azure-document-intelligence-layout"}
 
 
 def readiness(run_integration: bool | None = None) -> dict:
@@ -21,7 +23,7 @@ def readiness(run_integration: bool | None = None) -> dict:
         "providers": {
             "llm": _llm_status(settings.llm_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, enabled),
             "embedding": _embedding_status(enabled),
-            "ocr": _configured_status(settings.ocr_provider, settings.ocr_api_url, settings.ocr_api_key, settings.ocr_model),
+            "ocr": _ocr_status(enabled),
             "rag_rerank": _llm_status(settings.rag_rerank_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, enabled, purpose="rag_rerank"),
             "rag_answer": _llm_status(settings.rag_answer_provider, settings.llm_api_url, settings.llm_api_key, settings.llm_model, enabled, purpose="rag_answer"),
         },
@@ -73,6 +75,73 @@ def _embedding_status(run_integration: bool) -> dict:
     except Exception as exc:  # noqa: BLE001
         return status | {"status": "failed", "error": str(exc)}
     return status | {"status": "ready"}
+
+
+def _ocr_status(run_integration: bool) -> dict:
+    normalized = (settings.ocr_provider or "").strip().lower()
+    if normalized not in AZURE_OCR_PROVIDERS:
+        return _configured_status(settings.ocr_provider, settings.ocr_api_url, settings.ocr_api_key, settings.ocr_model)
+    payload = {
+        "provider": settings.ocr_provider,
+        "model": settings.ocr_model,
+        "api_version": settings.ocr_api_version,
+        "api_url_status": "configured" if settings.ocr_api_url else "not_configured",
+        "api_key_status": "configured" if settings.ocr_api_key else "not_configured",
+    }
+    if not settings.ocr_api_url or not settings.ocr_api_key or not settings.ocr_model:
+        return payload | {"status": "blocked_external_dependency"}
+    if not run_integration:
+        return payload | {"status": "configured"}
+    return payload | _probe_azure_ocr_model()
+
+
+def _probe_azure_ocr_model() -> dict:
+    started = perf_counter()
+    request = urllib.request.Request(
+        _azure_model_url(settings.ocr_api_url or "", settings.ocr_model, settings.ocr_api_version),
+        headers={"Ocp-Apim-Subscription-Key": settings.ocr_api_key or ""},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=settings.ocr_timeout_seconds) as response:
+            payload = json.loads(response.read().decode() or "{}")
+        return {
+            "status": "ready",
+            "latency_ms": int((perf_counter() - started) * 1000),
+            "model_status": "present" if isinstance(payload, dict) and payload.get("modelId") else "not_parsed_2xx",
+            "probe": "get_model_no_document_upload",
+        }
+    except urllib.error.HTTPError as exc:
+        return {
+            "status": "failed",
+            "latency_ms": int((perf_counter() - started) * 1000),
+            "http_status": exc.code,
+            "error": _http_error_payload(exc),
+            "probe": "get_model_no_document_upload",
+        }
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        return {
+            "status": "failed",
+            "latency_ms": int((perf_counter() - started) * 1000),
+            "error": {"message": _sanitize(str(exc))},
+            "probe": "get_model_no_document_upload",
+        }
+
+
+def _azure_model_url(endpoint: str, model: str, api_version: str) -> str:
+    if "/documentintelligence/documentModels/" in endpoint:
+        base = endpoint.split(":analyze", 1)[0] if ":analyze" in endpoint else endpoint
+        return _append_api_version(base, api_version)
+    base = endpoint.rstrip("/")
+    model_id = urllib.parse.quote(model or "prebuilt-layout", safe="")
+    return f"{base}/documentintelligence/documentModels/{model_id}?{urllib.parse.urlencode({'api-version': api_version})}"
+
+
+def _append_api_version(url: str, api_version: str) -> str:
+    if "api-version=" in url:
+        return url
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}{urllib.parse.urlencode({'api-version': api_version})}"
 
 
 def _probe_llm(api_url: str | None, api_key: str | None, model: str, api_mode: str) -> dict:

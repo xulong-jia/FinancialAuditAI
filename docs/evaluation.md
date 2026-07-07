@@ -130,6 +130,8 @@ Local OCR external acceptance Azure integration has been run with `RUN_PROVIDER_
 
 This Azure integration result is recorded only as a sanitized summary. The `local_storage` files were not committed, API keys and `.env` were not recorded, Authorization headers were not recorded, and the full raw OCR response was not stored. It must not be interpreted as a real or desensitized production OCR dataset.
 
+SROIE public OCR Azure integration has also been run after normalized matching with `RUN_PROVIDER_INTEGRATION=1`, `eval_type=ocr`, `dataset_name=sroie_public_ocr_acceptance`, `dataset_path=local_storage/external_acceptance/production_dataset/ocr/sroie_selected/sroie_external_manifest.json`, and `model_name=azure-document-intelligence:prebuilt-layout`. It covered five public receipt samples and validated OCR text containment, page count, OCR blocks, bbox, confidence, table requirement, key information, `box_line_count`, normalized text matching, and fuzzy address matching. The summarized result was `sample_count=5`, `failed_cases=[]`, all listed metrics `1.0`, `blocked_external_dependency_count=0`, `source_type=public_dataset`, `is_production_evaluation=false`, and `evaluation_status=non_production_manual_acceptance`. This is stronger than `synthetic_external_acceptance`, but it is still public non-production acceptance, not project-specific real/desensitized production evaluation. The `local_storage` files, API keys, full OCR raw text, full Azure raw response, and secrets were not recorded or committed.
+
 `classification.json` contains text samples with expected document types:
 
 ```json

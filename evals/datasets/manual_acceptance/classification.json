@@ -1,0 +1,74 @@
+{
+  "eval_type": "classification",
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "classification_purchase_request_001",
+      "input": {
+        "filename": "purchase_request_sample.pdf",
+        "text": "Purchase Request\nRequest No: PR-2026-001\nApplicant: Demo User\nDepartment: Procurement\nApproval: Approved\nRequested Items: Audit service"
+      },
+      "expected": {
+        "doc_type": "purchase_request"
+      }
+    },
+    {
+      "sample_id": "classification_purchase_contract_001",
+      "input": {
+        "filename": "purchase_contract_sample.pdf",
+        "text": "Purchase Contract\nContract No: PO-2026-001\nSupplier: Demo Supplier Pty Ltd\nBuyer: Demo Company\nPayment Terms: Net 30\nParty A and Party B agree to purchase services."
+      },
+      "expected": {
+        "doc_type": "purchase_contract"
+      }
+    },
+    {
+      "sample_id": "classification_warehouse_receipt_001",
+      "input": {
+        "filename": "warehouse_receipt_sample.pdf",
+        "text": "Warehouse Receipt\nReceipt No: WR-2026-001\nReceipt Date: 2026-07-01\nWarehouse: Main Warehouse\nReceived Quantity: 10\nReceived By: Warehouse Clerk"
+      },
+      "expected": {
+        "doc_type": "warehouse_receipt"
+      }
+    },
+    {
+      "sample_id": "classification_invoice_001",
+      "input": {
+        "filename": "invoice_sample.pdf",
+        "text": "Invoice\nInvoice Number: INV-2026-001\nIssue Date: 2026-07-02\nSeller: Demo Supplier Pty Ltd\nBuyer: Demo Company\nAmount Including Tax: CNY 1100.00\nTax Amount: CNY 100.00"
+      },
+      "expected": {
+        "doc_type": "invoice"
+      }
+    },
+    {
+      "sample_id": "classification_accounting_voucher_001",
+      "input": {
+        "filename": "accounting_voucher_sample.pdf",
+        "text": "Accounting Voucher\nVoucher No: VCH-2026-001\nDebit: Expense Account\nCredit: Accounts Payable\nSummary: Recognize purchase invoice"
+      },
+      "expected": {
+        "doc_type": "accounting_voucher"
+      }
+    },
+    {
+      "sample_id": "classification_payment_receipt_001",
+      "input": {
+        "filename": "payment_receipt_sample.pdf",
+        "text": "Payment Receipt\nTransaction No: PAY-2026-001\nPayer: Demo Company\nPayee: Demo Supplier Pty Ltd\nPayment Amount: CNY 1100.00\nBank Receipt Date: 2026-07-05"
+      },
+      "expected": {
+        "doc_type": "payment_receipt"
+      }
+    }
+  ],
+  "notes": [
+    "Synthetic classification samples for manual acceptance.",
+    "This is not production evaluation.",
+    "No real customer data is included."
+  ]
+}

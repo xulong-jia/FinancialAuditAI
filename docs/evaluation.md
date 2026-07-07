@@ -34,11 +34,12 @@ Supported eval types:
 
 ## Manual Acceptance Datasets
 
-Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation:
+Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation and classification text-sample validation:
 
 ```text
 evals/datasets/<dataset_name>/dataset_manifest.json
 evals/datasets/<dataset_name>/ocr.json
+evals/datasets/<dataset_name>/classification.json
 ```
 
 When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, or `evals/datasets`.
@@ -51,7 +52,8 @@ The manifest declares dataset metadata and the per-type files:
   "source_type": "public",
   "is_production_evaluation": false,
   "files": {
-    "ocr": "ocr.json"
+    "ocr": "ocr.json",
+    "classification": "classification.json"
   }
 }
 ```
@@ -88,6 +90,31 @@ The OCR runner calls the configured OCR provider through the project OCR service
 Secrets and local evidence files remain local-only: `.env`, API keys, and `local_storage` samples must not be committed. `is_production_evaluation=false` is recorded as non-production manual acceptance, even when a real OCR provider is used.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=ocr`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`, and model `azure-document-intelligence:prebuilt-layout`. The run produced one public sample, zero failed cases, and `1.0` for OCR sample pass rate, text containment, page count, block count, bbox, confidence, and table requirements. It remains a single-sample, public, non-production manual acceptance result, not a production-scale Evaluation Center claim.
+
+`classification.json` contains text samples with expected document types:
+
+```json
+{
+  "eval_type": "classification",
+  "dataset_name": "manual_acceptance",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "classification_invoice_001",
+      "input": {
+        "filename": "invoice_sample.pdf",
+        "text": "Invoice\nInvoice Number: INV-2026-001\nSeller: Demo Supplier"
+      },
+      "expected": {
+        "doc_type": "invoice"
+      }
+    }
+  ]
+}
+```
+
+The classification dataset runner uses the existing text-sample evaluator for `input.text` / `input.filename` and compares the predicted `doc_type` with `expected.doc_type`. It is not the full uploaded-document DB workflow, does not replace the normal document classification API path, and synthetic samples with `is_production_evaluation=false` are recorded as non-production evaluation.
 
 ## Metrics
 

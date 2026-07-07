@@ -16,6 +16,7 @@
 | Azure OCR 真实图片 E2E | 已用公开 receipt 样本完成本地真实 Azure OCR E2E；文件位于 `local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg`，未提交 Git；验证 `page raw_text`、`ocr_blocks`、bbox、confidence、`table_blocks`、`ocr_engine` 写入 | 本地 `.env` 配置 Azure Document Intelligence；`.env` 未提交，API key 未记录 | 手工验收结果：`page_count=1`、`ocr_blocks_count=73`、`blocks_with_bbox_count=73`、`blocks_with_confidence_count=49`、`table_blocks_count=3`、`average_block_confidence=0.9786`、`ocr_engine=azure-document-intelligence:prebuilt-layout` |
 | Evaluation manual OCR dataset | 已支持 `evals/datasets/<dataset>/dataset_manifest.json` 加载 OCR dataset；OCR runner 会复用项目 OCR service，并按 expected 断言 raw_text、page_count、ocr_blocks、bbox、confidence、table_blocks；非生产 manifest 会标记 `non_production_manual_acceptance` | `backend/app/services/evaluation_service.py`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/dataset_manifest.json`, `evals/datasets/manual_acceptance/ocr.json` | `backend/tests/test_quality_api.py::test_manual_acceptance_ocr_manifest_runs_expected_assertions`, `backend/tests/test_quality_api.py::test_manual_acceptance_ocr_file_path_is_restricted` |
 | Evaluation manual OCR 真实运行 | 已成功运行 `manual_acceptance` OCR dataset-driven evaluation；`sample_count=1`、`failed_cases=[]`、`ocr_sample_pass_rate=1.0`、text/page/block/bbox/confidence/table requirement accuracy 均为 `1.0`，`blocked_external_dependency_count=0`；结果标记 `dataset_kind=non_production_manual_acceptance`、`source_type=public`、`is_production_evaluation=false` | 本地 `.env` 和 API key 未提交；`local_storage` receipt 图片未提交 | 手工运行：`eval_type=ocr`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`, `model_name=azure-document-intelligence:prebuilt-layout` |
+| Evaluation manual classification dataset | 已支持 `evals/datasets/<dataset>/dataset_manifest.json` 加载 `classification.json`；runner 复用现有 text-sample evaluator，按 `sample.input.text` / `sample.input.filename` 推断 doc_type，并与 `sample.expected.doc_type` 对比；synthetic 非生产 manifest 不会标记为 production evaluation | `backend/app/services/evaluation_service.py`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/classification.json` | `backend/tests/test_quality_api.py::test_manual_acceptance_classification_manifest_runs_text_samples` |
 | OCR Provider 配置展示 | 已补齐 Admin Center 展示 | `backend/app/api/router.py`, `frontend/src/types/api.ts`, `frontend/src/pages/AdminCenterPage.tsx` | `npm run build` |
 | Embedding Provider 独立配置 | 已补齐 endpoint/key/model 配置 | `backend/app/core/config.py`, `backend/app/services/rag_service.py`, `.env.example` | `backend/tests/test_final_gap_closure_api.py::test_real_embedding_provider_requests_configured_vector_dimensions` |
 | Embedding 维度兼容 | 已在真实 provider 请求中显式传入 32 维 | `backend/app/services/rag_service.py` | 同上 |
@@ -45,7 +46,7 @@
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 166 passed, 5 warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 170 passed, 5 warnings |
 | `cd frontend && npm test` | PASS, 4 tests |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
@@ -69,7 +70,7 @@
 
 | 编号 | 模块 | 缺口 |
 | --- | --- | --- |
-| M-01 | Evaluation | 数据集驱动入口已存在；manual acceptance OCR dataset runner 已开始支持真实 OCR 样本断言，但 classification / extraction / rule / RAG / Agent / E2E 尚未完成同等 dataset 化，真实 RAG groundedness、真实 Agent E2E 评测仍依赖外部标注集和真实 Provider 配置。 |
+| M-01 | Evaluation | 数据集驱动入口已存在；manual acceptance OCR dataset runner 已支持真实 OCR 样本断言，classification text-sample dataset runner 已支持 synthetic doc_type 断言；classification 完整上传文档 DB workflow、extraction / rule / RAG / Agent / E2E 尚未完成同等 dataset 化，真实 RAG groundedness、真实 Agent E2E 评测仍依赖外部标注集和真实 Provider 配置。 |
 | M-02 | Report | xlsx/csv/markdown/pdf 均存在；PDF 已输出 Summary、异常、证据索引、复核意见和用途边界；audit_result 证据行已含 `field_id`。Azure OCR 真实图片已验证 bbox/confidence/table_blocks 写入，但字段抽取 `source_bbox` 传递和报告 evidence index 联动尚未用该真实样本验证。 |
 | M-03 | Review | 字段修正和异常复核已补服务端用户 UUID FK；历史 `actor_name` / `reviewed_by` / `corrected_by` 字符串字段仅保留为显示兼容口径。 |
 | M-04 | Frontend tests | 已有权限合同自动化测试；仍无浏览器级 E2E/交互测试。 |
@@ -88,6 +89,7 @@
 | demo seed samples | 仍保留 | 不可作为完全满足证据 |
 | external real/desensitized Evaluation dataset | 已支持 JSON 读取路径 | 需要用户提供真实/脱敏标注数据才能最终验收 |
 | manual acceptance OCR dataset | 已支持 manifest + `ocr.json`；真实 OCR 结果由 OCR provider 产生，不伪造；当前 manifest `is_production_evaluation=false` | 只覆盖 OCR，不代表 Evaluation Center 完全满足 |
+| manual acceptance classification dataset | 已支持 manifest + `classification.json`；当前样本为 synthetic text sample，使用现有 text-sample evaluator 对比 `expected.doc_type` | 只覆盖分类文本样本，不代表完整 document workflow 或生产级 Evaluation |
 
 ## Provider 测试隔离与 readiness
 
@@ -97,11 +99,11 @@
 - OpenAI-compatible readiness 支持 `LLM_API_MODE=auto` / `responses` / `chat_completions`；`auto` 对 `gpt-5*` readiness 使用 Responses API，其余默认兼容旧 `/chat/completions` provider。
 - 真实网络 integration 只能显式设置 `RUN_PROVIDER_INTEGRATION=1` 后触发；无 key 或 endpoint 时状态为 `blocked_external_dependency`，不能声明 fully satisfied。
 - readiness 输出只包含 provider/model 和 `api_url_status` / `api_key_status`，不得输出 API key。
-- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider；本轮新增 Azure OCR adapter 后结果为 166 passed / 5 warnings。
+- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider；当前结果为 170 passed / 5 warnings。
 - Azure Document Intelligence OCR adapter 已实现；真实 readiness 依赖本地 `.env` 中 `OCR_PROVIDER=azure-document-intelligence`、`OCR_API_URL`、`OCR_API_KEY`、`OCR_MODEL=prebuilt-layout`，并通过显式 `RUN_PROVIDER_INTEGRATION=1` 触发轻量 model probe。OCR confidence、bbox、table_blocks 必须来自 Azure 原始响应，不得伪造；无 Azure key/endpoint 时仍属于 `blocked_external_dependency`。
 - Azure OCR readiness 已通过；Azure OCR 真实图片 E2E 已通过：Provider 为 `azure-document-intelligence`，model 为 `prebuilt-layout`，API version 为 `2024-11-30`。公开 receipt 样本位于 `local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg`，未提交 Git；raw_text 前 300 字符确认包含商户名、地址、电话、订单号、明细、subtotal、tax、total、日期时间。`.env` 未提交，API key 未记录，未记录完整 Azure 原始响应。
 - Azure 真实图片 E2E 仍未覆盖 PDF 多页、复杂表格、字段抽取 `source_bbox` 传递、报告 evidence index 联动；这些不能由 fallback/synthetic 结果替代。
-- Evaluation Center 已开始支持 manual acceptance OCR dataset，路径为 `evals/datasets/manual_acceptance/dataset_manifest.json` 和 `ocr.json`。当前只实现 OCR dataset runner；其他 eval types 仍待 dataset 化，不能据此声称 Evaluation Center 完全满足执行手册。
+- Evaluation Center 已开始支持 manual acceptance OCR dataset 和 classification text-sample dataset，路径为 `evals/datasets/manual_acceptance/dataset_manifest.json`、`ocr.json`、`classification.json`。当前只实现 OCR dataset runner 和 classification text-sample runner；extraction / rule / RAG / Agent / E2E / regression 仍待同等 dataset 化，不能据此声称 Evaluation Center 完全满足执行手册。
 - Manual OCR dataset-driven evaluation 已真实跑通，但它是 public single-sample non-production manual acceptance；limitations 明确记录 `Dataset kind is non_production_manual_acceptance` 和 `Sample count is 1`，不能作为生产级完整 Evaluation 结论。
 - Azure Document Intelligence 可使用 F0 免费层进行学习和小规模验证，但免费层页数和速率有限，不能替代最终真实样本验收。
 

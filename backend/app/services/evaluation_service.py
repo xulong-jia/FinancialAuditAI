@@ -121,8 +121,11 @@ def _load_dataset(payload: EvaluationRunRequest) -> dict | None:
 
 
 def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: dict) -> dict:
-    if payload.eval_type != "ocr":
-        raise HTTPException(status_code=400, detail="Manual acceptance dataset manifest currently supports OCR evaluation only")
+    if payload.eval_type not in {"ocr", "classification"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Manual acceptance dataset manifest currently supports OCR and classification evaluation only",
+        )
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     eval_file = files.get(payload.eval_type)
     if not isinstance(eval_file, str) or not eval_file:

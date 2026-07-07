@@ -367,6 +367,70 @@ def test_manual_acceptance_ocr_manifest_runs_expected_assertions(monkeypatch) ->
         sample_path.unlink(missing_ok=True)
 
 
+def test_manual_acceptance_classification_manifest_runs_text_samples() -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_classification_unit"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": "manual_acceptance_classification_unit",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "files": {"classification": "classification.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "classification.json").write_text(
+        json.dumps(
+            {
+                "samples": [
+                    {
+                        "sample_id": "classification-pass",
+                        "input": {
+                            "filename": "invoice_sample.pdf",
+                            "text": "Invoice\nInvoice Number: INV-001\nIssue Date: 2026-07-02\nSeller: Demo Supplier\nTax Amount: CNY 100.00",
+                        },
+                        "expected": {"doc_type": "invoice"},
+                    },
+                    {
+                        "sample_id": "classification-fail",
+                        "title": "classification-fail",
+                        "input": {
+                            "filename": "invoice_sample_2.pdf",
+                            "text": "Invoice\nInvoice Number: INV-002\nBuyer: Demo Company\nSeller: Demo Supplier\nTax Amount: CNY 20.00",
+                        },
+                        "expected": {"doc_type": "payment_receipt"},
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "classification",
+                "dataset_name": "manual_acceptance_classification_unit",
+                "dataset_path": "evals/datasets/manual_acceptance_classification_unit/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["dataset_name"] == "manual_acceptance_classification_unit"
+        assert result["sample_count"] == 2
+        assert result["metrics"]["accuracy"] == 0.5
+        assert result["metrics"]["source_type"] == "synthetic"
+        assert result["metrics"]["dataset_kind"] == "non_production_manual_acceptance"
+        assert result["metrics"]["is_dataset_driven"] is True
+        assert result["metrics"]["is_production_evaluation"] is False
+        assert len(result["failed_cases"]) == 1
+        assert result["failed_cases"][0]["title"] == "classification-fail"
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
 def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_path_guard"
     dataset_dir.mkdir(parents=True, exist_ok=True)

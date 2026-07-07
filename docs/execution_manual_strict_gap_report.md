@@ -1,6 +1,6 @@
 # FinancialAuditAI 执行手册严格缺口报告
 
-生成日期：2026-07-06
+生成日期：2026-07-07
 
 最高标准来源：`/Users/jiaxulong/Documents/FinancialAuditAI/FinancialAuditAI_最终版项目开发执行手册.md`。
 
@@ -54,6 +54,11 @@
 | LLM Provider 调用元数据 | 已补齐真实返回路径 | `backend/app/services/llm_provider.py` 从 OpenAI-compatible 响应读取 `usage`，记录真实 `latency_ms`，不伪造 token/cost | `backend/tests/test_classification_api.py`, `backend/tests/test_extraction_api.py` |
 | RAG 调用留痕 | 已补齐 `embed` / `rerank` / `answer` 耗时和 schema 信息 | `backend/app/services/rag_service.py` | `backend/tests/test_final_gap_closure_api.py::test_model_invocations_are_recorded_for_rag_query` |
 | 异常解释 explain 路径 | 已补齐可配置 Provider 与 fallback 留痕 | `backend/app/services/llm_provider.py`, `backend/app/services/rule_engine_service.py` | `backend/tests/test_final_gap_closure_api.py::test_task_run_reports_rag_evidence_retrieval_for_review_items` |
+| Phase C 浏览器级 E2E | 已新增 Playwright Chromium 浏览器测试，覆盖登录、Dashboard、Task Center、Audit Workbench、Review Center、Report Center、Evaluation Center、Admin Center，以及 viewer/reviewer/admin 权限行为；使用 synthetic API mocks，不调用真实 Provider | `frontend/playwright.config.ts`, `frontend/e2e/phase-c.spec.ts`, `frontend/package.json` | `cd frontend && npm run test:e2e` |
+| Phase C 生产安全配置检查 | 已新增 production safety check，生产环境下拦截默认 `AUTH_SECRET_KEY`、默认 DB password、开发 CORS、tracked/staged `.env` 和 tracked/staged runtime artifacts；不读取 `.env` 文件内容 | `scripts/production_safety_check.py`, `docs/security.md` | `backend/tests/test_phase_c_security_scripts.py`, `python3 scripts/production_safety_check.py` |
+| Phase C danger_check 增强 | 已增强 tracked/staged 文件扫描、staged diff 扫描、常见 secret pattern、`.env`、`local_storage`/uploads/reports/vector_index/provider readiness artifact 泄露拦截；仍明确不是企业 DLP/KMS | `scripts/danger_check.py`, `docs/security.md` | `backend/tests/test_phase_c_security_scripts.py`, `python3 scripts/danger_check.py` |
+| Phase C 前端 chunk warning | 已通过 Vite config 拆分 Ant Design vendor chunk 并设置明确 chunk budget，当前 build 无 Vite chunk-size warning | `frontend/vite.config.ts` | `cd frontend && npm run build` |
+| Phase C 外部依赖清单 | 已新增最终 fully satisfied 外部资料清单，逐项记录 owner、required_for_fully_satisfied、current_status、blocked_reason、how_to_validate | `docs/external_dependencies.md` | 文档复核 |
 
 ## 当前验证记录
 
@@ -61,13 +66,15 @@
 | --- | --- |
 | `python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.json` | PASS |
 | `python3 scripts/danger_check.py` | PASS |
+| `python3 scripts/production_safety_check.py` | PASS |
 | `docker compose config` | PASS |
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 175 passed, 5 warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 197 passed, 5 warnings |
 | `cd frontend && npm test` | PASS, 4 tests |
-| `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
+| `cd frontend && npm run build` | PASS, no Vite chunk-size warning |
+| `cd frontend && npm run test:e2e` | PASS, 3 tests |
 | `git diff --check` | PASS |
 
 ## 剩余 Critical / High / Medium 缺口
@@ -92,7 +99,7 @@
 | M-01 | Evaluation | Phase B 代码/测试已补齐 persistent RAG workflow 和 Agent DB workflow runner；manual acceptance 仍是 synthetic/public non-production，真实/脱敏规模化 regression 和真实 Provider 质量验收仍是 `blocked_external_dependency`。 |
 | M-02 | Report | xlsx/csv/markdown/pdf 均存在；Evidence Index 已验证可从报告 evidence row 回查 document/page/field/audit_result/source_text/source_bbox。真实复杂文档 bbox 覆盖仍依赖上游 OCR/抽取质量和真实/脱敏样本。 |
 | M-03 | Review | 字段修正和异常复核已补服务端用户 UUID FK；历史 `actor_name` / `reviewed_by` / `corrected_by` 字符串字段仅保留为显示兼容口径。 |
-| M-04 | Frontend tests | 已有权限合同自动化测试；仍无浏览器级 E2E/交互测试。 |
+| M-04 | Frontend tests | Phase C 已补 Playwright 浏览器级 E2E；当前仍不是生产真实数据浏览器验收，因为测试使用 synthetic API mocks。 |
 
 ## fallback / synthetic / demo 状态
 
@@ -118,6 +125,7 @@
 | manual acceptance E2E dataset | 已支持 manifest + `e2e.json`；当前样本为 synthetic procurement walkthrough contract，模拟上传、OCR、分类、抽取、归集、规则、报告和 evidence index flag，不创建真实 DB/API workflow 或 report 文件 | 只覆盖 E2E contract 样本；DB/service artifacts 由 `full_db_workflow` 覆盖 |
 | manual acceptance full DB workflow dataset | 已支持 manifest + `full_db_workflow.json`；runner 创建 runtime PDF 并真实写入 task/document/page/field/relation/rule/report/control/evidence artifacts | 证明 DB/service workflow plumbing，不代表真实 Provider quality 或生产级数据质量 |
 | manual acceptance regression dataset | 已支持 manifest + `regression.json` 并聚合 OCR / classification / extraction / rule / RAG / Agent / persistent RAG workflow / Agent DB workflow / E2E / full DB workflow manual datasets，并禁止 regression 递归 | 只覆盖 synthetic/public manual acceptance 聚合，不代表生产级真实/脱敏大数据回归评测 |
+| Playwright browser E2E | 已覆盖真实浏览器 UI 登录、核心中心页面和权限渲染；API 使用 synthetic route mocks | 不代表真实生产数据或真实 Provider 端到端验收 |
 
 ## Provider 测试隔离与 readiness
 
@@ -127,7 +135,7 @@
 - OpenAI-compatible readiness 和 runtime LLM provider 均支持 `LLM_API_MODE=auto` / `responses` / `chat_completions`；`auto` 对 `gpt-5*` 使用 Responses API，其余默认兼容旧 `/chat/completions` provider。
 - 真实网络 integration 只能显式设置 `RUN_PROVIDER_INTEGRATION=1` 后触发；无 key 或 endpoint 时状态为 `blocked_external_dependency`，不能声明 fully satisfied。
 - readiness 输出只包含 provider/model、path purpose、`api_url_status` / `api_key_status`、status、latency 和脱敏错误，不得输出 API key、Authorization header 或完整 secret。
-- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider；当前结果为 191 passed / 5 warnings。
+- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider；Phase C 后当前全量 pytest 结果为 197 passed / 5 warnings。
 - Azure Document Intelligence OCR adapter 已实现；真实 readiness 依赖本地 `.env` 中 `OCR_PROVIDER=azure-document-intelligence`、`OCR_API_URL`、`OCR_API_KEY`、`OCR_MODEL=prebuilt-layout`，并通过显式 `RUN_PROVIDER_INTEGRATION=1` 触发轻量 model probe。OCR confidence、bbox、table_blocks 必须来自 Azure 原始响应，不得伪造；无 Azure key/endpoint 时仍属于 `blocked_external_dependency`。
 - Azure OCR readiness 已通过；Azure OCR 真实图片 E2E 已通过：Provider 为 `azure-document-intelligence`，model 为 `prebuilt-layout`，API version 为 `2024-11-30`。公开 receipt 样本位于 `local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg`，未提交 Git；raw_text 前 300 字符确认包含商户名、地址、电话、订单号、明细、subtotal、tax、total、日期时间。`.env` 未提交，API key 未记录，未记录完整 Azure 原始响应。
 - Azure 真实 receipt 图片 E2E 仍只是单页公开样本；Phase B 已用 Azure response fixture 覆盖 PDF 多页/复杂表格 normalization，并用 synthetic OCR-block/evidence tests 覆盖字段 `source_bbox` 传递和报告 Evidence Index 回查。最终生产 fully satisfied 仍需要真实/脱敏复杂文档和真实 Provider 证据，不能由 fixture 替代。
@@ -144,8 +152,9 @@
 - Manual full DB workflow dataset-driven evaluation 已跑通，并补齐缺 document、rule result mismatch、evidence index 不满足的失败路径测试以及核心 API-depth 端点测试；它证明 DB/API/service workflow plumbing，不代表真实 Provider quality 或生产级数据质量。
 - Manual regression dataset-driven evaluation 已跑通，但它是 synthetic/public non-production manual acceptance aggregation；10 类前置 dataset 均 pass，不能作为生产级完整 Evaluation 或真实/脱敏规模化回归评测结论。
 - Azure Document Intelligence 可使用 F0 免费层进行学习和小规模验证，但免费层页数和速率有限，不能替代最终真实样本验收。
+- Phase C 已新增 `docs/external_dependencies.md`，作为最终 fully satisfied 前仍需外部资料和生产硬化事项的清单。
 
 ## 下一轮最高优先级
 
-1. 浏览器级 E2E/交互测试能力。
-2. LLM/RAG Provider 真实端到端验收在安全配置下完成。
+1. 准备真实/脱敏 production evaluation dataset、真实复杂 OCR 样本、RAG labels 和 Agent workflow labels。
+2. 在安全配置下补齐真实 Provider integration artifact。

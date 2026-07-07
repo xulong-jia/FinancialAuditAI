@@ -1,10 +1,10 @@
 # Final Acceptance
 
-Review date: 2026-07-05
+Review date: 2026-07-07
 
 ## Scope
 
-FinancialAuditAI has completed Phase 0 through Phase 20. The final project is a local, reproducible portfolio version using synthetic, simulated, desensitized, or public data only.
+FinancialAuditAI has completed Phase 0 through Phase 20 plus strict Phase A/B/C repository closure gates. The final project is a local, reproducible portfolio version using synthetic, simulated, desensitized, or public data only. It is not production fully satisfied until the external dependencies in `docs/external_dependencies.md` are supplied and verified.
 
 ## Function Acceptance
 
@@ -45,6 +45,7 @@ FinancialAuditAI has completed Phase 0 through Phase 20. The final project is a 
 - [x] Bad Case Center.
 - [x] Evaluation Center.
 - [x] Admin Center.
+- [x] Browser-level Playwright E2E for login, core centers, and viewer/reviewer/admin permission behavior.
 
 ## Database Acceptance
 
@@ -94,8 +95,10 @@ FinancialAuditAI has completed Phase 0 through Phase 20. The final project is a 
 - [x] Upload safety checks are documented.
 - [x] Audit log redaction is documented.
 - [x] `.env`, `local_storage`, uploads, generated reports, vector files, API keys, tokens, and cleartext passwords are not intended for Git.
-- [x] danger_check is documented.
+- [x] danger_check is documented and scans tracked files, staged diffs, forbidden runtime paths, and common static secret patterns.
+- [x] production_safety_check is documented for production env defaults and forbidden tracked/staged runtime artifacts.
 - [x] Real sensitive customer data is explicitly prohibited.
+- [x] Enterprise DLP, KMS, SSO, monitoring, and incident response are documented as not implemented production hardening.
 
 ## Documentation Acceptance
 
@@ -117,13 +120,16 @@ FinancialAuditAI has completed Phase 0 through Phase 20. The final project is a 
 
 | Check | Result |
 | --- | --- |
-| `cd backend && ./.venv/bin/python -m pytest tests` | PASS, 146 passed, 5 PyMuPDF/SWIG deprecation warnings |
-| `npm run build` | PASS, Vite chunk-size warning only |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 197 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| `cd frontend && npm test` | PASS, 4 node:test checks |
+| `cd frontend && npm run build` | PASS, no Vite chunk-size warning |
+| `cd frontend && npm run test:e2e` | PASS, 3 Playwright Chromium tests |
+| `python3 scripts/danger_check.py` | PASS |
+| `python3 scripts/production_safety_check.py` | PASS |
 | `docker compose config` | PASS |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/alembic current` | PASS, `0021_extracted_field_original_values (head)` |
 | `git diff --check` | PASS |
 
 ## Final Boundary
 
-The project is suitable as a complete local portfolio version. It does not claim production deployment, real customer use, legal advice, audit opinion, investment advice, or compliance certification.
+The project is suitable as a complete local portfolio version. It does not claim production deployment, real customer use, legal advice, audit opinion, investment advice, compliance certification, production fully satisfied evaluation, or enterprise security certification. Synthetic/manual/fixture/deterministic results are not substitutes for the blocked external evidence in `docs/external_dependencies.md`.

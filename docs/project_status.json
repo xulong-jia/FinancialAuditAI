@@ -1,6 +1,6 @@
 {
   "project": "FinancialAuditAI",
-  "last_updated": "2026-07-05",
+  "last_updated": "2026-07-07",
   "status_values": [
     "TODO",
     "IN_PROGRESS",
@@ -1632,6 +1632,72 @@
       "notes": "Phase 20 completed final acceptance and documentation materials. README, API reference, architecture, database, rule engine, RAG, Agent, Review, Evaluation, Security, demo script, final acceptance, portfolio summary, and screenshot checklist are complete. No business logic, new modules, fake screenshots, production deployment, or tracker-outside features were added.",
       "blocked_reason": "",
       "updated_at": "2026-07-05"
+    },
+    {
+      "phase_id": 21,
+      "name": "Phase C 严格收口：浏览器 E2E、生产安全、文档边界和外部依赖清单",
+      "category": "STRICT_CLOSURE",
+      "status": "DONE",
+      "dependencies": [
+        20
+      ],
+      "deliverables": [
+        "Playwright browser E2E",
+        "production safety check",
+        "enhanced danger check",
+        "frontend chunk warning handling",
+        "external dependency checklist",
+        "final documentation boundary corrections"
+      ],
+      "tasks": [
+        {
+          "id": "PC-FE-001",
+          "title": "新增浏览器级 E2E 覆盖核心页面和权限行为",
+          "area": "frontend",
+          "status": "DONE",
+          "notes": "Added Playwright Chromium E2E using synthetic API mocks for login, Dashboard, Task Center, Audit Workbench, Review Center, Report Center, Evaluation Center, Admin Center, viewer disabled write controls, reviewer review actions, and admin entry visibility. This is browser-level UI E2E, not production-data acceptance.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-07"
+        },
+        {
+          "id": "PC-SEC-001",
+          "title": "新增生产配置安全检查和 danger_check 增强",
+          "area": "security",
+          "status": "DONE",
+          "notes": "Added production_safety_check for production AUTH_SECRET_KEY, DATABASE_URL password, CORS, tracked/staged .env, and tracked/staged runtime artifacts. Enhanced danger_check for tracked files, staged diffs, common secret patterns, forbidden runtime paths, and provider readiness artifact leaks. These are repository guardrails, not enterprise DLP/KMS.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-07"
+        },
+        {
+          "id": "PC-FE-002",
+          "title": "处理 frontend build chunk warning",
+          "area": "frontend",
+          "status": "DONE",
+          "notes": "Added Vite vendor chunk configuration and explicit chunk budget. Current build completes without Vite chunk-size warning.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-07"
+        },
+        {
+          "id": "PC-DOC-001",
+          "title": "纠正文档边界并整理外部依赖清单",
+          "area": "docs",
+          "status": "DONE",
+          "notes": "Updated README, security, final acceptance, portfolio summary, strict gap report, and compliance report to distinguish repository code/test/docs completion from production fully satisfied status. Added docs/external_dependencies.md with owner, required_for_fully_satisfied, current_status, blocked_reason, and how_to_validate.",
+          "blocked_reason": "",
+          "updated_at": "2026-07-07"
+        }
+      ],
+      "acceptance_criteria": [
+        "Browser E2E can be run with npm run test:e2e",
+        "danger_check scans tracked files and staged diff additions for common static secrets and forbidden runtime paths",
+        "production_safety_check blocks unsafe production defaults without reading .env contents",
+        "frontend build has no Vite chunk-size warning",
+        "documents do not claim synthetic/manual/fixture/deterministic paths are production fully satisfied",
+        "external blocked dependencies are listed with validation steps"
+      ],
+      "notes": "Phase C repository code/test/docs closure is complete for browser-level E2E, production safety guardrails, danger_check enhancement, chunk warning handling, documentation correction, and external dependency listing. This does not resolve blocked external dependencies for real/desensitized production datasets, real Provider integration artifacts, real complex OCR samples, real RAG labels, real Agent workflow labels, or enterprise production hardening.",
+      "blocked_reason": "Production fully_satisfied remains blocked on external resources listed in docs/external_dependencies.md.",
+      "updated_at": "2026-07-07"
     }
   ]
 }

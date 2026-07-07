@@ -4,7 +4,7 @@ FinancialAuditAI is a financial document review platform that started with a pro
 
 This MVP is for learning, portfolio, and local demonstration only. It does not provide audit, legal, investment, or compliance advice.
 
-Final project status: Phase 0 through Phase 20 are complete in the project tracker. The repository is intended as a reproducible local portfolio version, not a production deployment.
+Final project status: Phase 0 through Phase 20 plus the strict Phase A/B/C closure gates are complete for repository code, tests, and documentation. The repository is intended as a reproducible local portfolio version, not a production deployment or production fully satisfied audit platform. Final production-grade satisfaction still requires the external evidence listed in `docs/external_dependencies.md`.
 
 ## MVP Scope
 
@@ -86,6 +86,13 @@ Post-MVP Phase 19 implemented:
 - Audit log redaction, stronger upload content signature checks, and repository danger scan.
 - Historical nullable `actor_name` and user-related fields remain compatible; no enterprise SSO, multi-tenant billing, or production KMS is implemented.
 
+Strict Phase C closure added:
+
+- Browser-level Playwright E2E for login, Dashboard, Task Center, Audit Workbench, Review Center, Report Center, Evaluation Center, Admin Center, and viewer/reviewer/admin permission behavior.
+- `scripts/production_safety_check.py` for production environment defaults and forbidden tracked/staged runtime artifacts.
+- Enhanced `scripts/danger_check.py` coverage for tracked files, staged diff content, common secret patterns, `.env` mistakes, local storage/report/upload/vector artifacts, and provider readiness artifact leaks.
+- Vite build chunk warning handling through explicit vendor chunking and chunk budget.
+
 Not implemented:
 
 - Production BI dashboards, management analytics, or hosted reporting.
@@ -165,7 +172,9 @@ Frontend:
 ```bash
 cd frontend
 npm install
+npm test
 npm run build
+npm run test:e2e
 ```
 
 JSON tracker validation:
@@ -206,11 +215,14 @@ The seed script uses only synthetic procurement data from `samples/procurement/d
 - Reports are saved under `local_storage/reports`, which is ignored by Git.
 - Uploaded documents are saved under `local_storage/uploads`, which is ignored by Git.
 - Set `AUTH_SECRET_KEY` in local or deployment environment configuration; do not use a production secret from `.env.example`.
-- Run the repository safety check before commit:
+- Run the repository safety checks before commit or production deployment review:
 
 ```bash
 python3 scripts/danger_check.py
+python3 scripts/production_safety_check.py
 ```
+
+`danger_check.py` and `production_safety_check.py` are repository guardrails. They do not replace enterprise DLP, KMS, SSO, monitoring, incident response, or managed secret scanning.
 
 ## Project Tracking
 
@@ -232,6 +244,7 @@ Features not listed in those files are not part of the current implementation sc
 - `docs/review_center.md`: human review and before/after records.
 - `docs/evaluation.md`: Bad Case and Evaluation Center.
 - `docs/security.md`: RBAC, upload safety, redaction, and repository safety.
+- `docs/external_dependencies.md`: external evidence still required before any production fully satisfied claim.
 - `docs/demo_script.md`: local demo walkthrough.
 - `docs/final_acceptance.md`: final acceptance checklist.
 - `docs/portfolio_summary.md`: portfolio-safe project description.

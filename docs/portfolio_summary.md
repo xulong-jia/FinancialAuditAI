@@ -15,7 +15,7 @@ The project is a portfolio and learning system. It uses synthetic, simulated, de
 - Frontend: React, TypeScript, Vite, Ant Design.
 - Reports: xlsx, csv, pdf, and markdown export.
 - Storage: local filesystem under ignored `local_storage`.
-- Testing: pytest and frontend build verification.
+- Testing: pytest, frontend contract tests, Playwright browser E2E, and frontend build verification.
 
 ## Completed Capabilities
 
@@ -32,12 +32,16 @@ The project is a portfolio and learning system. It uses synthetic, simulated, de
 - Controlled Agent Workflow with state machine and tool whitelist.
 - Bad Case Center and Evaluation Center.
 - RBAC, login, Admin Center, audit log query, upload hardening, and safety scan.
+- Browser-level E2E coverage for login, core centers, and viewer/reviewer/admin permission behavior.
+- Production configuration and repository secret-scan guardrails.
 - Final documentation and demo script.
 
 ## What It Does Not Claim
 
 - No real customer deployment.
 - No production security certification.
+- No production fully satisfied evaluation claim.
+- No enterprise DLP, SSO, KMS, monitoring, or incident-response program.
 - No real audit opinion.
 - No legal opinion.
 - No investment recommendation.
@@ -48,3 +52,5 @@ The project is a portfolio and learning system. It uses synthetic, simulated, de
 ## Portfolio Description
 
 This project demonstrates full-stack product engineering for an evidence-driven financial document review workflow. The implementation emphasizes traceability, deterministic rules, human review, realistic boundaries, and reproducible local delivery rather than speculative AI autonomy.
+
+Final production-grade satisfaction still requires the external evidence and deployment controls listed in `docs/external_dependencies.md`.

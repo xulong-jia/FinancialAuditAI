@@ -4,9 +4,19 @@
 
 Round date: 2026-07-07
 
-Scope: Phase B strict closure for complex OCR coverage, extraction source-evidence closure, persistent RAG workflow evaluation, Agent DB workflow evaluation, report evidence deep-link validation, and continued strict execution-manual gap tracking.
+Scope: Phase C strict closure for browser-level E2E, production safety guardrails, enhanced repository secret scanning, frontend build chunk handling, documentation boundary correction, and final external-dependency checklist.
 
-Status: **Phase B code/test/docs updated; still not final execution-manual complete because production data and real Provider evidence remain external dependencies**.
+Status: **Phase C code/test/docs updated; still not production fully satisfied because production data, real Provider evidence, and production hardening artifacts remain external dependencies**.
+
+## Phase C Update
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Browser-level E2E | Added Playwright Chromium tests for login, Dashboard, Task Center, Audit Workbench, Review Center, Report Center, Evaluation Center, Admin Center, and viewer/reviewer/admin permissions using synthetic API mocks | `frontend/playwright.config.ts`, `frontend/e2e/phase-c.spec.ts`, `frontend/package.json` |
+| Production safety check | Added a production configuration guard that blocks default auth secret, default DB password, dev CORS, tracked/staged `.env`, and tracked/staged runtime artifacts without reading `.env` contents | `scripts/production_safety_check.py`, `backend/tests/test_phase_c_security_scripts.py`, `docs/security.md` |
+| danger_check enhancement | Expanded repository safety scanning to tracked files, staged diffs, common static secret patterns, `.env` mistakes, runtime artifact paths, and provider readiness artifacts | `scripts/danger_check.py`, `backend/tests/test_phase_c_security_scripts.py` |
+| Frontend build chunk warning | Added Vite vendor chunk config and explicit chunk budget; current build completes without Vite chunk-size warning | `frontend/vite.config.ts` |
+| External dependency boundary | Added final external dependency checklist with owner, required-for-fully-satisfied flag, current status, blocked reason, and validation method | `docs/external_dependencies.md` |
 
 ## Phase B Update
 
@@ -64,13 +74,15 @@ These Phase B additions are synthetic/manual acceptance or deterministic/local-p
 | --- | --- |
 | `python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.json` | PASS |
 | `python3 scripts/danger_check.py` | PASS |
+| `python3 scripts/production_safety_check.py` | PASS |
 | `docker compose config` | PASS |
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 175 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 197 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `cd frontend && npm test` | PASS, 4 node:test checks |
-| `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
+| `cd frontend && npm run build` | PASS, no Vite chunk-size warning |
+| `cd frontend && npm run test:e2e` | PASS, 3 Playwright Chromium tests |
 | `git diff --check` | PASS |
 
 ## Remaining Blocking Gaps
@@ -79,14 +91,16 @@ These Phase B additions are synthetic/manual acceptance or deterministic/local-p
 | --- | --- |
 | Critical | Real customer/production evaluation datasets are not present and must not be committed; final real-data verification remains `blocked_external_dependency` until provided safely. |
 | Critical | Real OCR/LLM/RAG API keys and endpoints must remain local-only and must not be committed; external Provider verification remains `blocked_external_dependency` unless configured safely in local `.env` or deployment secrets. |
-| Medium | Browser-level frontend E2E/interaction tests are still absent. |
 | Medium | Report evidence quality still depends on upstream evidence/bbox/confidence completeness. Phase B now verifies report Evidence Index deep-link round-trip, but real complex-document bbox coverage still requires real/desensitized samples and Provider output. |
 | Medium | Manual acceptance dataset support now covers OCR, classification, extraction, rule, RAG, Agent, persistent RAG workflow, Agent DB workflow, E2E, full DB workflow, and regression aggregation. These are still synthetic/public non-production runners; real/desensitized scale regression and real Provider quality evidence remain external dependencies before Evaluation Center can be considered production fully satisfied. |
-| Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and passed with 191 tests / 5 warnings. |
+| Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and current full backend verification passes with 197 tests / 5 warnings. |
+| Medium | Production SSO/KMS/DLP/monitoring/incident response remain optional production hardening, not implemented enterprise controls. |
 
 ## Compliance Boundary
 
 This report does not claim final execution-manual compliance. Fallback, synthetic, demo, and static paths remain visible as limited paths and cannot be used as proof that the execution manual is fully satisfied.
+Phase C browser E2E uses synthetic API mocks and proves UI/permission behavior in a real browser; it is not a production-data browser acceptance run.
+`danger_check.py` and `production_safety_check.py` are repository guardrails; they do not replace enterprise DLP, KMS, SSO, monitoring, incident response, or managed secret scanning.
 Azure Document Intelligence OCR confidence, bbox, and table_blocks must come from Azure raw responses and are not synthesized by the adapter. Azure F0 can be used for small local validation, but its page and rate limits do not replace final real-sample verification.
 The Azure OCR real image validation recorded only a safe summary. `.env` was not committed, API keys were not recorded, the `local_storage` receipt sample was not committed, and the full Azure raw response was not stored in this report.
 Manual OCR dataset results with `is_production_evaluation=false` are marked as non-production manual acceptance, not production quality claims.

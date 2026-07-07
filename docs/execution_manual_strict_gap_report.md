@@ -166,6 +166,16 @@
 - Azure Document Intelligence 可使用 F0 免费层进行学习和小规模验证，但免费层页数和速率有限，不能替代最终真实样本验收。
 - Phase C 已新增 `docs/external_dependencies.md`，作为最终 fully satisfied 前仍需外部资料和生产硬化事项的清单。
 
+## 当前外部资料边界
+
+当前已准备并跑通的外部资料仅限机制验收：OCR external acceptance 是 `synthetic_external_acceptance`，Azure integration 已本地跑通；classification external acceptance 是 `synthetic_external_acceptance`，evaluation 已本地跑通；Provider readiness artifact 已在本地生成并通过安全摘要检查。这些材料只能证明外部资料接入、Provider / evaluation plumbing、安全边界和连通性。
+
+用户当前没有提供真实或合规脱敏业务资料：没有真实/脱敏采购单据、销售单据、函证、访谈记录或合同；没有真实人工标注 labels；没有真实 RAG citation labels；没有真实 Agent workflow labels。
+
+因此以下仍是 `blocked_external_dependency`：production evaluation dataset、production OCR labels、production classification labels、production extraction labels、production rule labels、production RAG labels、production Agent labels、production E2E labels，以及 production security / deployment evidence。
+
+禁止把 `synthetic_external_acceptance` 写成 `production_evaluation`，禁止把 synthetic / manual / fixture / mock / fallback 写成 `fully_satisfied`，禁止声称真实客户数据验证已完成，也禁止声称执行手册最高标准已经 `fully_satisfied`。当前准确状态只能是：code / test / docs / internal mechanisms 已完成，synthetic/public external acceptance 已用于机制验证，最终 production `fully_satisfied` 仍依赖用户提供真实或合规脱敏资料。
+
 ## 下一轮最高优先级
 
 1. 准备真实/脱敏 production evaluation dataset、真实复杂 OCR 样本、RAG labels 和 Agent workflow labels。

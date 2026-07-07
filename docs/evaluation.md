@@ -163,6 +163,16 @@ Local classification external acceptance has been run with `eval_type=classifica
 
 This classification result is recorded only as a sanitized summary. The `local_storage` files were not committed, API keys and `.env` were not recorded, and original text bodies were not stored. It must not be interpreted as a real or desensitized production classification dataset.
 
+## External Acceptance Data Boundary
+
+Current external acceptance evidence is intentionally limited to mechanism validation. OCR external acceptance is `synthetic_external_acceptance` with Azure integration passed locally; classification external acceptance is `synthetic_external_acceptance` with local evaluation passed; the Provider readiness artifact was generated locally and passed the documented safety check. These prove external manifest loading, Provider/evaluation plumbing, sanitized artifact handling, and safety boundaries only.
+
+The user has not provided real or desensitized business materials: no procurement documents, sales documents, confirmations, interview records, contracts, human-reviewed labels, RAG citation labels, or Agent workflow labels are available for production evaluation.
+
+Therefore production evaluation datasets and labels for OCR, classification, extraction, rules, RAG, Agent workflows, and E2E flows remain `blocked_external_dependency`. Production security and deployment evidence also remains `blocked_external_dependency`.
+
+Do not mark `synthetic_external_acceptance` as `production_evaluation`, do not treat synthetic/manual/fixture/mock/fallback paths as `fully_satisfied`, and do not claim real customer-data validation or execution-manual highest-standard `fully_satisfied`. Until real or compliant desensitized materials are provided, the correct status is `code/test/docs satisfied + blocked_external_dependency`.
+
 `extraction.json` contains synthetic text samples with expected fields:
 
 ```json

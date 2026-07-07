@@ -123,4 +123,16 @@ Do not commit:
 
 ## 6. Current Conclusion
 
-Phase A/B/C internal code, tests, and documentation fixes are complete. Final production `fully_satisfied` status still depends on the external real or desensitized materials and sanitized integration artifacts listed in this checklist.
+Phase A/B/C internal code, tests, and documentation fixes are complete. The current external acceptance materials are limited to synthetic or local-only mechanism checks:
+
+- OCR external acceptance is `synthetic_external_acceptance`; Azure integration passed locally and proves external file loading, OCR Provider connectivity, expected-check plumbing, and local safety boundaries.
+- Classification external acceptance is `synthetic_external_acceptance`; evaluation passed locally and proves external manifest/label/text loading plus deterministic classification assertions.
+- Provider readiness artifact was generated locally, passed the documented safety summary, and proves sanitized Provider readiness artifact generation and connectivity only.
+
+No real or desensitized business materials have been provided yet. Specifically, there are no real or desensitized procurement documents, sales documents, confirmations, interview records, contracts, human-reviewed labels, RAG citation labels, or Agent workflow labels.
+
+The following remain `blocked_external_dependency`: production evaluation dataset, production OCR labels, production classification labels, production extraction labels, production rule labels, production RAG labels, production Agent labels, production E2E labels, and production security/deployment evidence.
+
+Do not claim `synthetic_external_acceptance` as `production_evaluation`. Do not treat synthetic, manual, fixture, mock, deterministic, or fallback results as `fully_satisfied`. Do not claim real customer data validation or execution-manual highest-standard `fully_satisfied` until the required real or compliant desensitized materials are supplied and accepted.
+
+Final status before those materials are provided: `code/test/docs satisfied + blocked_external_dependency`.

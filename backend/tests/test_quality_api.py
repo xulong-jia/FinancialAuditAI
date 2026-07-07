@@ -556,6 +556,141 @@ def test_manual_acceptance_extraction_manifest_runs_text_samples(monkeypatch) ->
         shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
+def _write_extraction_bbox_dataset(dataset_dir: Path, *, include_bboxes: bool) -> None:
+    text = (
+        "Invoice\n"
+        "Invoice No: INV-BBOX-001\n"
+        "Item: Audit Evidence; Quantity: 3; Unit: pcs; Unit Price: 200.00; Amount: 600.00\n"
+        "Amount Including Tax: CNY 600.00"
+    )
+    blocks = [
+        {"text": "Invoice No: INV-BBOX-001", "confidence": 0.98},
+        {
+            "text": "Item: Audit Evidence; Quantity: 3; Unit: pcs; Unit Price: 200.00; Amount: 600.00",
+            "confidence": 0.96,
+        },
+        {"text": "Amount Including Tax: CNY 600.00", "confidence": 0.97},
+    ]
+    if include_bboxes:
+        blocks[0]["bbox"] = [10.0, 20.0, 160.0, 36.0]
+        blocks[1]["bbox"] = [10.0, 90.0, 420.0, 110.0]
+        blocks[2]["bbox"] = [10.0, 120.0, 260.0, 136.0]
+
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": dataset_dir.name,
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "files": {"extraction": "extraction.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "extraction.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "extraction",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "extraction-bbox-required",
+                        "doc_type": "invoice",
+                        "input": {
+                            "filename": "invoice_bbox_sample.pdf",
+                            "text": text,
+                            "ocr_pages": [{"page_number": 1, "raw_text": text, "ocr_blocks": blocks}],
+                        },
+                        "expected": {
+                            "fields": {
+                                "invoice_no": {"value": "INV-BBOX-001"},
+                                "amount_including_tax": {
+                                    "value_normalized": {"amount": 600.0, "currency": "CNY"}
+                                },
+                                "item_lines": {
+                                    "min_items": 1,
+                                    "items": [
+                                        {
+                                            "item_name": "Audit Evidence",
+                                            "quantity": 3.0,
+                                            "unit": "pcs",
+                                            "unit_price": 200.0,
+                                            "amount": 600.0,
+                                        }
+                                    ],
+                                },
+                            },
+                            "require_source_page": True,
+                            "require_source_text": True,
+                            "require_source_bbox": True,
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_manual_acceptance_extraction_manifest_passes_when_required_source_bbox_is_present(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_extraction_bbox_positive_unit"
+    _write_extraction_bbox_dataset(dataset_dir, include_bboxes=True)
+
+    def fail_if_llm_called():
+        raise AssertionError("Extraction dataset runner must not call a real LLM provider")
+
+    monkeypatch.setattr(evaluation_service.extraction_service.llm_provider, "get_llm_provider", fail_if_llm_called)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "extraction",
+                "dataset_name": dataset_dir.name,
+                "dataset_path": f"evals/datasets/{dataset_dir.name}/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["sample_count"] == 1
+        assert result["failed_cases"] == []
+        assert result["metrics"]["extraction_sample_pass_rate"] == 1.0
+        assert result["metrics"]["source_bbox_coverage"] == 1.0
+        assert result["metrics"]["is_production_evaluation"] is False
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
+def test_manual_acceptance_extraction_manifest_fails_when_required_source_bbox_is_missing(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_extraction_bbox_negative_unit"
+    _write_extraction_bbox_dataset(dataset_dir, include_bboxes=False)
+
+    def fail_if_llm_called():
+        raise AssertionError("Extraction dataset runner must not call a real LLM provider")
+
+    monkeypatch.setattr(evaluation_service.extraction_service.llm_provider, "get_llm_provider", fail_if_llm_called)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "extraction",
+                "dataset_name": dataset_dir.name,
+                "dataset_path": f"evals/datasets/{dataset_dir.name}/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["failed_cases"]
+        assert result["metrics"]["extraction_sample_pass_rate"] == 0.0
+        assert result["metrics"]["source_bbox_coverage"] < 1.0
+        assert result["metrics"]["failed_case_count"] == 1
+        failed_checks = result["failed_cases"][0]["model_output"]["failed_checks"]
+        assert any(check["source_bbox_ok"] is False for check in failed_checks)
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
 def test_manual_acceptance_rule_manifest_runs_amount_samples() -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_rule_unit"
     dataset_dir.mkdir(parents=True, exist_ok=True)

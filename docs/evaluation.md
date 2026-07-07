@@ -34,7 +34,7 @@ Supported eval types:
 
 ## Manual Acceptance Datasets
 
-Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, deterministic rule sample validation, synthetic inline-document RAG validation, and synthetic Agent workflow contract validation:
+Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, deterministic rule sample validation, synthetic inline-document RAG validation, synthetic Agent workflow contract validation, and synthetic E2E workflow contract validation:
 
 ```text
 evals/datasets/<dataset_name>/dataset_manifest.json
@@ -44,6 +44,7 @@ evals/datasets/<dataset_name>/extraction.json
 evals/datasets/<dataset_name>/rule.json
 evals/datasets/<dataset_name>/rag.json
 evals/datasets/<dataset_name>/agent.json
+evals/datasets/<dataset_name>/e2e.json
 ```
 
 When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, or `evals/datasets`.
@@ -61,7 +62,8 @@ The manifest declares dataset metadata and the per-type files:
     "extraction": "extraction.json",
     "rule": "rule.json",
     "rag": "rag.json",
-    "agent": "agent.json"
+    "agent": "agent.json",
+    "end_to_end": "e2e.json"
   }
 }
 ```
@@ -265,7 +267,44 @@ The Agent dataset runner simulates workflow contract decisions from `input.avail
 
 This Agent dataset path is not full agent DB workflow, retry, review-center integration, report generation, or production Agent evaluation coverage. Real AgentService workflow still needs E2E or integration evaluation.
 
-Local manual validation has run successfully for `manual_acceptance` with `eval_type=agent` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic workflow contract samples, produced zero failed cases, and reported `agent_sample_pass_rate=1.0`, `workflow_success_accuracy=1.0`, `required_tool_coverage=1.0`, `forbidden_tool_violation_rate=0.0`, `review_routing_accuracy=1.0`, `conclusion_guardrail_accuracy=1.0`, `final_status_accuracy=1.0`, `workflow_success_rate=1.0`, `step_failure_rate=0.0`, `human_review_routing_accuracy=1.0`, `state_transition_validity=1.0`, `retry_recovery_rate=1.0`, `rule_engine_required=1.0`, and `high_risk_auto_confirm_rate=0.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full `agent_runs` / `agent_steps` DB workflow coverage. OCR, classification, extraction, rule, RAG, and Agent have dataset-driven manual acceptance results; E2E and regression do not yet have equivalent dataset-driven coverage.
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=agent` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic workflow contract samples, produced zero failed cases, and reported `agent_sample_pass_rate=1.0`, `workflow_success_accuracy=1.0`, `required_tool_coverage=1.0`, `forbidden_tool_violation_rate=0.0`, `review_routing_accuracy=1.0`, `conclusion_guardrail_accuracy=1.0`, `final_status_accuracy=1.0`, `workflow_success_rate=1.0`, `step_failure_rate=0.0`, `human_review_routing_accuracy=1.0`, `state_transition_validity=1.0`, `retry_recovery_rate=1.0`, `rule_engine_required=1.0`, and `high_risk_auto_confirm_rate=0.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full `agent_runs` / `agent_steps` DB workflow coverage. OCR, classification, extraction, rule, RAG, and Agent have dataset-driven manual acceptance results; E2E has synthetic contract runner support; regression does not yet have equivalent dataset-driven coverage.
+
+`e2e.json` contains synthetic workflow contract samples:
+
+```json
+{
+  "eval_type": "end_to_end",
+  "dataset_name": "manual_acceptance",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "e2e_procurement_walkthrough_001",
+      "input": {
+        "documents": [
+          {"doc_type": "purchase_contract", "text": "Purchase Contract\nContract No: PO-2026-001\nAmount Including Tax: CNY 1100.00"},
+          {"doc_type": "invoice", "text": "Invoice\nAmount Including Tax: CNY 1100.00"},
+          {"doc_type": "payment_receipt", "text": "Payment Receipt\nPayment Amount: CNY 1100.00"}
+        ]
+      },
+      "expected": {
+        "workflow_success": true,
+        "required_steps": ["upload_documents", "run_ocr", "classify_documents", "extract_fields", "link_business_documents", "run_rule_engine", "generate_control_table"],
+        "expected_doc_types": ["purchase_contract", "invoice", "payment_receipt"],
+        "expected_business_key": "PO-2026-001",
+        "expected_rule_results": [{"rule_id": "PROC_AMOUNT_001", "status": "pass"}],
+        "must_generate_report": true,
+        "must_have_evidence_index": true,
+        "must_not_auto_confirm_high_risk": true
+      }
+    }
+  ]
+}
+```
+
+The E2E dataset runner simulates the procurement walkthrough contract from inline `input.documents`: upload, OCR, classification, deterministic text extraction, business linkage, `PROC_AMOUNT_001`, report-generation flag, evidence-index flag, and high-risk auto-confirm guardrail. It does not create tasks, documents, reports, DB IDs, uploaded files, or local report files, and it does not call real OCR, LLM, Azure, or the full DB/API workflow.
+
+This E2E dataset path is not full task/document/OCR/classification/extraction/rule/report DB/API workflow coverage. Full DB/API E2E still needs separate integration tests. Regression does not yet have equivalent dataset-driven coverage.
 
 ## Metrics
 

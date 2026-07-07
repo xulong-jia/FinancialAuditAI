@@ -1,0 +1,66 @@
+{
+  "eval_type": "end_to_end",
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "e2e_procurement_walkthrough_001",
+      "scenario": "procurement",
+      "input": {
+        "task_type": "procurement_walkthrough",
+        "documents": [
+          {
+            "doc_type": "purchase_contract",
+            "filename": "purchase_contract_sample.pdf",
+            "text": "Purchase Contract\nContract No: PO-2026-001\nSupplier: Demo Supplier Pty Ltd\nBuyer: Demo Company\nAmount Including Tax: CNY 1100.00\nPayment Terms: Net 30"
+          },
+          {
+            "doc_type": "invoice",
+            "filename": "invoice_sample.pdf",
+            "text": "Invoice\nInvoice No: INV-2026-001\nInvoice Date: 2026/07/04\nSeller Name: Demo Supplier Pty Ltd\nBuyer Name: Demo Company\nAmount Including Tax: CNY 1100.00\nTax Amount: CNY 100.00"
+          },
+          {
+            "doc_type": "payment_receipt",
+            "filename": "payment_receipt_sample.pdf",
+            "text": "Payment Receipt\nTransaction No: PAY-2026-001\nPayer: Demo Company\nPayee: Demo Supplier Pty Ltd\nPayment Amount: CNY 1100.00\nBank Receipt Date: 2026-07-05"
+          }
+        ]
+      },
+      "expected": {
+        "workflow_success": true,
+        "required_steps": [
+          "upload_documents",
+          "run_ocr",
+          "classify_documents",
+          "extract_fields",
+          "link_business_documents",
+          "run_rule_engine",
+          "generate_control_table"
+        ],
+        "expected_doc_types": [
+          "purchase_contract",
+          "invoice",
+          "payment_receipt"
+        ],
+        "expected_business_key": "PO-2026-001",
+        "expected_rule_results": [
+          {
+            "rule_id": "PROC_AMOUNT_001",
+            "status": "pass"
+          }
+        ],
+        "must_generate_report": true,
+        "must_have_evidence_index": true,
+        "must_not_auto_confirm_high_risk": true
+      }
+    }
+  ],
+  "notes": [
+    "Synthetic E2E procurement walkthrough sample for manual acceptance.",
+    "This validates workflow contract only unless backed by full DB/API runner.",
+    "This is not production evaluation.",
+    "No real customer data is included."
+  ]
+}

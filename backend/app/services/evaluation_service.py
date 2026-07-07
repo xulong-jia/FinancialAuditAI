@@ -122,10 +122,10 @@ def _load_dataset(payload: EvaluationRunRequest) -> dict | None:
 
 
 def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: dict) -> dict:
-    if payload.eval_type not in {"ocr", "classification", "extraction", "rule", "rag", "agent"}:
+    if payload.eval_type not in {"ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end"}:
         raise HTTPException(
             status_code=400,
-            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, RAG, and Agent evaluation only",
+            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, RAG, Agent, and E2E evaluation only",
         )
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     eval_file = files.get(payload.eval_type)
@@ -1098,26 +1098,165 @@ def _agent_expected_checks(actual: dict, expected: dict) -> dict:
 
 def _evaluate_e2e_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
     failed = []
-    keys = ["e2e_success", "control_table_accuracy", "exception_detection", "evidence_complete", "review_resolved"]
-    hits = dict.fromkeys(keys, 0)
+    step_hits = step_total = doc_hits = doc_total = rule_hits = rule_total = 0
+    business_key_hits = report_hits = evidence_hits = high_risk_hits = 0
     for sample in samples:
-        actual = _sample_actual(sample)
+        actual = _evaluate_e2e_contract_sample(sample) if isinstance(_sample_input(sample).get("documents"), list) else _sample_actual(sample)
         expected = _sample_expected(sample)
-        for key in keys:
-            hits[key] += int(bool(actual.get(key)) == bool(expected.get(key, True)))
-        if actual != expected:
-            failed.append(_sample_failed_case("end_to_end", sample, actual, expected))
+        checks = _e2e_expected_checks(actual, expected)
+        step_hits += checks["required_step_hits"]
+        step_total += checks["required_step_total"]
+        doc_hits += checks["doc_type_hits"]
+        doc_total += checks["doc_type_total"]
+        rule_hits += checks["rule_result_hits"]
+        rule_total += checks["rule_result_total"]
+        business_key_hits += int(checks["business_key_ok"])
+        report_hits += int(checks["report_generation_ok"])
+        evidence_hits += int(checks["evidence_index_ok"])
+        high_risk_hits += int(checks["high_risk_guardrail_ok"])
+        if not checks["passed"]:
+            failed.append(_sample_failed_case("end_to_end", sample, actual, expected | {"checks": checks}))
     return (
         len(samples),
         {
-            "e2e_success_rate": _rate(hits["e2e_success"], len(samples)),
-            "control_table_accuracy": _rate(hits["control_table_accuracy"], len(samples)),
-            "exception_detection_f1": _rate(hits["exception_detection"], len(samples)),
-            "evidence_completeness": _rate(hits["evidence_complete"], len(samples)),
-            "review_resolution_rate": _rate(hits["review_resolved"], len(samples)),
+            "e2e_sample_pass_rate": _accuracy(len(samples), len(failed)),
+            "required_step_coverage": _rate(step_hits, step_total),
+            "document_classification_accuracy": _rate(doc_hits, doc_total),
+            "business_key_accuracy": _rate(business_key_hits, len(samples)),
+            "rule_result_accuracy": _rate(rule_hits, rule_total),
+            "report_generation_accuracy": _rate(report_hits, len(samples)),
+            "evidence_index_accuracy": _rate(evidence_hits, len(samples)),
+            "high_risk_guardrail_accuracy": _rate(high_risk_hits, len(samples)),
+            "failed_case_count": len(failed),
+            "e2e_success_rate": _accuracy(len(samples), len(failed)),
+            "control_table_accuracy": _rate(report_hits, len(samples)),
+            "exception_detection_f1": _rate(rule_hits, rule_total),
+            "evidence_completeness": _rate(evidence_hits, len(samples)),
+            "review_resolution_rate": _rate(high_risk_hits, len(samples)),
         },
         failed,
     )
+
+
+def _evaluate_e2e_contract_sample(sample: dict) -> dict:
+    documents = [document for document in _sample_input(sample).get("documents") or [] if isinstance(document, dict)]
+    classified = [_e2e_doc_type(document) for document in documents]
+    fields_by_doc = {
+        doc_type: _extract_text_sample_fields(doc_type, str(document.get("text") or ""), str(sample.get("scenario") or "procurement"))
+        for document, doc_type in zip(documents, classified, strict=False)
+        if doc_type
+    }
+    business_key = _field_text(fields_by_doc.get("purchase_contract", {}), "contract_no") or _e2e_regex(r"Contract No:\s*([A-Z0-9-]+)", documents)
+    rule_result = _evaluate_rule_dataset_sample({"rule_id": "PROC_AMOUNT_001", "input": {"fields": _e2e_rule_fields(fields_by_doc)}})
+    report_generated = bool(rule_result.get("status") in {"pass", "fail", "need_review"})
+    evidence_index = report_generated and bool(rule_result.get("evidence") or rule_result.get("status") == "pass")
+    steps = ["upload_documents"]
+    if documents:
+        steps.extend(["run_ocr", "classify_documents", "extract_fields"])
+    if business_key:
+        steps.append("link_business_documents")
+    if rule_result.get("status"):
+        steps.append("run_rule_engine")
+    if report_generated:
+        steps.append("generate_control_table")
+    return {
+        "workflow_success": bool(documents and business_key and rule_result.get("status") and report_generated),
+        "steps": steps,
+        "doc_types": classified,
+        "business_key": business_key,
+        "rule_results": [{"rule_id": "PROC_AMOUNT_001", "status": rule_result.get("status"), "evidence": rule_result.get("evidence", [])}],
+        "report_generated": report_generated,
+        "evidence_index": evidence_index,
+        "auto_confirmed_high_risk": False,
+        "report_path": None,
+    }
+
+
+def _e2e_expected_checks(actual: dict, expected: dict) -> dict:
+    steps = set(actual.get("steps") if isinstance(actual.get("steps"), list) else [])
+    required_steps = [str(step) for step in expected.get("required_steps") or []]
+    doc_types = list(actual.get("doc_types") if isinstance(actual.get("doc_types"), list) else [])
+    expected_doc_types = [str(doc_type) for doc_type in expected.get("expected_doc_types") or []]
+    expected_rules = [rule for rule in expected.get("expected_rule_results") or [] if isinstance(rule, dict)]
+    actual_rules = actual.get("rule_results") if isinstance(actual.get("rule_results"), list) else []
+    required_step_hits = sum(1 for step in required_steps if step in steps)
+    doc_type_hits = sum(1 for doc_type in expected_doc_types if doc_type in doc_types)
+    rule_hits = sum(1 for rule in expected_rules if any(_e2e_rule_matches(actual_rule, rule) for actual_rule in actual_rules if isinstance(actual_rule, dict)))
+    expected_business_key = expected.get("expected_business_key")
+    must_generate_report = expected.get("must_generate_report")
+    must_have_evidence_index = expected.get("must_have_evidence_index")
+    must_not_auto_confirm_high_risk = expected.get("must_not_auto_confirm_high_risk")
+    checks = {
+        "workflow_success_ok": bool(actual.get("workflow_success")) == bool(expected.get("workflow_success", actual.get("workflow_success"))),
+        "required_steps_ok": required_step_hits == len(required_steps),
+        "required_step_hits": required_step_hits,
+        "required_step_total": len(required_steps),
+        "doc_types_ok": doc_type_hits == len(expected_doc_types),
+        "doc_type_hits": doc_type_hits,
+        "doc_type_total": len(expected_doc_types),
+        "business_key_ok": expected_business_key is None or actual.get("business_key") == expected_business_key,
+        "rule_results_ok": rule_hits == len(expected_rules),
+        "rule_result_hits": rule_hits,
+        "rule_result_total": len(expected_rules),
+        "report_generation_ok": must_generate_report is None or bool(actual.get("report_generated")) == bool(must_generate_report),
+        "evidence_index_ok": must_have_evidence_index is None or bool(actual.get("evidence_index")) == bool(must_have_evidence_index),
+        "high_risk_guardrail_ok": must_not_auto_confirm_high_risk is None or not bool(actual.get("auto_confirmed_high_risk")),
+    }
+    checks["passed"] = all(
+        bool(checks[key])
+        for key in (
+            "workflow_success_ok",
+            "required_steps_ok",
+            "doc_types_ok",
+            "business_key_ok",
+            "rule_results_ok",
+            "report_generation_ok",
+            "evidence_index_ok",
+            "high_risk_guardrail_ok",
+        )
+    )
+    return checks
+
+
+def _e2e_doc_type(document: dict) -> str:
+    explicit = document.get("doc_type")
+    if explicit:
+        return str(explicit)
+    ranked = classification_service._rank_document_types(str(document.get("filename") or ""), str(document.get("text") or ""), "procurement")
+    return ranked[0].doc_type if ranked else "unknown"
+
+
+def _e2e_rule_fields(fields_by_doc: dict[str, dict]) -> dict[str, dict]:
+    converted = {}
+    for doc_type, fields in fields_by_doc.items():
+        converted[doc_type] = {}
+        for field_name, field in fields.items():
+            normalized = field.get("value_normalized") if isinstance(field, dict) else None
+            if isinstance(normalized, dict) and "amount" in normalized:
+                converted[doc_type][field_name] = normalized
+            elif isinstance(field, dict):
+                converted[doc_type][field_name] = field.get("value")
+    return converted
+
+
+def _e2e_rule_matches(actual: dict, expected: dict) -> bool:
+    return actual.get("rule_id") == expected.get("rule_id") and actual.get("status") == expected.get("status")
+
+
+def _field_text(fields: dict, field_name: str) -> str | None:
+    field = fields.get(field_name) if isinstance(fields, dict) else None
+    if not isinstance(field, dict):
+        return None
+    value = field.get("value")
+    return str(value) if value else None
+
+
+def _e2e_regex(pattern: str, documents: list[dict]) -> str | None:
+    for document in documents:
+        match = re.search(pattern, str(document.get("text") or ""), flags=re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return None
 
 
 def _evaluate_classification() -> tuple[int, dict, list[dict]]:

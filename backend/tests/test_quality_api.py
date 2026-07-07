@@ -822,6 +822,110 @@ def test_manual_acceptance_agent_manifest_runs_workflow_contracts(monkeypatch) -
         shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
+def test_manual_acceptance_e2e_manifest_runs_procurement_contract(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_e2e_unit"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": "manual_acceptance_e2e_unit",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "files": {"end_to_end": "e2e.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "e2e.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "end_to_end",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "e2e-procurement",
+                        "scenario": "procurement",
+                        "input": {
+                            "documents": [
+                                {
+                                    "doc_type": "purchase_contract",
+                                    "filename": "purchase_contract_sample.pdf",
+                                    "text": "Purchase Contract\nContract No: PO-2026-001\nAmount Including Tax: CNY 1100.00",
+                                },
+                                {
+                                    "doc_type": "invoice",
+                                    "filename": "invoice_sample.pdf",
+                                    "text": "Invoice\nInvoice No: INV-2026-001\nAmount Including Tax: CNY 1100.00",
+                                },
+                                {
+                                    "doc_type": "payment_receipt",
+                                    "filename": "payment_receipt_sample.pdf",
+                                    "text": "Payment Receipt\nTransaction No: PAY-2026-001\nPayment Amount: CNY 1100.00",
+                                },
+                            ]
+                        },
+                        "expected": {
+                            "workflow_success": True,
+                            "required_steps": [
+                                "upload_documents",
+                                "run_ocr",
+                                "classify_documents",
+                                "extract_fields",
+                                "link_business_documents",
+                                "run_rule_engine",
+                                "generate_control_table",
+                            ],
+                            "expected_doc_types": ["purchase_contract", "invoice", "payment_receipt"],
+                            "expected_business_key": "PO-2026-001",
+                            "expected_rule_results": [{"rule_id": "PROC_AMOUNT_001", "status": "pass"}],
+                            "must_generate_report": True,
+                            "must_have_evidence_index": True,
+                            "must_not_auto_confirm_high_risk": True,
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_if_real_workflow_called(*args, **kwargs):
+        raise AssertionError("E2E dataset runner must not call the real DB/API workflow")
+
+    monkeypatch.setattr(evaluation_service.ocr_service, "run_ocr", fail_if_real_workflow_called)
+    monkeypatch.setattr(evaluation_service.classification_service, "classify_document", fail_if_real_workflow_called)
+    monkeypatch.setattr(evaluation_service.extraction_service, "extract_document", fail_if_real_workflow_called)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "end_to_end",
+                "dataset_name": "manual_acceptance_e2e_unit",
+                "dataset_path": "evals/datasets/manual_acceptance_e2e_unit/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["dataset_name"] == "manual_acceptance_e2e_unit"
+        assert result["sample_count"] == 1
+        assert result["failed_cases"] == []
+        assert result["metrics"]["e2e_sample_pass_rate"] == 1.0
+        assert result["metrics"]["required_step_coverage"] == 1.0
+        assert result["metrics"]["document_classification_accuracy"] == 1.0
+        assert result["metrics"]["business_key_accuracy"] == 1.0
+        assert result["metrics"]["rule_result_accuracy"] == 1.0
+        assert result["metrics"]["report_generation_accuracy"] == 1.0
+        assert result["metrics"]["evidence_index_accuracy"] == 1.0
+        assert result["metrics"]["high_risk_guardrail_accuracy"] == 1.0
+        assert result["metrics"]["source_type"] == "synthetic"
+        assert result["metrics"]["dataset_kind"] == "non_production_manual_acceptance"
+        assert result["metrics"]["is_dataset_driven"] is True
+        assert result["metrics"]["is_production_evaluation"] is False
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
 def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_path_guard"
     dataset_dir.mkdir(parents=True, exist_ok=True)

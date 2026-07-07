@@ -37,6 +37,18 @@ RUN_PROVIDER_INTEGRATION=1 python3 scripts/provider_readiness.py --output local_
 
 If a Provider key, endpoint, model, or external sample is missing, readiness must return `blocked_external_dependency`. Do not mark that Provider as fully satisfied.
 
+## Local Integration Artifact
+
+A Provider readiness integration artifact has been generated locally at:
+
+```text
+local_storage/external_acceptance/provider_artifacts/provider_readiness_20260707_185807.json
+```
+
+Recorded safety summary only: JSON valid, `forbidden_hits=[]`, and top-level keys are `artifact_schema_version`, `paths`, `providers`, `run_integration`, and `run_timestamp`. The artifact path is ignored by Git and must remain uncommitted. The safety check found no `sk-*`, Authorization, Bearer token, `API_KEY`, `LLM_API_KEY`, `OCR_API_KEY`, `EMBEDDING_API_KEY`, or `.env` content.
+
+Do not paste the artifact body into committed docs. The artifact is local external acceptance material only; it does not make the project production `fully_satisfied` while real/desensitized production datasets remain missing.
+
 ## API Mode
 
 LLM-backed runtime paths support:

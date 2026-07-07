@@ -62,6 +62,14 @@ Required artifacts:
 
 All artifacts must be sanitized. They must not contain API keys, Authorization headers, full `.env` contents, or real customer source text.
 
+A local Provider readiness integration artifact has been generated under:
+
+```text
+local_storage/external_acceptance/provider_artifacts/provider_readiness_20260707_185807.json
+```
+
+Safety summary: JSON valid, `forbidden_hits=[]`, and top-level keys are limited to `artifact_schema_version`, `paths`, `providers`, `run_integration`, and `run_timestamp`. `git check-ignore` confirms the artifact is ignored. The safety check found no `sk-*`, Authorization, Bearer token, `API_KEY`, `LLM_API_KEY`, `OCR_API_KEY`, `EMBEDDING_API_KEY`, or `.env` content. The artifact stays local-only and is not committed. This is external acceptance evidence only; without real/desensitized production datasets, it does not make the project production `fully_satisfied`.
+
 ## 4. Security / Deployment Artifacts
 
 Local artifact directory:

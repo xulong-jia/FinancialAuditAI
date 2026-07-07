@@ -265,6 +265,8 @@ The Agent dataset runner simulates workflow contract decisions from `input.avail
 
 This Agent dataset path is not full agent DB workflow, retry, review-center integration, report generation, or production Agent evaluation coverage. Real AgentService workflow still needs E2E or integration evaluation.
 
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=agent` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic workflow contract samples, produced zero failed cases, and reported `agent_sample_pass_rate=1.0`, `workflow_success_accuracy=1.0`, `required_tool_coverage=1.0`, `forbidden_tool_violation_rate=0.0`, `review_routing_accuracy=1.0`, `conclusion_guardrail_accuracy=1.0`, `final_status_accuracy=1.0`, `workflow_success_rate=1.0`, `step_failure_rate=0.0`, `human_review_routing_accuracy=1.0`, `state_transition_validity=1.0`, `retry_recovery_rate=1.0`, `rule_engine_required=1.0`, and `high_risk_auto_confirm_rate=0.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full `agent_runs` / `agent_steps` DB workflow coverage. OCR, classification, extraction, rule, RAG, and Agent have dataset-driven manual acceptance results; E2E and regression do not yet have equivalent dataset-driven coverage.
+
 ## Metrics
 
 `evaluation_results.metrics` stores compact metrics such as:

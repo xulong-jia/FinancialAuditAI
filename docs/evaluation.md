@@ -34,7 +34,7 @@ Supported eval types:
 
 ## Manual Acceptance Datasets
 
-Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, deterministic rule sample validation, and synthetic inline-document RAG validation:
+Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, deterministic rule sample validation, synthetic inline-document RAG validation, and synthetic Agent workflow contract validation:
 
 ```text
 evals/datasets/<dataset_name>/dataset_manifest.json
@@ -43,6 +43,7 @@ evals/datasets/<dataset_name>/classification.json
 evals/datasets/<dataset_name>/extraction.json
 evals/datasets/<dataset_name>/rule.json
 evals/datasets/<dataset_name>/rag.json
+evals/datasets/<dataset_name>/agent.json
 ```
 
 When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, or `evals/datasets`.
@@ -59,7 +60,8 @@ The manifest declares dataset metadata and the per-type files:
     "classification": "classification.json",
     "extraction": "extraction.json",
     "rule": "rule.json",
-    "rag": "rag.json"
+    "rag": "rag.json",
+    "agent": "agent.json"
   }
 }
 ```
@@ -229,7 +231,39 @@ The RAG dataset runner uses only the sample's inline `input.documents` and deter
 
 This RAG dataset path is not full persistent vector-store, four-library, workpaper-scope, or production RAG evaluation coverage.
 
-Local manual validation has run successfully for `manual_acceptance` with `eval_type=rag` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic inline-document samples, produced zero failed cases, and reported `rag_sample_pass_rate=1.0`, `answer_text_accuracy=1.0`, `citation_presence_accuracy=1.0`, `citation_document_accuracy=1.0`, `no_answer_accuracy=1.0`, `recall_at_k=1.0`, `citation_accuracy=1.0`, and `groundedness=1.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full persistent vector-store / four-library / workpaper-scope RAG workflow coverage. OCR, classification, extraction, and rule also have dataset-driven manual acceptance results; Agent, E2E, and regression do not yet have equivalent dataset-driven coverage.
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=rag` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic inline-document samples, produced zero failed cases, and reported `rag_sample_pass_rate=1.0`, `answer_text_accuracy=1.0`, `citation_presence_accuracy=1.0`, `citation_document_accuracy=1.0`, `no_answer_accuracy=1.0`, `recall_at_k=1.0`, `citation_accuracy=1.0`, and `groundedness=1.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full persistent vector-store / four-library / workpaper-scope RAG workflow coverage. OCR, classification, extraction, rule, and RAG have dataset-driven manual acceptance results; Agent has synthetic contract runner support, while E2E and regression do not yet have equivalent dataset-driven coverage.
+
+`agent.json` contains synthetic Agent workflow contract samples:
+
+```json
+{
+  "eval_type": "agent",
+  "dataset_name": "manual_acceptance",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "agent_procurement_review_route_001",
+      "input": {
+        "available_tools": ["run_ocr", "classify_document", "extract_fields", "link_business_documents", "run_rule_engine", "create_review_ticket"],
+        "risk_signal": {"rule_id": "PROC_AMOUNT_001", "status": "fail", "severity": "high"}
+      },
+      "expected": {
+        "workflow_success": true,
+        "must_use_tools": ["run_ocr", "classify_document", "extract_fields", "link_business_documents", "run_rule_engine", "create_review_ticket"],
+        "forbidden_tools": ["direct_rule_verdict", "final_audit_opinion_without_review"],
+        "must_route_to_review": true,
+        "conclusion_generated": false,
+        "final_status": "pending_review"
+      }
+    }
+  ]
+}
+```
+
+The Agent dataset runner simulates workflow contract decisions from `input.available_tools`, `risk_signal`, and `rag_result`. It only uses tools present in the AgentService whitelist, routes high-risk rule failures and evidence-insufficient RAG cases to review, and checks required tools, forbidden tools, review routing, conclusion guardrails, and final status. It does not create `agent_runs` / `agent_steps`, does not call the real AgentService workflow, and does not call external providers.
+
+This Agent dataset path is not full agent DB workflow, retry, review-center integration, report generation, or production Agent evaluation coverage. Real AgentService workflow still needs E2E or integration evaluation.
 
 ## Metrics
 

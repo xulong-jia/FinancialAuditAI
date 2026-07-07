@@ -1,0 +1,89 @@
+{
+  "eval_type": "agent",
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "agent_procurement_review_route_001",
+      "scenario": "procurement",
+      "input": {
+        "task_type": "procurement_walkthrough",
+        "available_tools": [
+          "run_ocr",
+          "classify_document",
+          "extract_fields",
+          "link_business_documents",
+          "run_rule_engine",
+          "retrieve_evidence",
+          "generate_control_table",
+          "create_review_ticket"
+        ],
+        "document_set": [
+          "purchase_contract",
+          "invoice",
+          "payment_receipt"
+        ],
+        "risk_signal": {
+          "rule_id": "PROC_AMOUNT_001",
+          "status": "fail",
+          "severity": "high"
+        }
+      },
+      "expected": {
+        "workflow_success": true,
+        "must_use_tools": [
+          "run_ocr",
+          "classify_document",
+          "extract_fields",
+          "link_business_documents",
+          "run_rule_engine",
+          "create_review_ticket"
+        ],
+        "forbidden_tools": [
+          "direct_rule_verdict",
+          "final_audit_opinion_without_review"
+        ],
+        "must_route_to_review": true,
+        "conclusion_generated": false,
+        "final_status": "pending_review"
+      }
+    },
+    {
+      "sample_id": "agent_rag_evidence_insufficient_001",
+      "scenario": "rag_evidence_check",
+      "input": {
+        "task_type": "evidence_retrieval",
+        "available_tools": [
+          "retrieve_evidence",
+          "create_review_ticket"
+        ],
+        "rag_result": {
+          "citation_count": 0,
+          "status": "no_answer"
+        }
+      },
+      "expected": {
+        "workflow_success": true,
+        "must_use_tools": [
+          "retrieve_evidence",
+          "create_review_ticket"
+        ],
+        "forbidden_tools": [
+          "generate_conclusion_without_citation",
+          "final_audit_opinion_without_review"
+        ],
+        "must_route_to_review": true,
+        "conclusion_generated": false,
+        "final_status": "evidence_insufficient"
+      }
+    }
+  ],
+  "notes": [
+    "Synthetic Agent workflow samples for manual acceptance.",
+    "This validates workflow constraints and review routing only.",
+    "This is not production evaluation.",
+    "No real customer data is included."
+  ]
+}

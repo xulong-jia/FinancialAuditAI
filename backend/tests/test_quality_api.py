@@ -712,6 +712,116 @@ def test_manual_acceptance_rag_manifest_runs_inline_documents(monkeypatch) -> No
         shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
+def test_manual_acceptance_agent_manifest_runs_workflow_contracts(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_agent_unit"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": "manual_acceptance_agent_unit",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "files": {"agent": "agent.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "agent.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "agent",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "agent-procurement-review",
+                        "input": {
+                            "available_tools": [
+                                "run_ocr",
+                                "classify_document",
+                                "extract_fields",
+                                "link_business_documents",
+                                "run_rule_engine",
+                                "retrieve_evidence",
+                                "generate_control_table",
+                                "create_review_ticket",
+                                "direct_rule_verdict",
+                            ],
+                            "risk_signal": {"rule_id": "PROC_AMOUNT_001", "status": "fail", "severity": "high"},
+                        },
+                        "expected": {
+                            "workflow_success": True,
+                            "must_use_tools": [
+                                "run_ocr",
+                                "classify_document",
+                                "extract_fields",
+                                "link_business_documents",
+                                "run_rule_engine",
+                                "create_review_ticket",
+                            ],
+                            "forbidden_tools": ["direct_rule_verdict", "final_audit_opinion_without_review"],
+                            "must_route_to_review": True,
+                            "conclusion_generated": False,
+                            "final_status": "pending_review",
+                        },
+                    },
+                    {
+                        "sample_id": "agent-rag-insufficient",
+                        "input": {
+                            "available_tools": ["retrieve_evidence", "create_review_ticket"],
+                            "rag_result": {"citation_count": 0, "status": "no_answer"},
+                        },
+                        "expected": {
+                            "workflow_success": True,
+                            "must_use_tools": ["retrieve_evidence", "create_review_ticket"],
+                            "forbidden_tools": [
+                                "generate_conclusion_without_citation",
+                                "final_audit_opinion_without_review",
+                            ],
+                            "must_route_to_review": True,
+                            "conclusion_generated": False,
+                            "final_status": "evidence_insufficient",
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_if_agent_workflow_called(*args, **kwargs):
+        raise AssertionError("Agent dataset runner must not call the real AgentService workflow")
+
+    monkeypatch.setattr(evaluation_service.agent_service, "create_run", fail_if_agent_workflow_called)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "agent",
+                "dataset_name": "manual_acceptance_agent_unit",
+                "dataset_path": "evals/datasets/manual_acceptance_agent_unit/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["dataset_name"] == "manual_acceptance_agent_unit"
+        assert result["sample_count"] == 2
+        assert result["failed_cases"] == []
+        assert result["metrics"]["agent_sample_pass_rate"] == 1.0
+        assert result["metrics"]["workflow_success_accuracy"] == 1.0
+        assert result["metrics"]["required_tool_coverage"] == 1.0
+        assert result["metrics"]["forbidden_tool_violation_rate"] == 0.0
+        assert result["metrics"]["review_routing_accuracy"] == 1.0
+        assert result["metrics"]["conclusion_guardrail_accuracy"] == 1.0
+        assert result["metrics"]["final_status_accuracy"] == 1.0
+        assert result["metrics"]["source_type"] == "synthetic"
+        assert result["metrics"]["dataset_kind"] == "non_production_manual_acceptance"
+        assert result["metrics"]["is_dataset_driven"] is True
+        assert result["metrics"]["is_production_evaluation"] is False
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
 def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_path_guard"
     dataset_dir.mkdir(parents=True, exist_ok=True)

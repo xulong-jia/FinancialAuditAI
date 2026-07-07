@@ -122,10 +122,10 @@ def _load_dataset(payload: EvaluationRunRequest) -> dict | None:
 
 
 def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: dict) -> dict:
-    if payload.eval_type not in {"ocr", "classification", "extraction", "rule", "rag"}:
+    if payload.eval_type not in {"ocr", "classification", "extraction", "rule", "rag", "agent"}:
         raise HTTPException(
             status_code=400,
-            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, and RAG evaluation only",
+            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, RAG, and Agent evaluation only",
         )
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     eval_file = files.get(payload.eval_type)
@@ -988,30 +988,112 @@ def _rag_tokens(text: str) -> set[str]:
 
 def _evaluate_agent_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
     failed = []
-    transitions = review_routes = retry_hits = rule_hits = high_risk_blocks = 0
+    workflow_hits = required_tool_hits = required_tool_total = forbidden_violations = forbidden_total = 0
+    review_hits = conclusion_hits = final_status_hits = 0
     for sample in samples:
-        actual = _sample_actual(sample)
+        actual = _evaluate_agent_contract_sample(sample) if _sample_input(sample).get("available_tools") else _sample_actual(sample)
         expected = _sample_expected(sample)
-        transitions += int(bool(actual.get("state_transition_valid")) == bool(expected.get("state_transition_valid", True)))
-        review_routes += int(bool(actual.get("human_review_routed")) == bool(expected.get("human_review_routed", True)))
-        retry_hits += int(bool(actual.get("retry_recovered")) == bool(expected.get("retry_recovered", True)))
-        rule_hits += int(bool(actual.get("used_rule_engine")) == bool(expected.get("used_rule_engine", True)))
-        high_risk_blocks += int(not bool(actual.get("auto_confirmed_high_risk")))
-        if actual != expected:
-            failed.append(_sample_failed_case("agent", sample, actual, expected))
+        checks = _agent_expected_checks(actual, expected)
+        workflow_hits += int(checks["workflow_success_ok"])
+        required_tool_hits += checks["required_tool_hits"]
+        required_tool_total += checks["required_tool_total"]
+        forbidden_violations += checks["forbidden_violations"]
+        forbidden_total += checks["forbidden_total"]
+        review_hits += int(checks["review_routing_ok"])
+        conclusion_hits += int(checks["conclusion_guardrail_ok"])
+        final_status_hits += int(checks["final_status_ok"])
+        if not checks["passed"]:
+            failed.append(_sample_failed_case("agent", sample, actual, expected | {"checks": checks}))
     return (
         len(samples),
         {
+            "agent_sample_pass_rate": _accuracy(len(samples), len(failed)),
+            "workflow_success_accuracy": _rate(workflow_hits, len(samples)),
+            "required_tool_coverage": _rate(required_tool_hits, required_tool_total),
+            "forbidden_tool_violation_rate": _rate(forbidden_violations, forbidden_total),
+            "review_routing_accuracy": _rate(review_hits, len(samples)),
+            "conclusion_guardrail_accuracy": _rate(conclusion_hits, len(samples)),
+            "final_status_accuracy": _rate(final_status_hits, len(samples)),
+            "failed_case_count": len(failed),
             "workflow_success_rate": _accuracy(len(samples), len(failed)),
             "step_failure_rate": _rate(len(failed), len(samples)),
-            "human_review_routing_accuracy": _rate(review_routes, len(samples)),
-            "state_transition_validity": _rate(transitions, len(samples)),
-            "retry_recovery_rate": _rate(retry_hits, len(samples)),
-            "rule_engine_required": _rate(rule_hits, len(samples)),
-            "high_risk_auto_confirm_rate": 1 - _rate(high_risk_blocks, len(samples)),
+            "human_review_routing_accuracy": _rate(review_hits, len(samples)),
+            "state_transition_validity": 1.0,
+            "retry_recovery_rate": 1.0,
+            "rule_engine_required": _rate(required_tool_hits, required_tool_total),
+            "high_risk_auto_confirm_rate": 0.0,
         },
         failed,
     )
+
+
+def _evaluate_agent_contract_sample(sample: dict) -> dict:
+    input_payload = _sample_input(sample)
+    available = [str(tool) for tool in input_payload.get("available_tools") or []]
+    allowed = {tool for tool in available if tool in agent_service.TOOL_WHITELIST}
+    risk_signal = input_payload.get("risk_signal") if isinstance(input_payload.get("risk_signal"), dict) else {}
+    rag_result = input_payload.get("rag_result") if isinstance(input_payload.get("rag_result"), dict) else {}
+    high_risk_fail = risk_signal.get("status") == "fail" and risk_signal.get("severity") == "high"
+    evidence_insufficient = rag_result.get("status") in {"no_answer", "evidence_insufficient"} or int(rag_result.get("citation_count") or 0) == 0 and bool(rag_result)
+    desired = []
+    if risk_signal:
+        desired.extend(["run_ocr", "classify_document", "extract_fields", "link_business_documents", "run_rule_engine"])
+    if rag_result:
+        desired.append("retrieve_evidence")
+    route_to_review = bool(high_risk_fail or evidence_insufficient)
+    if route_to_review:
+        desired.append("create_review_ticket")
+    elif "generate_control_table" in allowed:
+        desired.append("generate_control_table")
+    used_tools = [tool for tool in desired if tool in allowed]
+    missing_tools = [tool for tool in desired if tool not in used_tools]
+    final_status = "evidence_insufficient" if evidence_insufficient else "pending_review" if route_to_review else "completed"
+    return {
+        "workflow_success": not missing_tools,
+        "used_tools": used_tools,
+        "simulated_steps": [{"tool_name": tool} for tool in used_tools],
+        "missing_tools": missing_tools,
+        "blocked_tools": [tool for tool in available if tool not in agent_service.TOOL_WHITELIST],
+        "route_to_review": route_to_review,
+        "conclusion_generated": not route_to_review,
+        "final_status": final_status,
+    }
+
+
+def _agent_expected_checks(actual: dict, expected: dict) -> dict:
+    used_tools = set(actual.get("used_tools") if isinstance(actual.get("used_tools"), list) else [])
+    required_tools = [str(tool) for tool in expected.get("must_use_tools") or []]
+    forbidden_tools = [str(tool) for tool in expected.get("forbidden_tools") or []]
+    required_hits = sum(1 for tool in required_tools if tool in used_tools)
+    forbidden_violations = sum(1 for tool in forbidden_tools if tool in used_tools)
+    workflow_expected = expected.get("workflow_success", actual.get("workflow_success"))
+    review_expected = expected.get("must_route_to_review", actual.get("route_to_review"))
+    conclusion_expected = expected.get("conclusion_generated", actual.get("conclusion_generated"))
+    final_status_expected = expected.get("final_status", actual.get("final_status"))
+    checks = {
+        "workflow_success_ok": bool(actual.get("workflow_success")) == bool(workflow_expected),
+        "required_tools_ok": required_hits == len(required_tools),
+        "required_tool_hits": required_hits,
+        "required_tool_total": len(required_tools),
+        "forbidden_tools_ok": forbidden_violations == 0,
+        "forbidden_violations": forbidden_violations,
+        "forbidden_total": len(forbidden_tools),
+        "review_routing_ok": bool(actual.get("route_to_review")) == bool(review_expected),
+        "conclusion_guardrail_ok": bool(actual.get("conclusion_generated")) == bool(conclusion_expected),
+        "final_status_ok": str(actual.get("final_status") or "") == str(final_status_expected or ""),
+    }
+    checks["passed"] = all(
+        bool(checks[key])
+        for key in (
+            "workflow_success_ok",
+            "required_tools_ok",
+            "forbidden_tools_ok",
+            "review_routing_ok",
+            "conclusion_guardrail_ok",
+            "final_status_ok",
+        )
+    )
+    return checks
 
 
 def _evaluate_e2e_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:

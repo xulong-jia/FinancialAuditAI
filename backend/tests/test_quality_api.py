@@ -431,6 +431,109 @@ def test_manual_acceptance_classification_manifest_runs_text_samples() -> None:
         shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
+def test_manual_acceptance_extraction_manifest_runs_text_samples(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_extraction_unit"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": "manual_acceptance_extraction_unit",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "files": {"extraction": "extraction.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "extraction.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "extraction",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "extraction-invoice",
+                        "doc_type": "invoice",
+                        "input": {
+                            "filename": "invoice_sample.pdf",
+                            "text": (
+                                "Invoice\n"
+                                "Invoice No: INV-2026-001\n"
+                                "Invoice Date: 2026/07/04\n"
+                                "Seller Name: Demo Supplier Pty Ltd\n"
+                                "Buyer Name: Demo Company\n"
+                                "Item: Audit Service; Quantity: 2; Unit: pcs; Unit Price: 500.00; Amount: 1000.00\n"
+                                "Amount Excluding Tax: 1,000.00\n"
+                                "Tax Amount: 100.00\n"
+                                "Amount Including Tax: CNY 1,100.00"
+                            ),
+                        },
+                        "expected": {
+                            "fields": {
+                                "invoice_no": {"value": "INV-2026-001"},
+                                "invoice_date": {"value_normalized": {"value": "2026-07-04"}},
+                                "seller_name": {"value": "Demo Supplier Pty Ltd"},
+                                "buyer_name": {"value": "Demo Company"},
+                                "amount_excluding_tax": {"value_normalized": {"amount": 1000.0, "currency": "CNY"}},
+                                "tax_amount": {"value_normalized": {"amount": 100.0, "currency": "CNY"}},
+                                "amount_including_tax": {"value_normalized": {"amount": 1100.0, "currency": "CNY"}},
+                                "item_lines": {
+                                    "min_items": 1,
+                                    "items": [
+                                        {
+                                            "item_name": "Audit Service",
+                                            "quantity": 2.0,
+                                            "unit": "pcs",
+                                            "unit_price": 500.0,
+                                            "amount": 1000.0,
+                                        }
+                                    ],
+                                },
+                            },
+                            "require_source_page": True,
+                            "require_source_text": True,
+                            "require_source_bbox": False,
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_if_llm_called():
+        raise AssertionError("Extraction dataset runner must not call a real LLM provider")
+
+    monkeypatch.setattr(evaluation_service.extraction_service.llm_provider, "get_llm_provider", fail_if_llm_called)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "extraction",
+                "dataset_name": "manual_acceptance_extraction_unit",
+                "dataset_path": "evals/datasets/manual_acceptance_extraction_unit/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["dataset_name"] == "manual_acceptance_extraction_unit"
+        assert result["sample_count"] == 1
+        assert result["failed_cases"] == []
+        assert result["metrics"]["extraction_field_accuracy"] == 1.0
+        assert result["metrics"]["normalized_value_accuracy"] == 1.0
+        assert result["metrics"]["item_line_accuracy"] == 1.0
+        assert result["metrics"]["source_page_coverage"] == 1.0
+        assert result["metrics"]["source_text_coverage"] == 1.0
+        assert result["metrics"]["source_bbox_coverage"] == 0.0
+        assert result["metrics"]["source_type"] == "synthetic"
+        assert result["metrics"]["dataset_kind"] == "non_production_manual_acceptance"
+        assert result["metrics"]["is_dataset_driven"] is True
+        assert result["metrics"]["is_production_evaluation"] is False
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
 def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_path_guard"
     dataset_dir.mkdir(parents=True, exist_ok=True)

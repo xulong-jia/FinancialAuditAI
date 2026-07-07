@@ -34,12 +34,13 @@ Supported eval types:
 
 ## Manual Acceptance Datasets
 
-Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation and classification text-sample validation:
+Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, and extraction text-sample validation:
 
 ```text
 evals/datasets/<dataset_name>/dataset_manifest.json
 evals/datasets/<dataset_name>/ocr.json
 evals/datasets/<dataset_name>/classification.json
+evals/datasets/<dataset_name>/extraction.json
 ```
 
 When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, or `evals/datasets`.
@@ -53,7 +54,8 @@ The manifest declares dataset metadata and the per-type files:
   "is_production_evaluation": false,
   "files": {
     "ocr": "ocr.json",
-    "classification": "classification.json"
+    "classification": "classification.json",
+    "extraction": "extraction.json"
   }
 }
 ```
@@ -117,6 +119,38 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 The classification dataset runner uses the existing text-sample evaluator for `input.text` / `input.filename` and compares the predicted `doc_type` with `expected.doc_type`. It is not the full uploaded-document DB workflow, does not replace the normal document classification API path, and synthetic samples with `is_production_evaluation=false` are recorded as non-production evaluation.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=classification` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used six synthetic samples, produced zero failed cases, and reported `accuracy=1.0`, `macro_f1=1.0`, and `low_confidence_rate=0.0`. It remains a synthetic six-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage.
+
+`extraction.json` contains synthetic text samples with expected fields:
+
+```json
+{
+  "eval_type": "extraction",
+  "dataset_name": "manual_acceptance",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "extraction_invoice_001",
+      "doc_type": "invoice",
+      "input": {
+        "filename": "invoice_sample.pdf",
+        "text": "Invoice\nInvoice No: INV-2026-001\nAmount Including Tax: CNY 1,100.00"
+      },
+      "expected": {
+        "fields": {
+          "invoice_no": {"value": "INV-2026-001"},
+          "amount_including_tax": {"value_normalized": {"amount": 1100.0, "currency": "CNY"}}
+        },
+        "require_source_page": true,
+        "require_source_text": true,
+        "require_source_bbox": false
+      }
+    }
+  ]
+}
+```
+
+The extraction dataset runner uses deterministic text extraction on `input.text` and compares `expected.fields` for field presence, `value`, `value_normalized`, `item_lines`, and field-level source traceability. `source_bbox` can be optional for text-only synthetic samples. This runner does not call a real LLM provider and does not exercise the full uploaded-document DB workflow.
 
 ## Metrics
 

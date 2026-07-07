@@ -32,6 +32,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | Manual OCR dataset-driven evaluation passed against the public receipt sample | verified locally | `eval_type=ocr`, `dataset_name=manual_acceptance`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`, model `azure-document-intelligence:prebuilt-layout`; `sample_count=1`, `failed_cases=[]`, OCR/text/page/block/bbox/confidence/table accuracies `1.0`, `blocked_external_dependency_count=0`, `is_production_evaluation=false` |
 | Manual acceptance classification evaluation dataset support can load `classification.json` from the manifest and compare text-sample predictions with `expected.doc_type` | implemented for classification text samples only | `backend/app/services/evaluation_service.py`, `backend/tests/test_quality_api.py::test_manual_acceptance_classification_manifest_runs_text_samples`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/classification.json` |
 | Manual classification dataset-driven evaluation passed against the synthetic six-sample dataset | verified locally | `eval_type=classification`, `dataset_name=manual_acceptance`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`; `sample_count=6`, `failed_cases=[]`, `accuracy=1.0`, `macro_f1=1.0`, `low_confidence_rate=0.0`, `source_type=synthetic`, `is_production_evaluation=false` |
+| Manual acceptance extraction evaluation dataset support can load `extraction.json` from the manifest and compare synthetic text extraction fields with expected values and source traceability | implemented for extraction text samples only | `backend/app/services/evaluation_service.py`, `backend/tests/test_quality_api.py::test_manual_acceptance_extraction_manifest_runs_text_samples`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/extraction.json` |
 
 ## Verification Completed
 
@@ -43,7 +44,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 170 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 171 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `cd frontend && npm test` | PASS, 4 node:test checks |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
@@ -56,8 +57,8 @@ Status: **verified locally; still not final execution-manual complete**.
 | Critical | Real OCR/LLM/RAG API keys and endpoints must remain local-only and must not be committed; external Provider verification remains `blocked_external_dependency` unless configured safely in local `.env` or deployment secrets. |
 | Medium | Browser-level frontend E2E/interaction tests are still absent. |
 | Medium | Report evidence quality still depends on upstream evidence/bbox/confidence completeness. Azure Document Intelligence real image E2E has verified OCR confidence/bbox/table_blocks on one public receipt, but PDF multi-page, complex tables, field extraction `source_bbox` propagation, and report evidence-index linkage remain unverified with a real sample. |
-| Medium | Manual acceptance dataset support currently covers OCR and classification text samples only. Classification full document workflow plus extraction, rule, RAG, Agent, E2E, and regression datasets still need equivalent real/desensitized dataset runners before Evaluation Center can be considered complete against the execution manual. |
-| Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and passed with 170 tests / 5 warnings. |
+| Medium | Manual acceptance dataset support currently covers OCR, classification text samples, and extraction text samples only. Classification/extraction full uploaded-document workflows plus rule, RAG, Agent, E2E, and regression datasets still need equivalent real/desensitized dataset runners before Evaluation Center can be considered complete against the execution manual. |
+| Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and passed with 171 tests / 5 warnings. |
 
 ## Compliance Boundary
 
@@ -67,3 +68,4 @@ The Azure OCR real image validation recorded only a safe summary. `.env` was not
 Manual OCR dataset results with `is_production_evaluation=false` are marked as non-production manual acceptance, not production quality claims.
 The successful manual OCR run used one public sample only. `.env`, API keys, and the `local_storage` image were not committed, and the result must not be interpreted as production-scale Evaluation coverage.
 Manual classification dataset support uses synthetic text samples and records `is_production_evaluation=false`. The successful manual classification run used six synthetic samples with `accuracy=1.0`, `macro_f1=1.0`, and no failed cases, but it is not a production-scale classification evaluation and does not exercise the full uploaded-document DB workflow.
+Manual extraction dataset support uses synthetic text samples and records `is_production_evaluation=false`. It checks fields, normalized values, item lines, and source traceability without calling a real LLM provider, but it is not a production-scale extraction evaluation and does not exercise the full uploaded-document DB workflow.

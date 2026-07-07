@@ -2,6 +2,7 @@ from pathlib import Path
 from hashlib import sha256
 import json
 import re
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
@@ -13,7 +14,7 @@ from app.models.audit_task import AuditTask
 from app.models.document import Document
 from app.models.evaluation_result import EvaluationResult
 from app.schemas.quality import EvaluationRunRequest
-from app.services import agent_service, audit_log_service, bad_case_service, classification_service, ocr_service, rag_service
+from app.services import agent_service, audit_log_service, bad_case_service, classification_service, extraction_service, ocr_service, rag_service
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -121,10 +122,10 @@ def _load_dataset(payload: EvaluationRunRequest) -> dict | None:
 
 
 def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: dict) -> dict:
-    if payload.eval_type not in {"ocr", "classification"}:
+    if payload.eval_type not in {"ocr", "classification", "extraction"}:
         raise HTTPException(
             status_code=400,
-            detail="Manual acceptance dataset manifest currently supports OCR and classification evaluation only",
+            detail="Manual acceptance dataset manifest currently supports OCR, classification, and extraction evaluation only",
         )
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     eval_file = files.get(payload.eval_type)
@@ -229,7 +230,10 @@ def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, 
         else:
             sample_count, metrics, failed = _evaluate_ocr_samples(samples)
     elif eval_type == "extraction":
-        sample_count, metrics, failed = _evaluate_json_samples(samples, "extraction")
+        if any(isinstance(_sample_expected(sample).get("fields"), dict) for sample in samples):
+            sample_count, metrics, failed = _evaluate_extraction_samples(samples)
+        else:
+            sample_count, metrics, failed = _evaluate_json_samples(samples, "extraction")
     elif eval_type == "rule":
         sample_count, metrics, failed = _evaluate_rule_samples(samples)
     elif eval_type == "rag":
@@ -542,6 +546,185 @@ def _evaluate_json_samples(samples: list[dict], case_type: str) -> tuple[int, di
             "reopened_case_count": sum(1 for sample in samples if _sample_actual(sample).get("status") == "reopened"),
         }
     return len(samples), metrics, failed
+
+
+def _evaluate_extraction_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
+    failed = []
+    field_total = field_pass = field_present = 0
+    normalized_total = normalized_pass = 0
+    item_total = item_pass = 0
+    source_total = source_page_hits = source_text_hits = source_bbox_hits = 0
+
+    for sample in samples:
+        input_payload = _sample_input(sample)
+        expected = _sample_expected(sample)
+        expected_fields = expected.get("fields") if isinstance(expected.get("fields"), dict) else {}
+        text = str(input_payload.get("text") or input_payload.get("raw_text") or "").strip()
+        doc_type = str(sample.get("doc_type") or input_payload.get("doc_type") or "").strip()
+        if not text or not doc_type or not expected_fields:
+            failed.append(
+                _sample_failed_case(
+                    "extraction",
+                    sample,
+                    {"status": "failed", "reason": "missing input.text, doc_type, or expected.fields"},
+                    expected,
+                )
+            )
+            continue
+
+        actual_fields = _extract_text_sample_fields(doc_type, text, str(input_payload.get("scenario") or "procurement"))
+        checks = _check_extraction_expected_fields(actual_fields, expected_fields, expected)
+        field_total += checks["field_total"]
+        field_pass += checks["field_pass"]
+        field_present += checks["field_present"]
+        normalized_total += checks["normalized_total"]
+        normalized_pass += checks["normalized_pass"]
+        item_total += checks["item_total"]
+        item_pass += checks["item_pass"]
+        source_total += checks["source_total"]
+        source_page_hits += checks["source_page_hits"]
+        source_text_hits += checks["source_text_hits"]
+        source_bbox_hits += checks["source_bbox_hits"]
+        if checks["failed_checks"]:
+            failed.append(
+                _sample_failed_case(
+                    "extraction",
+                    sample,
+                    {"status": "failed", "doc_type": doc_type, "fields": actual_fields, "failed_checks": checks["failed_checks"]},
+                    expected,
+                )
+            )
+
+    return (
+        len(samples),
+        {
+            "extraction_sample_pass_rate": _accuracy(len(samples), len(failed)),
+            "extraction_field_accuracy": _rate(field_pass, field_total),
+            "field_presence_accuracy": _rate(field_present, field_total),
+            "normalized_value_accuracy": _rate(normalized_pass, normalized_total),
+            "item_line_accuracy": _rate(item_pass, item_total),
+            "source_page_coverage": _rate(source_page_hits, source_total),
+            "source_text_coverage": _rate(source_text_hits, source_total),
+            "source_bbox_coverage": _rate(source_bbox_hits, source_total),
+            "failed_case_count": len(failed),
+        },
+        failed,
+    )
+
+
+def _extract_text_sample_fields(doc_type: str, text: str, scenario: str) -> dict[str, dict]:
+    page = SimpleNamespace(page_number=1, raw_text=text, ocr_blocks=[])
+    currency = extraction_service._normalize_currency(text)
+    fields = {}
+    for spec in extraction_service.schema_specs_for(scenario, doc_type):
+        value = extraction_service._extract_field(spec, [page])
+        value_normalized = value.value_normalized
+        if currency and isinstance(value_normalized, dict) and "amount" in value_normalized and "currency" not in value_normalized:
+            value_normalized = value_normalized | {"currency": currency}
+        fields[value.field_name] = {
+            "value": value.value_text,
+            "value_normalized": value_normalized,
+            "source_page": value.source_page,
+            "source_text": value.source_text,
+            "source_bbox": value.source_bbox,
+            "warnings": value.warnings,
+        }
+    return fields
+
+
+def _check_extraction_expected_fields(actual_fields: dict[str, dict], expected_fields: dict, expected: dict) -> dict:
+    require_source_page = bool(expected.get("require_source_page"))
+    require_source_text = bool(expected.get("require_source_text"))
+    require_source_bbox = bool(expected.get("require_source_bbox"))
+    checks = {
+        "field_total": 0,
+        "field_pass": 0,
+        "field_present": 0,
+        "normalized_total": 0,
+        "normalized_pass": 0,
+        "item_total": 0,
+        "item_pass": 0,
+        "source_total": 0,
+        "source_page_hits": 0,
+        "source_text_hits": 0,
+        "source_bbox_hits": 0,
+        "failed_checks": [],
+    }
+    for field_name, expected_field in expected_fields.items():
+        if not isinstance(expected_field, dict):
+            expected_field = {"value": expected_field}
+        actual = actual_fields.get(str(field_name)) or {}
+        field_present = _extraction_field_present(actual)
+        value_ok = "value" not in expected_field or _json_value_matches(actual.get("value"), expected_field.get("value"))
+        normalized_ok = True
+        item_ok = True
+        checks["field_total"] += 1
+        checks["field_present"] += int(field_present)
+        if "value_normalized" in expected_field:
+            checks["normalized_total"] += 1
+            normalized_ok = _json_value_matches(actual.get("value_normalized"), expected_field.get("value_normalized"))
+            checks["normalized_pass"] += int(normalized_ok)
+        if "min_items" in expected_field or "items" in expected_field:
+            checks["item_total"] += 1
+            item_ok = _item_lines_match(actual, expected_field)
+            checks["item_pass"] += int(item_ok)
+        source_page_ok = actual.get("source_page") is not None
+        source_text_ok = bool(actual.get("source_text"))
+        source_bbox_ok = actual.get("source_bbox") is not None
+        checks["source_total"] += 1
+        checks["source_page_hits"] += int(source_page_ok)
+        checks["source_text_hits"] += int(source_text_ok)
+        checks["source_bbox_hits"] += int(source_bbox_ok)
+        field_ok = (
+            field_present
+            and value_ok
+            and normalized_ok
+            and item_ok
+            and (source_page_ok or not require_source_page)
+            and (source_text_ok or not require_source_text)
+            and (source_bbox_ok or not require_source_bbox)
+        )
+        checks["field_pass"] += int(field_ok)
+        if not field_ok:
+            checks["failed_checks"].append(
+                {
+                    "field_name": field_name,
+                    "field_present": field_present,
+                    "value_ok": value_ok,
+                    "normalized_ok": normalized_ok,
+                    "item_lines_ok": item_ok,
+                    "source_page_ok": source_page_ok,
+                    "source_text_ok": source_text_ok,
+                    "source_bbox_ok": source_bbox_ok,
+                }
+            )
+    return checks
+
+
+def _extraction_field_present(actual: dict) -> bool:
+    if actual.get("value") is not None:
+        return True
+    normalized = actual.get("value_normalized")
+    if isinstance(normalized, dict) and normalized.get("items"):
+        return True
+    return normalized is not None
+
+
+def _item_lines_match(actual: dict, expected: dict) -> bool:
+    normalized = actual.get("value_normalized")
+    actual_items = normalized.get("items") if isinstance(normalized, dict) else None
+    if not isinstance(actual_items, list):
+        return False
+    if len(actual_items) < int(expected.get("min_items") or 0):
+        return False
+    expected_items = expected.get("items") if isinstance(expected.get("items"), list) else []
+    if len(actual_items) < len(expected_items):
+        return False
+    return all(
+        all(_json_value_matches(actual_items[index].get(key), value) for key, value in expected_item.items())
+        for index, expected_item in enumerate(expected_items)
+        if isinstance(expected_item, dict)
+    )
 
 
 def _evaluate_rule_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
@@ -1057,6 +1240,16 @@ def _edit_distance_list(actual: list[str], expected: list[str]) -> int:
             current.append(min(current[-1] + 1, previous[j] + 1, previous[j - 1] + (actual_item != expected_item)))
         previous = current
     return previous[-1]
+
+
+def _json_value_matches(actual: object, expected: object, tolerance: float = 0.01) -> bool:
+    if isinstance(actual, (int, float)) and isinstance(expected, (int, float)):
+        return abs(float(actual) - float(expected)) <= tolerance
+    if isinstance(actual, dict) and isinstance(expected, dict):
+        return actual.keys() == expected.keys() and all(_json_value_matches(actual[key], expected[key], tolerance) for key in expected)
+    if isinstance(actual, list) and isinstance(expected, list):
+        return len(actual) == len(expected) and all(_json_value_matches(left, right, tolerance) for left, right in zip(actual, expected, strict=True))
+    return actual == expected
 
 
 def _numeric_close(actual: dict, expected: dict, tolerance: float = 0.01) -> bool:

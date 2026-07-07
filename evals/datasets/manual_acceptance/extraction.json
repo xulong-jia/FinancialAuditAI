@@ -1,0 +1,78 @@
+{
+  "eval_type": "extraction",
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "extraction_invoice_001",
+      "doc_type": "invoice",
+      "input": {
+        "filename": "invoice_sample.pdf",
+        "text": "Invoice\nInvoice No: INV-2026-001\nInvoice Date: 2026/07/04\nSeller Name: Demo Supplier Pty Ltd\nBuyer Name: Demo Company\nItem: Audit Service; Quantity: 2; Unit: pcs; Unit Price: 500.00; Amount: 1000.00\nAmount Excluding Tax: 1,000.00\nTax Amount: 100.00\nAmount Including Tax: CNY 1,100.00"
+      },
+      "expected": {
+        "fields": {
+          "invoice_no": {
+            "value": "INV-2026-001"
+          },
+          "invoice_date": {
+            "value_normalized": {
+              "value": "2026-07-04"
+            }
+          },
+          "seller_name": {
+            "value": "Demo Supplier Pty Ltd"
+          },
+          "buyer_name": {
+            "value": "Demo Company"
+          },
+          "amount_excluding_tax": {
+            "value_normalized": {
+              "amount": 1000.0,
+              "currency": "CNY"
+            }
+          },
+          "tax_amount": {
+            "value_normalized": {
+              "amount": 100.0,
+              "currency": "CNY"
+            }
+          },
+          "amount_including_tax": {
+            "value_normalized": {
+              "amount": 1100.0,
+              "currency": "CNY"
+            }
+          },
+          "item_lines": {
+            "min_items": 1,
+            "items": [
+              {
+                "item_name": "Audit Service",
+                "quantity": 2.0,
+                "unit": "pcs",
+                "unit_price": 500.0,
+                "amount": 1000.0
+              }
+            ]
+          }
+        },
+        "require_source_page": true,
+        "require_source_text": true,
+        "require_source_bbox": false
+      },
+      "notes": [
+        "Synthetic invoice extraction sample.",
+        "This validates normalized values and source traceability where available.",
+        "source_bbox is not required for this text-only synthetic sample."
+      ]
+    }
+  ],
+  "notes": [
+    "Synthetic extraction samples for manual acceptance.",
+    "This is not production evaluation.",
+    "No real customer data is included."
+  ]
+}

@@ -20,6 +20,7 @@
 | Evaluation manual classification 真实运行 | 已成功运行 `manual_acceptance` classification dataset-driven evaluation；`sample_count=6`、`failed_cases=[]`、`accuracy=1.0`、`macro_f1=1.0`、`low_confidence_rate=0.0`；结果标记 `dataset_kind=non_production_manual_acceptance`、`source_type=synthetic`、`dataset_source=evals/datasets/manual_acceptance/classification.json`、`is_dataset_driven=true`、`is_production_evaluation=false` | 无 secret；该 dataset 为 synthetic 六样本，不是生产级完整 Evaluation | 手工运行：`eval_type=classification`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json` |
 | Evaluation manual extraction dataset | 已支持 `evals/datasets/<dataset>/dataset_manifest.json` 加载 `extraction.json`；runner 使用 deterministic text extraction，不调用真实 LLM，按 `expected.fields` 校验字段存在、`value`、`value_normalized`、`item_lines`、`source_page`、`source_text`、可选 `source_bbox`；synthetic 非生产 manifest 不会标记为 production evaluation | `backend/app/services/evaluation_service.py`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/extraction.json` | `backend/tests/test_quality_api.py::test_manual_acceptance_extraction_manifest_runs_text_samples` |
 | Evaluation manual extraction 真实运行 | 已成功运行 `manual_acceptance` extraction dataset-driven evaluation；`sample_count=1`、`failed_cases=[]`、`extraction_sample_pass_rate=1.0`、field/normalized/item/source_page/source_text accuracy 均为 `1.0`，`source_bbox_coverage=0.0`；结果标记 `dataset_kind=non_production_manual_acceptance`、`source_type=synthetic`、`dataset_source=evals/datasets/manual_acceptance/extraction.json`、`is_dataset_driven=true`、`is_production_evaluation=false` | 无 secret；该 dataset 为 synthetic 单样本，`require_source_bbox=false`，不是生产级完整 Evaluation，也不是完整 uploaded-document DB workflow | 手工运行：`eval_type=extraction`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json` |
+| Evaluation manual rule dataset | 已支持 `evals/datasets/<dataset>/dataset_manifest.json` 加载 `rule.json`；runner 对 `PROC_AMOUNT_001` 使用 synthetic deterministic 金额一致性检查，按 `rule_id`、`status`、`severity`、`must_include_evidence` 断言；fail 时生成不含 DB evidence id 的证据摘要；synthetic 非生产 manifest 不会标记为 production evaluation | `backend/app/services/evaluation_service.py`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/rule.json` | `backend/tests/test_quality_api.py::test_manual_acceptance_rule_manifest_runs_amount_samples` |
 | OCR Provider 配置展示 | 已补齐 Admin Center 展示 | `backend/app/api/router.py`, `frontend/src/types/api.ts`, `frontend/src/pages/AdminCenterPage.tsx` | `npm run build` |
 | Embedding Provider 独立配置 | 已补齐 endpoint/key/model 配置 | `backend/app/core/config.py`, `backend/app/services/rag_service.py`, `.env.example` | `backend/tests/test_final_gap_closure_api.py::test_real_embedding_provider_requests_configured_vector_dimensions` |
 | Embedding 维度兼容 | 已在真实 provider 请求中显式传入 32 维 | `backend/app/services/rag_service.py` | 同上 |
@@ -49,7 +50,7 @@
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 171 passed, 5 warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 172 passed, 5 warnings |
 | `cd frontend && npm test` | PASS, 4 tests |
 | `cd frontend && npm run build` | PASS, Vite chunk-size warning only |
 | `git diff --check` | PASS |
@@ -73,7 +74,7 @@
 
 | 编号 | 模块 | 缺口 |
 | --- | --- | --- |
-| M-01 | Evaluation | 数据集驱动入口已存在；manual acceptance OCR dataset runner 已支持真实 OCR 样本断言，classification text-sample dataset runner 已支持 synthetic doc_type 断言，extraction text-sample dataset runner 已支持 synthetic invoice 字段断言；classification/extraction 完整上传文档 DB workflow、rule / RAG / Agent / E2E 尚未完成同等 dataset 化，真实 RAG groundedness、真实 Agent E2E 评测仍依赖外部标注集和真实 Provider 配置。 |
+| M-01 | Evaluation | 数据集驱动入口已存在；manual acceptance OCR dataset runner 已支持真实 OCR 样本断言，classification text-sample dataset runner 已支持 synthetic doc_type 断言，extraction text-sample dataset runner 已支持 synthetic invoice 字段断言，rule dataset runner 已支持 `PROC_AMOUNT_001` synthetic deterministic 断言；classification/extraction/rule 完整 DB workflow、RAG / Agent / E2E / regression 尚未完成同等 dataset 化，真实 RAG groundedness、真实 Agent E2E 评测仍依赖外部标注集和真实 Provider 配置。 |
 | M-02 | Report | xlsx/csv/markdown/pdf 均存在；PDF 已输出 Summary、异常、证据索引、复核意见和用途边界；audit_result 证据行已含 `field_id`。Azure OCR 真实图片已验证 bbox/confidence/table_blocks 写入，但字段抽取 `source_bbox` 传递和报告 evidence index 联动尚未用该真实样本验证。 |
 | M-03 | Review | 字段修正和异常复核已补服务端用户 UUID FK；历史 `actor_name` / `reviewed_by` / `corrected_by` 字符串字段仅保留为显示兼容口径。 |
 | M-04 | Frontend tests | 已有权限合同自动化测试；仍无浏览器级 E2E/交互测试。 |
@@ -94,6 +95,7 @@
 | manual acceptance OCR dataset | 已支持 manifest + `ocr.json`；真实 OCR 结果由 OCR provider 产生，不伪造；当前 manifest `is_production_evaluation=false` | 只覆盖 OCR，不代表 Evaluation Center 完全满足 |
 | manual acceptance classification dataset | 已支持 manifest + `classification.json` 并已跑通；当前样本为 synthetic text sample，使用现有 text-sample evaluator 对比 `expected.doc_type` | 只覆盖分类文本样本，不代表完整 document workflow 或生产级 Evaluation |
 | manual acceptance extraction dataset | 已支持 manifest + `extraction.json`；当前样本为 synthetic text sample，使用 deterministic extraction 对比字段和 source traceability，不调用真实 LLM | 只覆盖抽取文本样本，不代表完整 uploaded-document DB workflow 或生产级 Evaluation |
+| manual acceptance rule dataset | 已支持 manifest + `rule.json`；当前样本为 synthetic deterministic `PROC_AMOUNT_001` amount check，不调用完整 DB Rule Engine workflow | 只覆盖规则文本字段样本，不代表完整 task/document/field Rule Engine workflow 或生产级 Evaluation |
 
 ## Provider 测试隔离与 readiness
 
@@ -103,11 +105,11 @@
 - OpenAI-compatible readiness 支持 `LLM_API_MODE=auto` / `responses` / `chat_completions`；`auto` 对 `gpt-5*` readiness 使用 Responses API，其余默认兼容旧 `/chat/completions` provider。
 - 真实网络 integration 只能显式设置 `RUN_PROVIDER_INTEGRATION=1` 后触发；无 key 或 endpoint 时状态为 `blocked_external_dependency`，不能声明 fully satisfied。
 - readiness 输出只包含 provider/model 和 `api_url_status` / `api_key_status`，不得输出 API key。
-- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider；当前结果为 171 passed / 5 warnings。
+- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider；当前结果为 172 passed / 5 warnings。
 - Azure Document Intelligence OCR adapter 已实现；真实 readiness 依赖本地 `.env` 中 `OCR_PROVIDER=azure-document-intelligence`、`OCR_API_URL`、`OCR_API_KEY`、`OCR_MODEL=prebuilt-layout`，并通过显式 `RUN_PROVIDER_INTEGRATION=1` 触发轻量 model probe。OCR confidence、bbox、table_blocks 必须来自 Azure 原始响应，不得伪造；无 Azure key/endpoint 时仍属于 `blocked_external_dependency`。
 - Azure OCR readiness 已通过；Azure OCR 真实图片 E2E 已通过：Provider 为 `azure-document-intelligence`，model 为 `prebuilt-layout`，API version 为 `2024-11-30`。公开 receipt 样本位于 `local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg`，未提交 Git；raw_text 前 300 字符确认包含商户名、地址、电话、订单号、明细、subtotal、tax、total、日期时间。`.env` 未提交，API key 未记录，未记录完整 Azure 原始响应。
 - Azure 真实图片 E2E 仍未覆盖 PDF 多页、复杂表格、字段抽取 `source_bbox` 传递、报告 evidence index 联动；这些不能由 fallback/synthetic 结果替代。
-- Evaluation Center 已开始支持 manual acceptance OCR dataset、classification text-sample dataset 和 extraction text-sample dataset，路径为 `evals/datasets/manual_acceptance/dataset_manifest.json`、`ocr.json`、`classification.json`、`extraction.json`。当前只实现 OCR dataset runner、classification text-sample runner 和 extraction synthetic text-sample runner；rule / RAG / Agent / E2E / regression 仍待同等 dataset 化，不能据此声称 Evaluation Center 完全满足执行手册。
+- Evaluation Center 已开始支持 manual acceptance OCR dataset、classification text-sample dataset、extraction text-sample dataset 和 rule deterministic dataset，路径为 `evals/datasets/manual_acceptance/dataset_manifest.json`、`ocr.json`、`classification.json`、`extraction.json`、`rule.json`。当前只实现 OCR dataset runner、classification text-sample runner、extraction synthetic text-sample runner 和 `PROC_AMOUNT_001` synthetic rule runner；RAG / Agent / E2E / regression 仍待同等 dataset 化，不能据此声称 Evaluation Center 完全满足执行手册。
 - Manual OCR dataset-driven evaluation 已真实跑通，但它是 public single-sample non-production manual acceptance；limitations 明确记录 `Dataset kind is non_production_manual_acceptance` 和 `Sample count is 1`，不能作为生产级完整 Evaluation 结论。
 - Manual classification dataset-driven evaluation 已跑通，但它是 synthetic six-sample non-production manual acceptance；limitations 明确记录 `Dataset kind is non_production_manual_acceptance` 和 `Sample count is 6`，不能作为生产级完整 Evaluation 结论。
 - Manual extraction dataset-driven evaluation 已跑通，但它是 synthetic single-sample non-production manual acceptance；`source_bbox_coverage=0.0` 是预期结果，因为该 text-only sample 设置 `require_source_bbox=false`。它不能作为生产级完整 Evaluation 或完整 uploaded-document DB workflow 结论。

@@ -122,10 +122,10 @@ def _load_dataset(payload: EvaluationRunRequest) -> dict | None:
 
 
 def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: dict) -> dict:
-    if payload.eval_type not in {"ocr", "classification", "extraction"}:
+    if payload.eval_type not in {"ocr", "classification", "extraction", "rule"}:
         raise HTTPException(
             status_code=400,
-            detail="Manual acceptance dataset manifest currently supports OCR, classification, and extraction evaluation only",
+            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, and rule evaluation only",
         )
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     eval_file = files.get(payload.eval_type)
@@ -731,28 +731,121 @@ def _evaluate_rule_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
     failed = []
     false_positive = 0
     false_negative = 0
+    status_hits = severity_hits = evidence_hits = 0
+    evidence_total = 0
+    evidence_sample_hits = 0
     for sample in samples:
-        actual = _sample_actual(sample)
+        actual = _evaluate_rule_dataset_sample(sample) if sample.get("rule_id") and isinstance(_sample_input(sample).get("fields"), dict) else _sample_actual(sample)
         expected = _sample_expected(sample)
+        expected_rule_id = expected.get("rule_id")
+        actual_rule_id = actual.get("rule_id") or sample.get("rule_id")
         actual_status = str(actual.get("status") or "unknown")
         expected_status = str(expected.get("status") or "unknown")
-        if actual_status != expected_status:
+        actual_severity = str(actual.get("severity") or "")
+        expected_severity = str(expected.get("severity") or actual_severity)
+        rule_ok = expected_rule_id in {None, actual_rule_id}
+        status_ok = actual_status == expected_status
+        severity_ok = actual_severity == expected_severity
+        evidence_required = bool(expected.get("must_include_evidence"))
+        evidence_ok = not evidence_required or bool(actual.get("evidence"))
+        evidence_sample_hits += int(bool(actual.get("evidence")))
+        status_hits += int(status_ok)
+        severity_hits += int(severity_ok)
+        evidence_total += int(evidence_required)
+        evidence_hits += int(evidence_ok and evidence_required)
+        if not (rule_ok and status_ok and severity_ok and evidence_ok):
             failed.append(_sample_failed_case("rule", sample, actual, expected))
             false_positive += int(actual_status in {"fail", "warning"} and expected_status == "pass")
             false_negative += int(actual_status == "pass" and expected_status != "pass")
     return (
         len(samples),
         {
+            "rule_sample_pass_rate": _accuracy(len(samples), len(failed)),
+            "rule_status_accuracy": _rate(status_hits, len(samples)),
+            "rule_severity_accuracy": _rate(severity_hits, len(samples)),
+            "rule_evidence_coverage": _rate(evidence_hits, evidence_total),
+            "failed_case_count": len(failed),
             "rule_accuracy": _accuracy(len(samples), len(failed)),
             "false_positive_count": false_positive,
             "false_negative_count": false_negative,
             "false_positive_rate": _rate(false_positive, len(samples)),
             "false_negative_rate": _rate(false_negative, len(samples)),
             "rule_coverage": 1.0,
-            "explainability_rate": _rate(sum(1 for sample in samples if bool(_sample_actual(sample).get("evidence"))), len(samples)),
+            "explainability_rate": _rate(evidence_sample_hits, len(samples)),
         },
         failed,
     )
+
+
+def _evaluate_rule_dataset_sample(sample: dict) -> dict:
+    rule_id = str(sample.get("rule_id") or "")
+    if rule_id != "PROC_AMOUNT_001":
+        return {"rule_id": rule_id, "status": "unsupported", "severity": "high", "evidence": []}
+    fields = _sample_input(sample).get("fields")
+    fields = fields if isinstance(fields, dict) else {}
+    contract_amount = _field_amount(fields, "purchase_contract", "amount_including_tax")
+    invoice_amount = _field_amount(fields, "invoice", "amount_including_tax")
+    payment_amount = _field_amount(fields, "payment_receipt", "payment_amount") or _field_amount(fields, "payment_receipt", "amount")
+    amounts = {
+        "contract_amount": contract_amount,
+        "invoice_amount": invoice_amount,
+        "payment_amount": payment_amount,
+    }
+    missing = [name for name, amount in amounts.items() if amount is None]
+    if missing:
+        return {
+            "rule_id": rule_id,
+            "status": "need_review",
+            "severity": "medium",
+            "actual_value": amounts,
+            "evidence": [{"field_name": name, "status": "missing"} for name in missing],
+        }
+    tolerance = 1.0
+    mismatches = {
+        name: amount
+        for name, amount in (("invoice_amount", invoice_amount), ("payment_amount", payment_amount))
+        if abs(float(amount) - float(contract_amount)) > tolerance
+    }
+    if mismatches:
+        return {
+            "rule_id": rule_id,
+            "status": "fail",
+            "severity": "high",
+            "expected_value": {"contract_amount": contract_amount, "tolerance": tolerance},
+            "actual_value": amounts | {"mismatches": mismatches},
+            "evidence": _rule_amount_evidence(fields),
+        }
+    return {
+        "rule_id": rule_id,
+        "status": "pass",
+        "severity": "low",
+        "expected_value": {"contract_amount": contract_amount, "tolerance": tolerance},
+        "actual_value": amounts,
+        "evidence": [],
+    }
+
+
+def _field_amount(fields: dict, doc_type: str, field_name: str) -> float | None:
+    doc_fields = fields.get(doc_type)
+    value = doc_fields.get(field_name) if isinstance(doc_fields, dict) else None
+    if isinstance(value, dict):
+        value = value.get("amount")
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _rule_amount_evidence(fields: dict) -> list[dict]:
+    refs = []
+    for doc_type, field_name in (
+        ("purchase_contract", "amount_including_tax"),
+        ("invoice", "amount_including_tax"),
+        ("payment_receipt", "payment_amount"),
+    ):
+        amount = _field_amount(fields, doc_type, field_name)
+        refs.append({"doc_type": doc_type, "field_name": field_name, "amount": amount})
+    return refs
 
 
 def _evaluate_rag_samples(db: Session, samples: list[dict]) -> tuple[int, dict, list[dict]]:

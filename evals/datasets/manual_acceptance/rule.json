@@ -1,0 +1,92 @@
+{
+  "eval_type": "rule",
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "rule_proc_amount_pass_001",
+      "scenario": "procurement",
+      "rule_id": "PROC_AMOUNT_001",
+      "input": {
+        "fields": {
+          "purchase_contract": {
+            "contract_no": "PO-2026-001",
+            "supplier_name": "Demo Supplier Pty Ltd",
+            "amount_including_tax": {
+              "amount": 1100.0,
+              "currency": "CNY"
+            }
+          },
+          "invoice": {
+            "invoice_no": "INV-2026-001",
+            "seller_name": "Demo Supplier Pty Ltd",
+            "amount_including_tax": {
+              "amount": 1100.0,
+              "currency": "CNY"
+            }
+          },
+          "payment_receipt": {
+            "transaction_no": "PAY-2026-001",
+            "payee": "Demo Supplier Pty Ltd",
+            "payment_amount": {
+              "amount": 1100.0,
+              "currency": "CNY"
+            }
+          }
+        }
+      },
+      "expected": {
+        "rule_id": "PROC_AMOUNT_001",
+        "status": "pass",
+        "severity": "low"
+      }
+    },
+    {
+      "sample_id": "rule_proc_amount_fail_001",
+      "scenario": "procurement",
+      "rule_id": "PROC_AMOUNT_001",
+      "input": {
+        "fields": {
+          "purchase_contract": {
+            "contract_no": "PO-2026-002",
+            "supplier_name": "Demo Supplier Pty Ltd",
+            "amount_including_tax": {
+              "amount": 1100.0,
+              "currency": "CNY"
+            }
+          },
+          "invoice": {
+            "invoice_no": "INV-2026-002",
+            "seller_name": "Demo Supplier Pty Ltd",
+            "amount_including_tax": {
+              "amount": 1250.0,
+              "currency": "CNY"
+            }
+          },
+          "payment_receipt": {
+            "transaction_no": "PAY-2026-002",
+            "payee": "Demo Supplier Pty Ltd",
+            "payment_amount": {
+              "amount": 1250.0,
+              "currency": "CNY"
+            }
+          }
+        }
+      },
+      "expected": {
+        "rule_id": "PROC_AMOUNT_001",
+        "status": "fail",
+        "severity": "high",
+        "must_include_evidence": true
+      }
+    }
+  ],
+  "notes": [
+    "Synthetic rule samples for manual acceptance.",
+    "This validates deterministic rule behavior only.",
+    "This is not production evaluation.",
+    "No real customer data is included."
+  ]
+}

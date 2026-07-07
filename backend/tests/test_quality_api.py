@@ -534,6 +534,89 @@ def test_manual_acceptance_extraction_manifest_runs_text_samples(monkeypatch) ->
         shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
+def test_manual_acceptance_rule_manifest_runs_amount_samples() -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_rule_unit"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": "manual_acceptance_rule_unit",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "files": {"rule": "rule.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "rule.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "rule",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "rule-pass",
+                        "rule_id": "PROC_AMOUNT_001",
+                        "scenario": "procurement",
+                        "input": {
+                            "fields": {
+                                "purchase_contract": {"amount_including_tax": {"amount": 1100.0, "currency": "CNY"}},
+                                "invoice": {"amount_including_tax": {"amount": 1100.0, "currency": "CNY"}},
+                                "payment_receipt": {"payment_amount": {"amount": 1100.0, "currency": "CNY"}},
+                            }
+                        },
+                        "expected": {"rule_id": "PROC_AMOUNT_001", "status": "pass", "severity": "low"},
+                    },
+                    {
+                        "sample_id": "rule-fail",
+                        "rule_id": "PROC_AMOUNT_001",
+                        "scenario": "procurement",
+                        "input": {
+                            "fields": {
+                                "purchase_contract": {"amount_including_tax": {"amount": 1100.0, "currency": "CNY"}},
+                                "invoice": {"amount_including_tax": {"amount": 1250.0, "currency": "CNY"}},
+                                "payment_receipt": {"payment_amount": {"amount": 1250.0, "currency": "CNY"}},
+                            }
+                        },
+                        "expected": {
+                            "rule_id": "PROC_AMOUNT_001",
+                            "status": "fail",
+                            "severity": "high",
+                            "must_include_evidence": True,
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "rule",
+                "dataset_name": "manual_acceptance_rule_unit",
+                "dataset_path": "evals/datasets/manual_acceptance_rule_unit/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["dataset_name"] == "manual_acceptance_rule_unit"
+        assert result["sample_count"] == 2
+        assert result["failed_cases"] == []
+        assert result["metrics"]["rule_sample_pass_rate"] == 1.0
+        assert result["metrics"]["rule_status_accuracy"] == 1.0
+        assert result["metrics"]["rule_severity_accuracy"] == 1.0
+        assert result["metrics"]["rule_evidence_coverage"] == 1.0
+        assert result["metrics"]["source_type"] == "synthetic"
+        assert result["metrics"]["dataset_kind"] == "non_production_manual_acceptance"
+        assert result["metrics"]["is_dataset_driven"] is True
+        assert result["metrics"]["is_production_evaluation"] is False
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
 def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_path_guard"
     dataset_dir.mkdir(parents=True, exist_ok=True)

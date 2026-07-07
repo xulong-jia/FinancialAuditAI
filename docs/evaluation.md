@@ -34,13 +34,14 @@ Supported eval types:
 
 ## Manual Acceptance Datasets
 
-Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, and extraction text-sample validation:
+Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, and deterministic rule sample validation:
 
 ```text
 evals/datasets/<dataset_name>/dataset_manifest.json
 evals/datasets/<dataset_name>/ocr.json
 evals/datasets/<dataset_name>/classification.json
 evals/datasets/<dataset_name>/extraction.json
+evals/datasets/<dataset_name>/rule.json
 ```
 
 When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, or `evals/datasets`.
@@ -55,7 +56,8 @@ The manifest declares dataset metadata and the per-type files:
   "files": {
     "ocr": "ocr.json",
     "classification": "classification.json",
-    "extraction": "extraction.json"
+    "extraction": "extraction.json",
+    "rule": "rule.json"
   }
 }
 ```
@@ -153,6 +155,39 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 The extraction dataset runner uses deterministic text extraction on `input.text` and compares `expected.fields` for field presence, `value`, `value_normalized`, `item_lines`, and field-level source traceability. `source_bbox` can be optional for text-only synthetic samples. This runner does not call a real LLM provider and does not exercise the full uploaded-document DB workflow.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=extraction` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used one synthetic invoice sample, produced zero failed cases, and reported `extraction_sample_pass_rate=1.0`, `extraction_field_accuracy=1.0`, `field_presence_accuracy=1.0`, `normalized_value_accuracy=1.0`, `item_line_accuracy=1.0`, `source_page_coverage=1.0`, `source_text_coverage=1.0`, and `source_bbox_coverage=0.0`. The zero bbox coverage is expected for this text-only sample because `require_source_bbox=false`. It remains a synthetic single-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full uploaded-document DB workflow coverage.
+
+`rule.json` contains synthetic deterministic rule samples:
+
+```json
+{
+  "eval_type": "rule",
+  "dataset_name": "manual_acceptance",
+  "source_type": "synthetic",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "rule_proc_amount_fail_001",
+      "rule_id": "PROC_AMOUNT_001",
+      "scenario": "procurement",
+      "input": {
+        "fields": {
+          "purchase_contract": {"amount_including_tax": {"amount": 1100.0, "currency": "CNY"}},
+          "invoice": {"amount_including_tax": {"amount": 1250.0, "currency": "CNY"}},
+          "payment_receipt": {"payment_amount": {"amount": 1250.0, "currency": "CNY"}}
+        }
+      },
+      "expected": {
+        "rule_id": "PROC_AMOUNT_001",
+        "status": "fail",
+        "severity": "high",
+        "must_include_evidence": true
+      }
+    }
+  ]
+}
+```
+
+The rule dataset runner currently supports `PROC_AMOUNT_001` as a synthetic deterministic amount consistency check. It compares contract, invoice, and payment amounts from `input.fields`, validates expected `rule_id`, `status`, `severity`, and required evidence presence, and stores evidence summaries without DB evidence IDs. This is not the full Rule Engine DB task workflow; full task/document/field rule execution still needs separate E2E coverage.
 
 ## Metrics
 

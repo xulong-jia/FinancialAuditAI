@@ -1,0 +1,37 @@
+{
+  "eval_type": "ocr",
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "public",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "ocr_public_receipt_001",
+      "file_path": "local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg",
+      "file_type": "image/jpeg",
+      "provider": "azure-document-intelligence",
+      "model": "prebuilt-layout",
+      "expected": {
+        "min_page_count": 1,
+        "must_contain_text": [
+          "GREEN FIELD",
+          "Long Beach",
+          "TOTAL",
+          "$56.58"
+        ],
+        "min_ocr_blocks": 20,
+        "require_bbox": true,
+        "require_confidence": true,
+        "min_blocks_with_bbox": 20,
+        "min_blocks_with_confidence": 20,
+        "require_table_blocks": true,
+        "min_table_blocks": 1
+      },
+      "notes": [
+        "Public receipt image used for OCR smoke validation.",
+        "Image file is stored under local_storage and must not be committed.",
+        "This sample is non-production evaluation until labels are reviewed."
+      ]
+    }
+  ]
+}

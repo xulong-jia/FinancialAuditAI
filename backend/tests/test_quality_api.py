@@ -1,7 +1,12 @@
 import json
+import shutil
+from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
+from app.models.document import Document
 from app.services import evaluation_service
 from app.main import app
 
@@ -261,6 +266,152 @@ def test_dataset_driven_evaluation_is_task_scoped_and_creates_scoped_bad_cases()
     other_cases = client.get("/api/v1/bad-cases?case_type=classification", headers=other_headers).json()
     assert any(case["title"] == "cls-fail" and case["task_id"] == task["id"] for case in owner_cases)
     assert all(case["title"] != "cls-fail" for case in other_cases)
+
+
+def test_manual_acceptance_ocr_manifest_runs_expected_assertions(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_unit"
+    sample_path = Path(__file__).resolve().parents[2] / "local_storage" / "manual_acceptance_files" / "ocr" / "unit_receipt.jpg"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    sample_path.parent.mkdir(parents=True, exist_ok=True)
+    sample_path.write_bytes(b"unit-test-image")
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": "manual_acceptance_unit",
+                "source_type": "public",
+                "is_production_evaluation": False,
+                "files": {"ocr": "ocr.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "ocr.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "ocr",
+                "source_type": "public",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "ocr-unit",
+                        "file_path": str(sample_path.relative_to(Path(__file__).resolve().parents[2])),
+                        "file_type": "image/jpeg",
+                        "provider": "azure-document-intelligence",
+                        "model": "prebuilt-layout",
+                        "expected": {
+                            "min_page_count": 1,
+                            "must_contain_text": ["GREEN FIELD", "TOTAL", "$56.58"],
+                            "min_ocr_blocks": 2,
+                            "require_bbox": True,
+                            "require_confidence": True,
+                            "min_blocks_with_bbox": 2,
+                            "min_blocks_with_confidence": 2,
+                            "require_table_blocks": True,
+                            "min_table_blocks": 1,
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_run_ocr(db, document_id):
+        document = db.get(Document, document_id)
+        document.ocr_status = "completed"
+        document.page_count = 1
+        db.commit()
+        db.refresh(document)
+        return document
+
+    def fake_list_pages(db, document_id):
+        return [
+            SimpleNamespace(
+                raw_text="GREEN FIELD receipt TOTAL $56.58",
+                ocr_blocks=[
+                    {"text": "GREEN FIELD", "bbox": [1, 1, 2, 2], "confidence": 0.98},
+                    {"text": "TOTAL $56.58", "bbox": [1, 3, 2, 4], "confidence": 0.97},
+                ],
+                table_blocks=[{"type": "azure_table"}],
+                ocr_engine="azure-document-intelligence:prebuilt-layout",
+            )
+        ]
+
+    monkeypatch.setattr(settings, "ocr_provider", "azure-document-intelligence")
+    monkeypatch.setattr(settings, "ocr_api_url", "https://azure.example.test")
+    monkeypatch.setattr(settings, "ocr_api_key", "unit-test-placeholder-key")
+    monkeypatch.setattr(settings, "ocr_model", "prebuilt-layout")
+    monkeypatch.setattr(evaluation_service.ocr_service, "run_ocr", fake_run_ocr)
+    monkeypatch.setattr(evaluation_service.ocr_service, "list_pages", fake_list_pages)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "ocr",
+                "dataset_name": "manual_acceptance_unit",
+                "dataset_path": "manual_acceptance_unit/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["dataset_name"] == "manual_acceptance_unit"
+        assert result["sample_count"] == 1
+        assert result["failed_cases"] == []
+        assert result["metrics"]["ocr_sample_pass_rate"] == 1.0
+        assert result["metrics"]["source_type"] == "public"
+        assert result["metrics"]["manual_acceptance_status"] == "non_production_manual_acceptance"
+        assert result["metrics"]["is_production_evaluation"] is False
+        assert result["metrics"]["blocked_external_dependency_count"] == 0
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+        sample_path.unlink(missing_ok=True)
+
+
+def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_path_guard"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps({"dataset_name": "manual_acceptance_path_guard", "files": {"ocr": "ocr.json"}}),
+        encoding="utf-8",
+    )
+    (dataset_dir / "ocr.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "ocr",
+                "samples": [
+                    {
+                        "sample_id": "blocked-path",
+                        "file_path": "/etc/passwd",
+                        "provider": "azure-document-intelligence",
+                        "model": "prebuilt-layout",
+                        "expected": {"must_contain_text": ["never"]},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_if_called(db, document_id):
+        raise AssertionError("OCR service should not be called for blocked paths")
+
+    monkeypatch.setattr(evaluation_service.ocr_service, "run_ocr", fail_if_called)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "ocr",
+                "dataset_name": "manual_acceptance_path_guard",
+                "dataset_path": "manual_acceptance_path_guard/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["sample_count"] == 1
+        assert result["metrics"]["blocked_external_dependency_count"] == 1
+        assert result["failed_cases"][0]["model_output"]["status"] == "blocked_external_dependency"
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
 def test_evaluation_dataset_path_is_restricted() -> None:

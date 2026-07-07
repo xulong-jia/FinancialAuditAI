@@ -14,6 +14,7 @@
 | Azure Document Intelligence OCR Provider | 已补齐 `azure-document-intelligence` / `azure` / `azure-document-intelligence-layout` adapter；使用 Azure Document Intelligence REST API `2024-11-30`、`prebuilt-layout`，将 Azure `analyzeResult.pages` / lines / words / tables 正规化为 `DocumentPage` / `ocr_blocks` / `table_blocks` / confidence / bbox | `backend/app/services/ocr_service.py`, `backend/app/core/config.py`, `.env.example` | `backend/tests/test_ocr_api.py::test_azure_document_intelligence_provider_normalizes_layout`, `backend/tests/test_ocr_api.py::test_azure_document_intelligence_error_redacts_key` |
 | Azure OCR readiness | 已补齐 Azure Provider configured/blocked/ready 状态；`RUN_PROVIDER_INTEGRATION=1` 使用 `GET documentModels/{model}` 轻量探测，不上传真实 OCR 文件 | `backend/app/services/provider_readiness_service.py` | `backend/tests/test_health_api.py::test_provider_readiness_azure_ocr_get_model_probe` |
 | Azure OCR 真实图片 E2E | 已用公开 receipt 样本完成本地真实 Azure OCR E2E；文件位于 `local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg`，未提交 Git；验证 `page raw_text`、`ocr_blocks`、bbox、confidence、`table_blocks`、`ocr_engine` 写入 | 本地 `.env` 配置 Azure Document Intelligence；`.env` 未提交，API key 未记录 | 手工验收结果：`page_count=1`、`ocr_blocks_count=73`、`blocks_with_bbox_count=73`、`blocks_with_confidence_count=49`、`table_blocks_count=3`、`average_block_confidence=0.9786`、`ocr_engine=azure-document-intelligence:prebuilt-layout` |
+| Evaluation manual OCR dataset | 已支持 `evals/datasets/<dataset>/dataset_manifest.json` 加载 OCR dataset；OCR runner 会复用项目 OCR service，并按 expected 断言 raw_text、page_count、ocr_blocks、bbox、confidence、table_blocks；非生产 manifest 会标记 `non_production_manual_acceptance` | `backend/app/services/evaluation_service.py`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/dataset_manifest.json`, `evals/datasets/manual_acceptance/ocr.json` | `backend/tests/test_quality_api.py::test_manual_acceptance_ocr_manifest_runs_expected_assertions`, `backend/tests/test_quality_api.py::test_manual_acceptance_ocr_file_path_is_restricted` |
 | OCR Provider 配置展示 | 已补齐 Admin Center 展示 | `backend/app/api/router.py`, `frontend/src/types/api.ts`, `frontend/src/pages/AdminCenterPage.tsx` | `npm run build` |
 | Embedding Provider 独立配置 | 已补齐 endpoint/key/model 配置 | `backend/app/core/config.py`, `backend/app/services/rag_service.py`, `.env.example` | `backend/tests/test_final_gap_closure_api.py::test_real_embedding_provider_requests_configured_vector_dimensions` |
 | Embedding 维度兼容 | 已在真实 provider 请求中显式传入 32 维 | `backend/app/services/rag_service.py` | 同上 |
@@ -67,7 +68,7 @@
 
 | 编号 | 模块 | 缺口 |
 | --- | --- | --- |
-| M-01 | Evaluation | 数据集驱动入口已存在，但真实 OCR、真实 RAG groundedness、真实 Agent E2E 评测仍依赖外部标注集和真实 Provider 配置。 |
+| M-01 | Evaluation | 数据集驱动入口已存在；manual acceptance OCR dataset runner 已开始支持真实 OCR 样本断言，但 classification / extraction / rule / RAG / Agent / E2E 尚未完成同等 dataset 化，真实 RAG groundedness、真实 Agent E2E 评测仍依赖外部标注集和真实 Provider 配置。 |
 | M-02 | Report | xlsx/csv/markdown/pdf 均存在；PDF 已输出 Summary、异常、证据索引、复核意见和用途边界；audit_result 证据行已含 `field_id`。Azure OCR 真实图片已验证 bbox/confidence/table_blocks 写入，但字段抽取 `source_bbox` 传递和报告 evidence index 联动尚未用该真实样本验证。 |
 | M-03 | Review | 字段修正和异常复核已补服务端用户 UUID FK；历史 `actor_name` / `reviewed_by` / `corrected_by` 字符串字段仅保留为显示兼容口径。 |
 | M-04 | Frontend tests | 已有权限合同自动化测试；仍无浏览器级 E2E/交互测试。 |
@@ -85,6 +86,7 @@
 | built-in sample Evaluation | 保留为 smoke，不作为最终评测证据 | 仍影响真实验收 |
 | demo seed samples | 仍保留 | 不可作为完全满足证据 |
 | external real/desensitized Evaluation dataset | 已支持 JSON 读取路径 | 需要用户提供真实/脱敏标注数据才能最终验收 |
+| manual acceptance OCR dataset | 已支持 manifest + `ocr.json`；真实 OCR 结果由 OCR provider 产生，不伪造；当前 manifest `is_production_evaluation=false` | 只覆盖 OCR，不代表 Evaluation Center 完全满足 |
 
 ## Provider 测试隔离与 readiness
 
@@ -98,6 +100,7 @@
 - Azure Document Intelligence OCR adapter 已实现；真实 readiness 依赖本地 `.env` 中 `OCR_PROVIDER=azure-document-intelligence`、`OCR_API_URL`、`OCR_API_KEY`、`OCR_MODEL=prebuilt-layout`，并通过显式 `RUN_PROVIDER_INTEGRATION=1` 触发轻量 model probe。OCR confidence、bbox、table_blocks 必须来自 Azure 原始响应，不得伪造；无 Azure key/endpoint 时仍属于 `blocked_external_dependency`。
 - Azure OCR readiness 已通过；Azure OCR 真实图片 E2E 已通过：Provider 为 `azure-document-intelligence`，model 为 `prebuilt-layout`，API version 为 `2024-11-30`。公开 receipt 样本位于 `local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg`，未提交 Git；raw_text 前 300 字符确认包含商户名、地址、电话、订单号、明细、subtotal、tax、total、日期时间。`.env` 未提交，API key 未记录，未记录完整 Azure 原始响应。
 - Azure 真实图片 E2E 仍未覆盖 PDF 多页、复杂表格、字段抽取 `source_bbox` 传递、报告 evidence index 联动；这些不能由 fallback/synthetic 结果替代。
+- Evaluation Center 已开始支持 manual acceptance OCR dataset，路径为 `evals/datasets/manual_acceptance/dataset_manifest.json` 和 `ocr.json`。当前只实现 OCR dataset runner；其他 eval types 仍待 dataset 化，不能据此声称 Evaluation Center 完全满足执行手册。
 - Azure Document Intelligence 可使用 F0 免费层进行学习和小规模验证，但免费层页数和速率有限，不能替代最终真实样本验收。
 
 ## 下一轮最高优先级

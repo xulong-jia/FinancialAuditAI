@@ -32,6 +32,59 @@ Supported eval types:
 - `end_to_end`
 - `regression`
 
+## Manual Acceptance Datasets
+
+Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation:
+
+```text
+evals/datasets/<dataset_name>/dataset_manifest.json
+evals/datasets/<dataset_name>/ocr.json
+```
+
+The manifest declares dataset metadata and the per-type files:
+
+```json
+{
+  "dataset_name": "manual_acceptance",
+  "source_type": "public",
+  "is_production_evaluation": false,
+  "files": {
+    "ocr": "ocr.json"
+  }
+}
+```
+
+`ocr.json` contains OCR samples. Each sample can point to a local public/desensitized file under an allowed evaluation data directory such as `local_storage/manual_acceptance_files`:
+
+```json
+{
+  "eval_type": "ocr",
+  "dataset_name": "manual_acceptance",
+  "source_type": "public",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "ocr_public_receipt_001",
+      "file_path": "local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg",
+      "file_type": "image/jpeg",
+      "provider": "azure-document-intelligence",
+      "model": "prebuilt-layout",
+      "expected": {
+        "must_contain_text": ["GREEN FIELD", "Long Beach", "TOTAL", "$56.58"],
+        "min_ocr_blocks": 20,
+        "require_bbox": true,
+        "require_confidence": true,
+        "min_table_blocks": 1
+      }
+    }
+  ]
+}
+```
+
+The OCR runner calls the configured OCR provider through the project OCR service and checks raw text containment, page count, OCR block count, bbox count, confidence count, and table block count. It does not fabricate OCR results.
+
+Secrets and local evidence files remain local-only: `.env`, API keys, and `local_storage` samples must not be committed. `is_production_evaluation=false` is recorded as non-production manual acceptance, even when a real OCR provider is used.
+
 ## Metrics
 
 `evaluation_results.metrics` stores compact metrics such as:

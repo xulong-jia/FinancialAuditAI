@@ -28,6 +28,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | Azure Document Intelligence OCR adapter supports `prebuilt-layout` and normalizes pages, text blocks, word bbox/confidence, and table cells into existing OCR structures | implemented | `backend/app/services/ocr_service.py`, `backend/tests/test_ocr_api.py::test_azure_document_intelligence_provider_normalizes_layout` |
 | Azure OCR readiness recognizes configured/blocked states and uses a no-document `GET documentModels/{model}` probe when integration is explicitly enabled | implemented | `backend/app/services/provider_readiness_service.py`, `backend/tests/test_health_api.py::test_provider_readiness_azure_ocr_get_model_probe` |
 | Azure OCR readiness and real image E2E validation passed locally without recording secrets or committing the sample image | verified locally | Provider `azure-document-intelligence`, model `prebuilt-layout`, API version `2024-11-30`; public receipt sample under `local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg` was not committed; result wrote `page_count=1`, `ocr_blocks_count=73`, bbox on 73 blocks, confidence on 49 blocks, 3 `table_blocks`, average confidence `0.9786`, and `ocr_engine=azure-document-intelligence:prebuilt-layout` |
+| Manual acceptance OCR evaluation dataset support can load `evals/datasets/<dataset>/dataset_manifest.json` and run OCR expected assertions through the existing OCR service | implemented for OCR only | `backend/app/services/evaluation_service.py`, `backend/tests/test_quality_api.py::test_manual_acceptance_ocr_manifest_runs_expected_assertions`, `backend/tests/test_quality_api.py::test_manual_acceptance_ocr_file_path_is_restricted`, `docs/evaluation.md` |
 
 ## Verification Completed
 
@@ -52,6 +53,7 @@ Status: **verified locally; still not final execution-manual complete**.
 | Critical | Real OCR/LLM/RAG API keys and endpoints must remain local-only and must not be committed; external Provider verification remains `blocked_external_dependency` unless configured safely in local `.env` or deployment secrets. |
 | Medium | Browser-level frontend E2E/interaction tests are still absent. |
 | Medium | Report evidence quality still depends on upstream evidence/bbox/confidence completeness. Azure Document Intelligence real image E2E has verified OCR confidence/bbox/table_blocks on one public receipt, but PDF multi-page, complex tables, field extraction `source_bbox` propagation, and report evidence-index linkage remain unverified with a real sample. |
+| Medium | Manual acceptance dataset support currently covers OCR only. Classification, extraction, rule, RAG, Agent, E2E, and regression datasets still need equivalent real/desensitized dataset runners before Evaluation Center can be considered complete against the execution manual. |
 | Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and passed with 166 tests / 5 warnings. |
 
 ## Compliance Boundary
@@ -59,3 +61,4 @@ Status: **verified locally; still not final execution-manual complete**.
 This report does not claim final execution-manual compliance. Fallback, synthetic, demo, and static paths remain visible as limited paths and cannot be used as proof that the execution manual is fully satisfied.
 Azure Document Intelligence OCR confidence, bbox, and table_blocks must come from Azure raw responses and are not synthesized by the adapter. Azure F0 can be used for small local validation, but its page and rate limits do not replace final real-sample verification.
 The Azure OCR real image validation recorded only a safe summary. `.env` was not committed, API keys were not recorded, the `local_storage` receipt sample was not committed, and the full Azure raw response was not stored in this report.
+Manual OCR dataset results with `is_production_evaluation=false` are marked as non-production manual acceptance, not production quality claims.

@@ -1,0 +1,41 @@
+{
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "public_and_desensitized",
+  "is_production_evaluation": false,
+  "description": "Manual acceptance evaluation dataset for FinancialAuditAI. This manifest records the dataset structure and evaluation intent. Set is_production_evaluation=true only after replacing placeholders with properly labeled public or desensitized samples.",
+  "eval_types": [
+    "ocr",
+    "classification",
+    "extraction",
+    "rule",
+    "rag",
+    "agent",
+    "end_to_end",
+    "regression"
+  ],
+  "external_resources": {
+    "llm_provider": "openai-compatible",
+    "embedding_provider": "openai-compatible",
+    "rag_answer_provider": "openai-compatible",
+    "rag_rerank_provider": "openai-compatible",
+    "ocr_provider": "azure-document-intelligence"
+  },
+  "safety_notes": [
+    "Do not include real customer data.",
+    "Do not include API keys or provider secrets.",
+    "Use public, synthetic, or desensitized files only.",
+    "Do not commit local_storage files.",
+    "Do not mark this dataset as production evaluation until labels are reviewed."
+  ],
+  "files": {
+    "ocr": "ocr.json",
+    "classification": "classification.json",
+    "extraction": "extraction.json",
+    "rule": "rule.json",
+    "rag": "rag.json",
+    "agent": "agent.json",
+    "end_to_end": "e2e.json",
+    "regression": "regression.json"
+  }
+}

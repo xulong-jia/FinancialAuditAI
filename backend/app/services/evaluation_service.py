@@ -1,16 +1,19 @@
 from pathlib import Path
+from hashlib import sha256
 import json
 import re
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.bad_case import BadCase
+from app.models.audit_task import AuditTask
+from app.models.document import Document
 from app.models.evaluation_result import EvaluationResult
 from app.schemas.quality import EvaluationRunRequest
-from app.services import agent_service, audit_log_service, bad_case_service, classification_service, rag_service
+from app.services import agent_service, audit_log_service, bad_case_service, classification_service, ocr_service, rag_service
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -18,6 +21,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 def evaluation_datasets_root() -> Path:
     return PROJECT_ROOT / "local_storage" / "evaluation_datasets"
+
+
+def evals_datasets_root() -> Path:
+    return PROJECT_ROOT / "evals" / "datasets"
 
 
 def run_evaluation(db: Session, payload: EvaluationRunRequest) -> EvaluationResult:
@@ -47,11 +54,11 @@ def run_evaluation(db: Session, payload: EvaluationRunRequest) -> EvaluationResu
         task_id=payload.task_id,
         eval_name=payload.eval_name or f"{payload.eval_type}_evaluation",
         eval_type=payload.eval_type,
-        dataset_name=payload.dataset_name,
+        dataset_name=dataset["dataset_name"] if dataset is not None else payload.dataset_name,
         model_name=payload.model_name,
         prompt_version=payload.prompt_version,
         rule_version=payload.rule_version,
-        metrics=metrics | _limitations(sample_count, metrics.get("dataset_kind")),
+        metrics=metrics | _limitations(sample_count, metrics.get("dataset_kind"), metrics.get("is_production_evaluation")),
         sample_count=sample_count,
         failed_cases=failed_cases,
         report_path=None,
@@ -106,18 +113,63 @@ def _load_dataset(payload: EvaluationRunRequest) -> dict | None:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=f"Evaluation dataset could not be read: {exc.__class__.__name__}") from exc
-    if not isinstance(data, dict) or not isinstance(data.get("samples"), list):
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Evaluation dataset must be a JSON object")
+    if path.name == "dataset_manifest.json" or "files" in data:
+        return _load_manifest_dataset(payload, path, data)
+    return _normalize_dataset(payload, path, data)
+
+
+def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: dict) -> dict:
+    if payload.eval_type != "ocr":
+        raise HTTPException(status_code=400, detail="Manual acceptance dataset manifest currently supports OCR evaluation only")
+    files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
+    eval_file = files.get(payload.eval_type)
+    if not isinstance(eval_file, str) or not eval_file:
+        raise HTTPException(status_code=400, detail=f"Dataset manifest has no file for {payload.eval_type}")
+    data_path = (path.parent / eval_file).resolve()
+    if not _is_under(data_path, path.parent.resolve()) or data_path.suffix != ".json":
+        raise HTTPException(status_code=400, detail="Dataset manifest file path is invalid")
+    try:
+        data = json.loads(data_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Evaluation dataset could not be read: {exc.__class__.__name__}") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Evaluation dataset must be a JSON object")
+    return _normalize_dataset(payload, data_path, data, manifest=manifest)
+
+
+def _normalize_dataset(payload: EvaluationRunRequest, path: Path, data: dict, manifest: dict | None = None) -> dict:
+    if not isinstance(data.get("samples"), list):
         raise HTTPException(status_code=400, detail="Evaluation dataset must be a JSON object with a samples array")
+    dataset_name = str(data.get("dataset_name") or (manifest or {}).get("dataset_name") or payload.dataset_name)
+    source_type = str(data.get("source_type") or (manifest or {}).get("source_type") or "external_annotated")
+    is_production = bool(data.get("is_production_evaluation", (manifest or {}).get("is_production_evaluation", False)))
+    dataset_kind = str(data.get("dataset_kind") or ("real_annotated" if is_production else "non_production_manual_acceptance"))
+    default_eval_type = str(data.get("eval_type") or payload.eval_type)
+    samples = [
+        {
+            "eval_type": default_eval_type,
+            "dataset_name": dataset_name,
+            "source_type": source_type,
+            "is_production_evaluation": is_production,
+            **sample,
+        }
+        for sample in data["samples"]
+        if isinstance(sample, dict)
+    ]
     return {
-        "dataset_name": str(data.get("dataset_name") or payload.dataset_name),
-        "dataset_kind": str(data.get("dataset_kind") or "external_annotated"),
+        "dataset_name": dataset_name,
+        "dataset_kind": dataset_kind,
+        "source_type": source_type,
+        "is_production_evaluation": is_production,
         "dataset_source": str(path.relative_to(PROJECT_ROOT)) if _is_under(path, PROJECT_ROOT) else str(path),
-        "samples": data["samples"],
+        "samples": samples,
     }
 
 
 def _resolve_dataset_path(payload: EvaluationRunRequest) -> Path | None:
-    roots = [PROJECT_ROOT / "samples" / "evaluation", evaluation_datasets_root()]
+    roots = [PROJECT_ROOT / "samples" / "evaluation", evaluation_datasets_root(), evals_datasets_root()]
     if payload.dataset_path:
         path = Path(payload.dataset_path)
         candidates = [path] if path.is_absolute() else [root / path for root in roots]
@@ -132,7 +184,7 @@ def _resolve_dataset_path(payload: EvaluationRunRequest) -> Path | None:
             raise HTTPException(status_code=400, detail="Evaluation dataset_path must point to an existing JSON file")
         raise HTTPException(
             status_code=400,
-            detail="Evaluation dataset_path must be under samples/evaluation or local_storage/evaluation_datasets",
+            detail="Evaluation dataset_path must be under samples/evaluation, local_storage/evaluation_datasets, or evals/datasets",
         )
 
     names = [payload.dataset_name]
@@ -165,7 +217,10 @@ def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, 
     if eval_type == "classification":
         sample_count, metrics, failed = _evaluate_classification_samples(samples)
     elif eval_type == "ocr":
-        sample_count, metrics, failed = _evaluate_ocr_samples(samples)
+        if any(sample.get("file_path") for sample in samples):
+            sample_count, metrics, failed = _evaluate_ocr_file_samples(db, samples, dataset)
+        else:
+            sample_count, metrics, failed = _evaluate_ocr_samples(samples)
     elif eval_type == "extraction":
         sample_count, metrics, failed = _evaluate_json_samples(samples, "extraction")
     elif eval_type == "rule":
@@ -183,9 +238,10 @@ def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, 
     metrics.update(
         {
             "dataset_kind": dataset["dataset_kind"],
+            "source_type": dataset["source_type"],
             "dataset_source": dataset["dataset_source"],
             "is_dataset_driven": True,
-            "is_production_evaluation": dataset["dataset_kind"] == "real_annotated",
+            "is_production_evaluation": dataset["is_production_evaluation"],
         }
     )
     return sample_count, metrics, failed
@@ -266,6 +322,188 @@ def _evaluate_ocr_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:
         },
         failed,
     )
+
+
+def _evaluate_ocr_file_samples(db: Session, samples: list[dict], dataset: dict) -> tuple[int, dict, list[dict]]:
+    failed = []
+    text_hits = page_hits = block_hits = bbox_hits = confidence_hits = table_hits = 0
+    blocked = 0
+    for sample in samples:
+        actual = _run_ocr_file_sample(db, sample)
+        expected = _sample_expected(sample)
+        checks = _ocr_expected_checks(actual, expected)
+        text_hits += int(checks["text_ok"])
+        page_hits += int(checks["page_count_ok"])
+        block_hits += int(checks["ocr_blocks_ok"])
+        bbox_hits += int(checks["bbox_ok"])
+        confidence_hits += int(checks["confidence_ok"])
+        table_hits += int(checks["table_blocks_ok"])
+        blocked += int(actual.get("status") == "blocked_external_dependency")
+        if not checks["passed"]:
+            failed.append(_sample_failed_case("ocr", sample, actual, checks["expected"]))
+    total = len(samples)
+    return (
+        total,
+        {
+            "ocr_sample_pass_rate": _accuracy(total, len(failed)),
+            "text_containment_accuracy": _rate(text_hits, total),
+            "page_count_accuracy": _rate(page_hits, total),
+            "ocr_block_count_accuracy": _rate(block_hits, total),
+            "bbox_requirement_accuracy": _rate(bbox_hits, total),
+            "confidence_requirement_accuracy": _rate(confidence_hits, total),
+            "table_requirement_accuracy": _rate(table_hits, total),
+            "blocked_external_dependency_count": blocked,
+            "dataset_kind": dataset["dataset_kind"],
+            "source_type": dataset["source_type"],
+            "manual_acceptance_status": "production_manual_acceptance" if dataset["is_production_evaluation"] else "non_production_manual_acceptance",
+            "is_production_evaluation": dataset["is_production_evaluation"],
+        },
+        failed,
+    )
+
+
+def _run_ocr_file_sample(db: Session, sample: dict) -> dict:
+    sample_id = str(sample.get("sample_id") or sample.get("id") or "ocr_sample")
+    try:
+        path = _resolve_evaluation_sample_file(str(sample.get("file_path") or ""))
+    except ValueError as exc:
+        return {"sample_id": sample_id, "status": "blocked_external_dependency", "error": str(exc)}
+    if not path.exists():
+        return {"sample_id": sample_id, "status": "blocked_external_dependency", "error": "sample file not found"}
+    expected_provider = str(sample.get("provider") or "").strip().lower()
+    if expected_provider and expected_provider != ocr_service.settings.ocr_provider.strip().lower():
+        return {
+            "sample_id": sample_id,
+            "status": "blocked_external_dependency",
+            "error": "configured OCR provider does not match sample provider",
+            "configured_provider": ocr_service.settings.ocr_provider,
+            "expected_provider": sample.get("provider"),
+        }
+    if expected_provider in ocr_service.AZURE_OCR_PROVIDERS and (not ocr_service.settings.ocr_api_url or not ocr_service.settings.ocr_api_key):
+        return {
+            "sample_id": sample_id,
+            "status": "blocked_external_dependency",
+            "error": "Azure OCR endpoint or key is not configured",
+            "configured_provider": ocr_service.settings.ocr_provider,
+            "expected_provider": sample.get("provider"),
+        }
+    expected_model = str(sample.get("model") or "").strip()
+    if expected_model and expected_model != ocr_service.settings.ocr_model:
+        return {
+            "sample_id": sample_id,
+            "status": "blocked_external_dependency",
+            "error": "configured OCR model does not match sample model",
+            "configured_model": ocr_service.settings.ocr_model,
+            "expected_model": expected_model,
+        }
+    document = _create_evaluation_document(db, path, sample)
+    document = ocr_service.run_ocr(db, document.id)
+    pages = ocr_service.list_pages(db, document.id)
+    raw_text = "\n".join(page.raw_text or "" for page in pages)
+    blocks = [block for page in pages for block in (page.ocr_blocks or []) if isinstance(block, dict)]
+    table_blocks = [table for page in pages for table in (page.table_blocks or []) if isinstance(table, dict)]
+    confidences = [
+        float(block["confidence"])
+        for block in blocks
+        if isinstance(block.get("confidence"), (int, float))
+    ]
+    return {
+        "sample_id": sample_id,
+        "status": document.ocr_status if document.ocr_status != "completed" else "completed",
+        "error": document.ocr_error if document.ocr_status != "completed" else None,
+        "document_id": str(document.id),
+        "page_count": document.page_count or len(pages),
+        "raw_text": raw_text,
+        "ocr_blocks_count": len(blocks),
+        "blocks_with_bbox_count": sum(1 for block in blocks if _has_bbox(block)),
+        "blocks_with_confidence_count": len(confidences),
+        "table_blocks_count": len(table_blocks),
+        "average_block_confidence": round(sum(confidences) / len(confidences), 4) if confidences else None,
+        "ocr_engine": pages[0].ocr_engine if pages else None,
+    }
+
+
+def _create_evaluation_document(db: Session, path: Path, sample: dict) -> Document:
+    data = path.read_bytes()
+    extension = path.suffix.lower().lstrip(".")
+    task = AuditTask(
+        task_no=f"EVAL-OCR-{str(sample.get('sample_id') or 'sample')[:24]}-{str(uuid4())[:8]}",
+        name=f"Evaluation OCR {sample.get('sample_id') or path.name}",
+        scenario="procurement",
+        project_name="manual-acceptance",
+        company_name=str(sample.get("source_type") or "manual"),
+        metadata_json={"source": "manual_acceptance_ocr_evaluation"},
+        actor_name="evaluation_service",
+    )
+    db.add(task)
+    db.flush()
+    document = Document(
+        task_id=task.id,
+        uploaded_by_name="evaluation_service",
+        original_filename=path.name,
+        file_ext=extension,
+        content_type=str(sample.get("file_type") or "application/octet-stream"),
+        file_size=len(data),
+        file_hash=sha256(data).hexdigest(),
+        storage_path=str(path.relative_to(PROJECT_ROOT)),
+        metadata_json={"source": "manual_acceptance_ocr_evaluation", "sample_id": sample.get("sample_id")},
+    )
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+    return document
+
+
+def _resolve_evaluation_sample_file(value: str) -> Path:
+    if not value:
+        raise ValueError("sample file_path is required")
+    allowed_roots = [
+        PROJECT_ROOT / "local_storage" / "manual_acceptance_files",
+        PROJECT_ROOT / "samples" / "evaluation",
+        evals_datasets_root(),
+    ]
+    raw_path = Path(value)
+    candidate = raw_path if raw_path.is_absolute() else PROJECT_ROOT / raw_path
+    resolved = candidate.resolve()
+    if not any(_is_under(resolved, root) for root in allowed_roots):
+        raise ValueError("sample file_path must be under an allowed evaluation data directory")
+    return resolved
+
+
+def _ocr_expected_checks(actual: dict, expected: dict) -> dict:
+    required_text = [str(item) for item in expected.get("must_contain_text") or []]
+    missing_text = [item for item in required_text if item not in str(actual.get("raw_text") or "")]
+    min_page_count = int(expected.get("min_page_count") or 0)
+    min_ocr_blocks = int(expected.get("min_ocr_blocks") or 0)
+    min_bbox = int(expected.get("min_blocks_with_bbox") or (1 if expected.get("require_bbox") else 0))
+    min_confidence = int(expected.get("min_blocks_with_confidence") or (1 if expected.get("require_confidence") else 0))
+    min_tables = int(expected.get("min_table_blocks") or (1 if expected.get("require_table_blocks") else 0))
+    checks = {
+        "text_ok": not missing_text,
+        "page_count_ok": int(actual.get("page_count") or 0) >= min_page_count,
+        "ocr_blocks_ok": int(actual.get("ocr_blocks_count") or 0) >= min_ocr_blocks,
+        "bbox_ok": int(actual.get("blocks_with_bbox_count") or 0) >= min_bbox,
+        "confidence_ok": int(actual.get("blocks_with_confidence_count") or 0) >= min_confidence,
+        "table_blocks_ok": int(actual.get("table_blocks_count") or 0) >= min_tables,
+        "expected": {
+            "missing_text": missing_text,
+            "min_page_count": min_page_count,
+            "min_ocr_blocks": min_ocr_blocks,
+            "min_blocks_with_bbox": min_bbox,
+            "min_blocks_with_confidence": min_confidence,
+            "min_table_blocks": min_tables,
+        },
+    }
+    checks["passed"] = actual.get("status") == "completed" and all(
+        bool(checks[key])
+        for key in ("text_ok", "page_count_ok", "ocr_blocks_ok", "bbox_ok", "confidence_ok", "table_blocks_ok")
+    )
+    return checks
+
+
+def _has_bbox(block: dict) -> bool:
+    bbox = block.get("bbox")
+    return isinstance(bbox, list) and len(bbox) == 4 and all(isinstance(item, (int, float)) for item in bbox)
 
 
 def _evaluate_json_samples(samples: list[dict], case_type: str) -> tuple[int, dict, list[dict]]:
@@ -752,10 +990,11 @@ def _sample_expected(sample: dict) -> dict:
 
 
 def _sample_failed_case(case_type: str, sample: dict, model_output: dict, expected_output: dict) -> dict:
+    sample_id = sample.get("sample_id") or sample.get("id")
     return {
         "case_type": case_type,
-        "title": str(sample.get("title") or sample.get("id") or f"{case_type} dataset sample"),
-        "input_payload": _sample_input(sample) | {"dataset_sample_id": sample.get("id")},
+        "title": str(sample.get("title") or sample_id or f"{case_type} dataset sample"),
+        "input_payload": _sample_input(sample) | {"dataset_sample_id": sample_id},
         "model_output": model_output,
         "expected_output": expected_output,
         "severity": str(sample.get("severity") or "medium"),
@@ -825,9 +1064,9 @@ def _bad_case_type(eval_type: str) -> str:
     return eval_type if eval_type in bad_case_service.CASE_TYPES else "rule"
 
 
-def _limitations(sample_count: int, dataset_kind: str | None = None) -> dict:
+def _limitations(sample_count: int, dataset_kind: str | None = None, is_production_evaluation: object = None) -> dict:
     kind = dataset_kind or "unclassified_dataset"
-    is_production = kind == "real_annotated"
+    is_production = is_production_evaluation if isinstance(is_production_evaluation, bool) else kind == "real_annotated"
     return {
         "dataset_kind": kind,
         "is_production_evaluation": is_production,

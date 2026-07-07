@@ -16,7 +16,7 @@ This directory must remain ignored by `.gitignore` and must never be committed. 
 
 | Area | Local Folder | Required Materials | Current Status | Fully Satisfied Blocker |
 | --- | --- | --- | --- | --- |
-| OCR | `local_storage/external_acceptance/production_dataset/ocr` | Multi-page PDFs, scanned images, complex tables, expected `raw_text`, page, bbox, confidence, and table labels | pending | Blocks `fully_satisfied` |
+| OCR | `local_storage/external_acceptance/production_dataset/ocr` | Multi-page PDFs, scanned images, complex tables, expected `raw_text`, page, bbox, confidence, table labels, and `ocr_external_manifest.json` with `file_path` / `label_path` entries | manifest runtime supported; production materials still pending | Blocks `fully_satisfied` |
 | Classification | `local_storage/external_acceptance/production_dataset/classification` | Desensitized documents or text samples, expected `doc_type`, confidence, and review labels | pending | Blocks `fully_satisfied` |
 | Extraction | `local_storage/external_acceptance/production_dataset/extraction` | Desensitized documents, expected fields, `source_page`, `source_text`, `source_bbox`, and `line_items` | pending | Blocks `fully_satisfied` |
 | Rule | `local_storage/external_acceptance/production_dataset/rule` | Pass/fail/warning/missing-data cases, `rule_id`, status, severity, evidence, and review routing labels | pending | Blocks `fully_satisfied` |
@@ -25,6 +25,18 @@ This directory must remain ignored by `.gitignore` and must never be committed. 
 | E2E | `local_storage/external_acceptance/production_dataset/e2e` | Complete task, document, OCR, classification, extraction, rule, report, and expected artifact labels | pending | Blocks `fully_satisfied` |
 
 These datasets must be real or properly desensitized. Synthetic, manual acceptance, mock, fixture, deterministic, or fallback results cannot be treated as production `fully_satisfied` evidence.
+
+### OCR External Acceptance Runtime
+
+The OCR evaluation runner can read:
+
+```text
+local_storage/external_acceptance/production_dataset/ocr/ocr_external_manifest.json
+```
+
+Each sample can point to a local external file and label with `file_path` and `label_path`. The label `expected` block can require `page_count`, `must_contain_text`, `raw_text`, OCR blocks, bbox, page images, confidence, table blocks, table headers, and table values. Paths are resolved against `local_storage/external_acceptance` and must not use absolute paths or `..` traversal.
+
+`source_type=synthetic_external_acceptance` is allowed for local external acceptance only and is forced to `is_production_evaluation=false`. It is not production `fully_satisfied` evidence. Real or desensitized production OCR acceptance still requires approved labels, sanitized Provider artifacts, and explicit Provider integration when Azure Document Intelligence is used.
 
 ## 3. Provider Integration Artifacts
 

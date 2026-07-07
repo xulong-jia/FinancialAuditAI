@@ -331,6 +331,7 @@ def test_manual_acceptance_ocr_manifest_runs_expected_assertions(monkeypatch) ->
                             "require_table_blocks": True,
                             "min_table_blocks": 1,
                         },
+                        "allow_external_provider_without_integration": True,
                     }
                 ],
             }
@@ -1640,6 +1641,249 @@ def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
         assert result["failed_cases"][0]["model_output"]["status"] == "blocked_external_dependency"
     finally:
         shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
+def _write_external_ocr_manifest(
+    tmp_path: Path,
+    *,
+    expected: dict,
+    source_type: str = "synthetic_external_acceptance",
+    is_production_evaluation: bool = False,
+    sample_extra: dict | None = None,
+    label_extra: dict | None = None,
+) -> str:
+    dataset_dir = tmp_path / "local_storage" / "external_acceptance" / "production_dataset" / "ocr"
+    files_dir = dataset_dir / "files"
+    labels_dir = dataset_dir / "labels"
+    files_dir.mkdir(parents=True, exist_ok=True)
+    labels_dir.mkdir(parents=True, exist_ok=True)
+    (files_dir / "sample.pdf").write_bytes(make_pdf("External OCR sample"))
+    (labels_dir / "sample.label.json").write_text(
+        json.dumps(
+            {
+                "source_type": source_type,
+                "is_production_evaluation": is_production_evaluation,
+                "expected": expected,
+                **(label_extra or {}),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "ocr_external_manifest.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "ocr",
+                "dataset_name": "ocr_external_acceptance_unit",
+                "source_type": source_type,
+                "is_production_evaluation": is_production_evaluation,
+                "samples": [
+                    {
+                        "sample_id": "external-ocr-sample",
+                        "file_path": "files/sample.pdf",
+                        "label_path": "labels/sample.label.json",
+                        **(sample_extra or {}),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return "local_storage/external_acceptance/production_dataset/ocr/ocr_external_manifest.json"
+
+
+def _fake_ocr_pages(
+    monkeypatch,
+    *,
+    raw_text: str = "Invoice total 100",
+    table_blocks: list[dict] | None = None,
+    image_path: str | None = "local_storage/page_images/external.png",
+    confidence: float | None = None,
+) -> None:
+    def fake_run_ocr(db, document_id):
+        document = db.get(Document, document_id)
+        document.ocr_status = "completed"
+        document.page_count = 1
+        db.commit()
+        db.refresh(document)
+        return document
+
+    def fake_list_pages(db, document_id):
+        block = {"text": raw_text, "bbox": [1.0, 2.0, 3.0, 4.0]}
+        if confidence is not None:
+            block["confidence"] = confidence
+        return [
+            SimpleNamespace(
+                raw_text=raw_text,
+                ocr_blocks=[block],
+                table_blocks=table_blocks or [],
+                image_path=image_path,
+                ocr_engine="external-acceptance-test",
+            )
+        ]
+
+    monkeypatch.setattr(evaluation_service.ocr_service, "run_ocr", fake_run_ocr)
+    monkeypatch.setattr(evaluation_service.ocr_service, "list_pages", fake_list_pages)
+
+
+def test_external_ocr_manifest_loads_label_path_and_runs_local_sample(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        expected={
+            "page_count": 1,
+            "must_contain_text": ["Invoice total"],
+            "require_raw_text": True,
+            "require_ocr_blocks": True,
+            "require_bbox": True,
+            "require_page_image": True,
+        },
+    )
+    _fake_ocr_pages(monkeypatch, raw_text="Invoice total 100")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "ocr_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["sample_count"] == 1
+    assert result["failed_cases"] == []
+    assert result["metrics"]["ocr_sample_pass_rate"] == 1.0
+    assert result["metrics"]["source_type"] == "synthetic_external_acceptance"
+    assert result["metrics"]["is_production_evaluation"] is False
+    assert result["metrics"]["external_acceptance_dataset"] is True
+
+
+def test_external_ocr_manifest_rejects_label_path_escape(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        expected={"must_contain_text": ["never"]},
+        sample_extra={"label_path": "../outside.label.json"},
+    )
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "ocr_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 400
+    assert "label_path" in response.json()["detail"]
+
+
+def test_external_ocr_manifest_blocks_file_path_escape(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        expected={"must_contain_text": ["never"]},
+        sample_extra={"file_path": "../outside.pdf"},
+    )
+
+    def fail_if_called(db, document_id):
+        raise AssertionError("OCR service should not be called for escaped external file_path")
+
+    monkeypatch.setattr(evaluation_service.ocr_service, "run_ocr", fail_if_called)
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "ocr_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["metrics"]["blocked_external_dependency_count"] == 1
+    assert result["failed_cases"][0]["model_output"]["status"] == "blocked_external_dependency"
+
+
+def test_synthetic_external_ocr_cannot_be_marked_production(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "pymupdf-local")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        expected={"must_contain_text": ["Invoice total"]},
+        is_production_evaluation=True,
+    )
+    _fake_ocr_pages(monkeypatch, raw_text="Invoice total 100")
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "ocr_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    metrics = response.json()["metrics"]
+    assert metrics["is_production_evaluation"] is False
+    assert metrics["production_evaluation"] is False
+    assert "synthetic_external_acceptance cannot be marked as production_evaluation" in metrics["production_guard_warnings"]
+
+
+def test_external_ocr_azure_sample_blocks_without_integration(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("RUN_PROVIDER_INTEGRATION", raising=False)
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "azure-document-intelligence")
+    monkeypatch.setattr(settings, "ocr_api_url", "https://azure.example.test")
+    monkeypatch.setattr(settings, "ocr_api_key", "unit-test-azure-key")
+    monkeypatch.setattr(settings, "ocr_model", "prebuilt-layout")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        expected={"must_contain_text": ["Invoice"], "require_confidence": True},
+        sample_extra={"provider": "azure-document-intelligence", "model": "prebuilt-layout"},
+    )
+
+    def fail_if_called(db, document_id):
+        raise AssertionError("Azure OCR should not run without explicit integration")
+
+    monkeypatch.setattr(evaluation_service.ocr_service, "run_ocr", fail_if_called)
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "ocr_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["metrics"]["blocked_external_dependency_count"] == 1
+    assert result["failed_cases"][0]["model_output"]["status"] == "blocked_external_dependency"
+    assert "RUN_PROVIDER_INTEGRATION=1" in result["failed_cases"][0]["model_output"]["error"]
+
+
+def test_external_ocr_table_expectations_fail_cases(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(settings, "ocr_provider", "azure-document-intelligence")
+    monkeypatch.setattr(settings, "ocr_api_url", "https://azure.example.test")
+    monkeypatch.setattr(settings, "ocr_api_key", "unit-test-azure-key")
+    monkeypatch.setattr(settings, "ocr_model", "prebuilt-layout")
+    dataset_path = _write_external_ocr_manifest(
+        tmp_path,
+        expected={
+            "must_contain_text": ["Invoice"],
+            "require_table_blocks": True,
+            "expected_table_headers": ["Item", "Amount"],
+            "expected_table_values": ["999.00"],
+        },
+        sample_extra={
+            "provider": "azure-document-intelligence",
+            "model": "prebuilt-layout",
+            "allow_external_provider_without_integration": True,
+        },
+    )
+    _fake_ocr_pages(
+        monkeypatch,
+        raw_text="Invoice",
+        table_blocks=[{"cells": [{"text": "Item"}, {"text": "Amount"}, {"text": "100.00"}]}],
+        confidence=0.99,
+    )
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "ocr", "dataset_name": "ocr_external_acceptance_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"]
+    assert result["metrics"]["ocr_sample_pass_rate"] == 0.0
+    assert result["failed_cases"][0]["expected_output"]["missing_table_values"] == ["999.00"]
 
 
 def test_evaluation_dataset_path_is_restricted() -> None:

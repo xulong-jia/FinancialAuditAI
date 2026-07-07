@@ -40,5 +40,17 @@
         "persistent_rag_workflow": "persistent_rag_workflow.json",
         "agent_db_workflow": "agent_db_workflow.json",
         "full_db_workflow": "full_db_workflow.json"
+    },
+    "external_pointers": {
+        "ocr": {
+            "manifest_path": "local_storage/external_acceptance/production_dataset/ocr/ocr_external_manifest.json",
+            "source_type": "synthetic_external_acceptance",
+            "status": "local_only_not_committed",
+            "notes": [
+                "This external OCR manifest can be passed as dataset_path for eval_type=ocr.",
+                "Synthetic external acceptance is not production_evaluation and cannot satisfy production fully_satisfied by itself.",
+                "Real Azure OCR integration requires RUN_PROVIDER_INTEGRATION=1 and sanitized Provider artifacts."
+            ]
+        }
     }
 }

@@ -52,7 +52,7 @@ evals/datasets/<dataset_name>/full_db_workflow.json
 evals/datasets/<dataset_name>/regression.json
 ```
 
-When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, or `evals/datasets`.
+When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, `evals/datasets`, or `local_storage/external_acceptance`.
 
 The manifest declares dataset metadata and the per-type files:
 
@@ -109,6 +109,20 @@ The OCR runner calls the configured OCR provider through the project OCR service
 Secrets and local evidence files remain local-only: `.env`, API keys, and `local_storage` samples must not be committed. `is_production_evaluation=false` is recorded as non-production manual acceptance, even when a real OCR provider is used.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=ocr`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`, and model `azure-document-intelligence:prebuilt-layout`. The run produced one public sample, zero failed cases, and `1.0` for OCR sample pass rate, text containment, page count, block count, bbox, confidence, and table requirements. It remains a single-sample, public, non-production manual acceptance result, not a production-scale Evaluation Center claim.
+
+## OCR External Acceptance Manifest
+
+Evaluation Center can also run an OCR external acceptance manifest stored outside Git:
+
+```text
+local_storage/external_acceptance/production_dataset/ocr/ocr_external_manifest.json
+```
+
+The external manifest supports `samples[*].file_path` and `samples[*].label_path`. Each label JSON may declare `expected.page_count`, `must_contain_text`, `require_raw_text`, `require_ocr_blocks`, `require_bbox`, `require_page_image`, `require_confidence`, `require_table_blocks`, `expected_table_headers`, and `expected_table_values`. The loader reads `label_path`, merges `label.expected` into the sample expected checks, and rejects absolute paths or `..` traversal. Both `file_path` and `label_path` must resolve under `local_storage/external_acceptance`.
+
+If `source_type=synthetic_external_acceptance`, Evaluation Center forces `is_production_evaluation=false` and records a guard warning if the manifest or label tries to mark it as production. Only `source_type=desensitized` or `source_type=production_approved` with complete labels and expected evidence can be treated as production evaluation input.
+
+Real Azure OCR evaluation is gated. If `OCR_PROVIDER` is `azure-document-intelligence` or another real provider, ordinary evaluation and pytest do not call the external service unless `RUN_PROVIDER_INTEGRATION=1` or an explicit test-only sample policy allows it. Without integration enablement, Azure-required expectations such as confidence or table structure return `blocked_external_dependency`. This keeps synthetic external acceptance separate from production evaluation and prevents accidental Provider calls.
 
 `classification.json` contains text samples with expected document types:
 

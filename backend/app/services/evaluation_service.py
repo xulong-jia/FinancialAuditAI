@@ -3,6 +3,7 @@ from hashlib import sha256
 from datetime import date
 import asyncio
 import json
+import os
 import re
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -69,6 +70,10 @@ REGRESSION_CHILD_EVAL_TYPES = (
 
 def evaluation_datasets_root() -> Path:
     return PROJECT_ROOT / "local_storage" / "evaluation_datasets"
+
+
+def external_acceptance_root() -> Path:
+    return PROJECT_ROOT / "local_storage" / "external_acceptance"
 
 
 def evals_datasets_root() -> Path:
@@ -210,17 +215,43 @@ def _normalize_dataset(payload: EvaluationRunRequest, path: Path, data: dict, ma
     expected_evidence = data.get("expected_evidence", (manifest or {}).get("expected_evidence", {}))
     external_resource_required = bool(data.get("external_resource_required", (manifest or {}).get("external_resource_required", False)))
     declared_sample_count = data.get("sample_count", (manifest or {}).get("sample_count"))
-    samples = [
-        {
+    external_dataset = _is_under(path, external_acceptance_root())
+    guard_warnings: list[str] = []
+    is_production, guard_warnings = _guard_production_flag(
+        source_type,
+        is_production,
+        labels_declared=bool(labels),
+        expected_evidence_declared=bool(expected_evidence),
+        warnings=guard_warnings,
+    )
+    normalized_source_type = source_type.strip().lower()
+    if normalized_source_type == "synthetic_external_acceptance":
+        dataset_kind = "synthetic_external_acceptance"
+    elif not is_production and dataset_kind == "real_annotated":
+        dataset_kind = "non_production_manual_acceptance"
+    samples = []
+    for sample in data["samples"]:
+        if not isinstance(sample, dict):
+            continue
+        merged_sample, guard_warnings = _merge_external_label(sample, path.parent, guard_warnings)
+        normalized = {
             "eval_type": default_eval_type,
             "dataset_name": dataset_name,
             "source_type": source_type,
             "is_production_evaluation": is_production,
-            **sample,
+            "external_acceptance_dataset": external_dataset or bool(merged_sample.get("label_path")),
+            "dataset_dir": str(path.parent.resolve()) if external_dataset else None,
+            **merged_sample,
         }
-        for sample in data["samples"]
-        if isinstance(sample, dict)
-    ]
+        sample_production, guard_warnings = _guard_production_flag(
+            str(normalized.get("source_type") or source_type),
+            bool(normalized.get("is_production_evaluation")),
+            labels_declared=bool(labels or normalized.get("label_path")),
+            expected_evidence_declared=bool(expected_evidence or _sample_expected(normalized)),
+            warnings=guard_warnings,
+        )
+        normalized["is_production_evaluation"] = sample_production
+        samples.append(normalized)
     return {
         "dataset_name": dataset_name,
         "dataset_kind": dataset_kind,
@@ -231,20 +262,22 @@ def _normalize_dataset(payload: EvaluationRunRequest, path: Path, data: dict, ma
         "declared_sample_count": declared_sample_count,
         "labels_declared": bool(labels),
         "expected_evidence_declared": bool(expected_evidence),
-        "limitations_declared": [str(item) for item in limitations] if isinstance(limitations, list) else [],
+        "limitations_declared": ([str(item) for item in limitations] if isinstance(limitations, list) else []) + guard_warnings,
         "external_resource_required": external_resource_required,
+        "production_guard_warnings": guard_warnings,
+        "external_acceptance_dataset": external_dataset,
         "samples": samples,
     }
 
 
 def _resolve_dataset_path(payload: EvaluationRunRequest) -> Path | None:
-    roots = [PROJECT_ROOT / "samples" / "evaluation", evaluation_datasets_root(), evals_datasets_root()]
+    roots = [PROJECT_ROOT / "samples" / "evaluation", evaluation_datasets_root(), evals_datasets_root(), external_acceptance_root()]
     if payload.dataset_path:
         path = Path(payload.dataset_path)
         if path.is_absolute() or ".." in path.parts:
             raise HTTPException(
                 status_code=400,
-                detail="Evaluation dataset_path must be project-root relative and stay under samples/evaluation, local_storage/evaluation_datasets, or evals/datasets",
+                detail="Evaluation dataset_path must be project-root relative and stay under samples/evaluation, local_storage/evaluation_datasets, evals/datasets, or local_storage/external_acceptance",
             )
         candidates = [(PROJECT_ROOT / path).resolve(), *[(root / path).resolve() for root in roots]]
         allowed_path = False
@@ -257,7 +290,7 @@ def _resolve_dataset_path(payload: EvaluationRunRequest) -> Path | None:
             raise HTTPException(status_code=400, detail="Evaluation dataset_path must point to an existing JSON file")
         raise HTTPException(
             status_code=400,
-            detail="Evaluation dataset_path must be under samples/evaluation, local_storage/evaluation_datasets, or evals/datasets",
+            detail="Evaluation dataset_path must be under samples/evaluation, local_storage/evaluation_datasets, evals/datasets, or local_storage/external_acceptance",
         )
 
     names = [payload.dataset_name]
@@ -277,6 +310,61 @@ def _is_under(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _merge_external_label(sample: dict, dataset_dir: Path, warnings: list[str]) -> tuple[dict, list[str]]:
+    label_path = sample.get("label_path")
+    if not label_path:
+        return dict(sample), warnings
+    label_file = _resolve_external_acceptance_path(str(label_path), dataset_dir)
+    try:
+        label = json.loads(label_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"OCR label_path could not be read: {exc.__class__.__name__}") from exc
+    if not isinstance(label, dict):
+        raise HTTPException(status_code=400, detail="OCR label_path must point to a JSON object")
+    merged = dict(sample)
+    label_expected = label.get("expected") if isinstance(label.get("expected"), dict) else {}
+    sample_expected = _sample_expected(sample)
+    merged["expected"] = {**label_expected, **sample_expected}
+    for key in ("source_type", "is_production_evaluation", "dataset_kind"):
+        if key in label and key not in merged:
+            merged[key] = label[key]
+    merged["label_path_resolved"] = str(label_file.relative_to(PROJECT_ROOT)) if _is_under(label_file, PROJECT_ROOT) else str(label_file)
+    return merged, warnings
+
+
+def _resolve_external_acceptance_path(value: str, dataset_dir: Path) -> Path:
+    if not value:
+        raise HTTPException(status_code=400, detail="OCR label_path is required")
+    raw_path = Path(value)
+    if raw_path.is_absolute() or ".." in raw_path.parts:
+        raise HTTPException(status_code=400, detail="OCR label_path must stay under local_storage/external_acceptance")
+    candidates = [(PROJECT_ROOT / raw_path).resolve(), (dataset_dir / raw_path).resolve()]
+    for candidate in candidates:
+        if _is_under(candidate, external_acceptance_root()) and candidate.suffix == ".json":
+            if candidate.exists():
+                return candidate
+            raise HTTPException(status_code=400, detail="OCR label_path must point to an existing JSON file")
+    raise HTTPException(status_code=400, detail="OCR label_path must stay under local_storage/external_acceptance")
+
+
+def _guard_production_flag(
+    source_type: str,
+    is_production: bool,
+    *,
+    labels_declared: bool,
+    expected_evidence_declared: bool,
+    warnings: list[str],
+) -> tuple[bool, list[str]]:
+    normalized = source_type.strip().lower()
+    if normalized == "synthetic_external_acceptance" and is_production:
+        return False, warnings + ["synthetic_external_acceptance cannot be marked as production_evaluation"]
+    if is_production and normalized not in {"desensitized", "production_approved"}:
+        return False, warnings + ["production_evaluation requires source_type=desensitized or production_approved"]
+    if is_production and not (labels_declared and expected_evidence_declared):
+        return False, warnings + ["production_evaluation requires complete labels and expected evidence declarations"]
+    return is_production, warnings
 
 
 def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, dict, list[dict]]:
@@ -348,6 +436,8 @@ def _dataset_metadata_metrics(dataset: dict) -> dict:
         "expected_evidence_declared": bool(dataset.get("expected_evidence_declared")),
         "limitations_declared": dataset.get("limitations_declared") if isinstance(dataset.get("limitations_declared"), list) else [],
         "external_resource_required": bool(dataset.get("external_resource_required")),
+        "production_guard_warnings": dataset.get("production_guard_warnings") if isinstance(dataset.get("production_guard_warnings"), list) else [],
+        "external_acceptance_dataset": bool(dataset.get("external_acceptance_dataset")),
     }
 
 
@@ -468,8 +558,13 @@ def _evaluate_ocr_file_samples(db: Session, samples: list[dict], dataset: dict) 
 
 def _run_ocr_file_sample(db: Session, sample: dict) -> dict:
     sample_id = str(sample.get("sample_id") or sample.get("id") or "ocr_sample")
+    expected = _sample_expected(sample)
     try:
-        path = _resolve_evaluation_sample_file(str(sample.get("file_path") or ""))
+        path = _resolve_evaluation_sample_file(
+            str(sample.get("file_path") or ""),
+            external_only=bool(sample.get("external_acceptance_dataset")),
+            base_dir=Path(str(sample["dataset_dir"])) if sample.get("dataset_dir") else None,
+        )
     except ValueError as exc:
         return {"sample_id": sample_id, "status": "blocked_external_dependency", "error": str(exc)}
     if not path.exists():
@@ -482,6 +577,21 @@ def _run_ocr_file_sample(db: Session, sample: dict) -> dict:
             "error": "configured OCR provider does not match sample provider",
             "configured_provider": ocr_service.settings.ocr_provider,
             "expected_provider": sample.get("provider"),
+        }
+    configured_provider = ocr_service.settings.ocr_provider.strip().lower()
+    if _is_real_ocr_provider(configured_provider) and not _ocr_integration_allowed(sample):
+        return {
+            "sample_id": sample_id,
+            "status": "blocked_external_dependency",
+            "error": "Real OCR provider evaluation requires RUN_PROVIDER_INTEGRATION=1 or explicit sample policy",
+            "configured_provider": ocr_service.settings.ocr_provider,
+        }
+    if _is_local_ocr_provider(configured_provider) and _requires_real_ocr_provider(expected):
+        return {
+            "sample_id": sample_id,
+            "status": "blocked_external_dependency",
+            "error": "Real OCR provider integration is required for confidence or table-structure expectations",
+            "configured_provider": ocr_service.settings.ocr_provider,
         }
     if expected_provider in ocr_service.AZURE_OCR_PROVIDERS and (not ocr_service.settings.ocr_api_url or not ocr_service.settings.ocr_api_key):
         return {
@@ -522,6 +632,8 @@ def _run_ocr_file_sample(db: Session, sample: dict) -> dict:
         "blocks_with_bbox_count": sum(1 for block in blocks if _has_bbox(block)),
         "blocks_with_confidence_count": len(confidences),
         "table_blocks_count": len(table_blocks),
+        "pages_with_image_count": sum(1 for page in pages if getattr(page, "image_path", None)),
+        "table_text": _table_text(table_blocks),
         "average_block_confidence": round(sum(confidences) / len(confidences), 4) if confidences else None,
         "ocr_engine": pages[0].ocr_engine if pages else None,
     }
@@ -558,49 +670,85 @@ def _create_evaluation_document(db: Session, path: Path, sample: dict) -> Docume
     return document
 
 
-def _resolve_evaluation_sample_file(value: str) -> Path:
+def _resolve_evaluation_sample_file(value: str, *, external_only: bool = False, base_dir: Path | None = None) -> Path:
     if not value:
         raise ValueError("sample file_path is required")
-    allowed_roots = [
+    allowed_roots = [external_acceptance_root()] if external_only else [
         PROJECT_ROOT / "local_storage" / "manual_acceptance_files",
         PROJECT_ROOT / "samples" / "evaluation",
         evals_datasets_root(),
+        external_acceptance_root(),
     ]
     raw_path = Path(value)
-    candidate = raw_path if raw_path.is_absolute() else PROJECT_ROOT / raw_path
-    resolved = candidate.resolve()
-    if not any(_is_under(resolved, root) for root in allowed_roots):
-        raise ValueError("sample file_path must be under an allowed evaluation data directory")
-    return resolved
+    if raw_path.is_absolute() or ".." in raw_path.parts:
+        raise ValueError("sample file_path must be project-root relative and stay under an allowed evaluation data directory")
+    candidates = [PROJECT_ROOT / raw_path]
+    if base_dir is not None:
+        candidates.append(base_dir / raw_path)
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if any(_is_under(resolved, root) for root in allowed_roots):
+            return resolved
+    raise ValueError("sample file_path must be under an allowed evaluation data directory")
 
 
 def _ocr_expected_checks(actual: dict, expected: dict) -> dict:
     required_text = [str(item) for item in expected.get("must_contain_text") or []]
     missing_text = [item for item in required_text if item not in str(actual.get("raw_text") or "")]
-    min_page_count = int(expected.get("min_page_count") or 0)
-    min_ocr_blocks = int(expected.get("min_ocr_blocks") or 0)
+    exact_page_count = expected.get("page_count")
+    min_page_count = int(expected.get("min_page_count") or exact_page_count or 0)
+    min_ocr_blocks = int(expected.get("min_ocr_blocks") or (1 if expected.get("require_ocr_blocks") else 0))
     min_bbox = int(expected.get("min_blocks_with_bbox") or (1 if expected.get("require_bbox") else 0))
     min_confidence = int(expected.get("min_blocks_with_confidence") or (1 if expected.get("require_confidence") else 0))
     min_tables = int(expected.get("min_table_blocks") or (1 if expected.get("require_table_blocks") else 0))
+    expected_headers = [str(item) for item in expected.get("expected_table_headers") or []]
+    expected_values = [str(item) for item in expected.get("expected_table_values") or []]
+    table_text = str(actual.get("table_text") or "")
+    missing_headers = [item for item in expected_headers if item not in table_text]
+    missing_values = [item for item in expected_values if item not in table_text]
     checks = {
         "text_ok": not missing_text,
-        "page_count_ok": int(actual.get("page_count") or 0) >= min_page_count,
+        "raw_text_ok": not expected.get("require_raw_text") or bool(str(actual.get("raw_text") or "").strip()),
+        "page_count_ok": (
+            int(actual.get("page_count") or 0) == int(exact_page_count)
+            if exact_page_count is not None
+            else int(actual.get("page_count") or 0) >= min_page_count
+        ),
         "ocr_blocks_ok": int(actual.get("ocr_blocks_count") or 0) >= min_ocr_blocks,
         "bbox_ok": int(actual.get("blocks_with_bbox_count") or 0) >= min_bbox,
         "confidence_ok": int(actual.get("blocks_with_confidence_count") or 0) >= min_confidence,
         "table_blocks_ok": int(actual.get("table_blocks_count") or 0) >= min_tables,
+        "page_image_ok": not expected.get("require_page_image") or int(actual.get("pages_with_image_count") or 0) >= int(actual.get("page_count") or 1),
+        "table_headers_ok": not missing_headers,
+        "table_values_ok": not missing_values,
         "expected": {
             "missing_text": missing_text,
+            "require_raw_text": bool(expected.get("require_raw_text")),
+            "page_count": exact_page_count,
             "min_page_count": min_page_count,
             "min_ocr_blocks": min_ocr_blocks,
             "min_blocks_with_bbox": min_bbox,
             "min_blocks_with_confidence": min_confidence,
             "min_table_blocks": min_tables,
+            "require_page_image": bool(expected.get("require_page_image")),
+            "missing_table_headers": missing_headers,
+            "missing_table_values": missing_values,
         },
     }
     checks["passed"] = actual.get("status") == "completed" and all(
         bool(checks[key])
-        for key in ("text_ok", "page_count_ok", "ocr_blocks_ok", "bbox_ok", "confidence_ok", "table_blocks_ok")
+        for key in (
+            "text_ok",
+            "raw_text_ok",
+            "page_count_ok",
+            "ocr_blocks_ok",
+            "bbox_ok",
+            "confidence_ok",
+            "table_blocks_ok",
+            "page_image_ok",
+            "table_headers_ok",
+            "table_values_ok",
+        )
     )
     return checks
 
@@ -608,6 +756,49 @@ def _ocr_expected_checks(actual: dict, expected: dict) -> dict:
 def _has_bbox(block: dict) -> bool:
     bbox = block.get("bbox")
     return isinstance(bbox, list) and len(bbox) == 4 and all(isinstance(item, (int, float)) for item in bbox)
+
+
+def _table_text(table_blocks: list[dict]) -> str:
+    values: list[str] = []
+
+    def collect(value: object) -> None:
+        if isinstance(value, str):
+            values.append(value)
+        elif isinstance(value, dict):
+            for key in ("text", "content", "value"):
+                if isinstance(value.get(key), str):
+                    values.append(value[key])
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+
+    collect(table_blocks)
+    return "\n".join(values)
+
+
+def _is_local_ocr_provider(provider: str) -> bool:
+    return provider in {"pymupdf", "pymupdf-local", "local"}
+
+
+def _is_real_ocr_provider(provider: str) -> bool:
+    return provider in ocr_service.AZURE_OCR_PROVIDERS or provider in {"http", "external-http", "real"}
+
+
+def _ocr_integration_allowed(sample: dict) -> bool:
+    return os.getenv("RUN_PROVIDER_INTEGRATION") == "1" or bool(sample.get("allow_external_provider_without_integration"))
+
+
+def _requires_real_ocr_provider(expected: dict) -> bool:
+    return bool(
+        expected.get("require_confidence")
+        or int(expected.get("min_blocks_with_confidence") or 0) > 0
+        or expected.get("require_table_blocks")
+        or int(expected.get("min_table_blocks") or 0) > 0
+        or expected.get("expected_table_headers")
+        or expected.get("expected_table_values")
+    )
 
 
 def _evaluate_json_samples(samples: list[dict], case_type: str) -> tuple[int, dict, list[dict]]:

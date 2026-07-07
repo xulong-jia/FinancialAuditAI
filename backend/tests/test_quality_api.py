@@ -2486,6 +2486,112 @@ def test_synthetic_external_classification_cannot_be_marked_production(monkeypat
     assert "synthetic_external_acceptance cannot be marked as production_evaluation" in metrics["production_guard_warnings"]
 
 
+def _write_fatura_extraction_manifest(
+    tmp_path: Path,
+    *,
+    annotation: dict | None = None,
+    sample_extra: dict | None = None,
+    is_production_evaluation: bool = False,
+) -> str:
+    dataset_dir = tmp_path / "local_storage" / "external_acceptance" / "production_dataset" / "extraction" / "fatura"
+    annotations_dir = dataset_dir / "annotations"
+    images_dir = dataset_dir / "images"
+    annotations_dir.mkdir(parents=True, exist_ok=True)
+    images_dir.mkdir(parents=True, exist_ok=True)
+    (images_dir / "sample.jpg").write_bytes(b"not-used-by-fatura-loader")
+    (annotations_dir / "sample.json").write_text(
+        json.dumps(
+            annotation
+            or {
+                "SELLER_NAME": {"text": "Example Seller Pty Ltd", "bbox": [10, 20, 100, 40]},
+                "SELLER_ADDRESS": {"text": "10 Market Street\nSydney", "bbox": [10, 45, 160, 65]},
+                "DATE": {"text": "07/03/2026", "bbox": [300, 20, 360, 40]},
+                "TOTAL": {"text": "1,234.56", "bbox": [300, 240, 380, 260]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "fatura_extraction_external_manifest.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "extraction",
+                "dataset_name": "fatura_public_extraction_unit",
+                "source_type": "public_dataset",
+                "dataset_kind": "non_production_public_acceptance",
+                "is_production_evaluation": is_production_evaluation,
+                "sample_count": 1,
+                "labels": {"annotation_schema": "FATURA Original_Format"},
+                "expected_evidence": {"requires_bbox": True, "requires_source_text": True},
+                "samples": [
+                    {
+                        "sample_id": "fatura-sample",
+                        "document_type": "invoice",
+                        "file_path": "images/sample.jpg",
+                        "fatura_annotation_path": "annotations/sample.json",
+                        **(sample_extra or {}),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return "local_storage/external_acceptance/production_dataset/extraction/fatura/fatura_extraction_external_manifest.json"
+
+
+def test_fatura_public_extraction_manifest_loads_annotation_layout_fields(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_fatura_extraction_manifest(tmp_path)
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "extraction", "dataset_name": "fatura_public_extraction_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    metrics = result["metrics"]
+    assert result["sample_count"] == 1
+    assert result["failed_cases"] == []
+    assert metrics["source_type"] == "public_dataset"
+    assert metrics["is_production_evaluation"] is False
+    assert metrics["extraction_public_sample_pass_rate"] == 1.0
+    assert metrics["extraction_public_field_accuracy"] == 1.0
+    assert metrics["extraction_public_evidence_coverage"] == 1.0
+    assert metrics["source_bbox_coverage"] == 1.0
+
+
+def test_fatura_public_extraction_manifest_rejects_annotation_path_escape(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_fatura_extraction_manifest(
+        tmp_path,
+        sample_extra={"fatura_annotation_path": "../sample.json"},
+    )
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "extraction", "dataset_name": "fatura_public_extraction_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 400
+    assert "fatura_annotation_path" in response.json()["detail"]
+
+
+def test_fatura_public_extraction_manifest_missing_labels_fails_case(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(evaluation_service, "PROJECT_ROOT", tmp_path)
+    dataset_path = _write_fatura_extraction_manifest(tmp_path, annotation={"OTHER": {"text": "unmapped"}})
+
+    response = client.post(
+        "/api/v1/evaluations/run",
+        json={"eval_type": "extraction", "dataset_name": "fatura_public_extraction_unit", "dataset_path": dataset_path},
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["failed_cases"]
+    assert result["metrics"]["extraction_public_sample_pass_rate"] == 0.0
+    assert result["failed_cases"][0]["model_output"]["reason"] == "missing input.text, doc_type, or expected.fields"
+
+
 def test_evaluation_dataset_path_is_restricted() -> None:
     for dataset_path in ("../evals/datasets/manual_acceptance/dataset_manifest.json", "/etc/passwd"):
         response = client.post(

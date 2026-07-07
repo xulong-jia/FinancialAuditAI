@@ -223,6 +223,16 @@ Public extraction checks use normalized matching. Company uses normalized contai
 
 Local SROIE entities extraction public acceptance has passed with `eval_type=extraction`, dataset path `local_storage/external_acceptance/production_dataset/extraction/sroie/sroie_extraction_external_manifest.json`, and deterministic/local extraction logic. The run covered five selected public SROIE receipt samples and produced `sample_count=5`, `failed_cases=[]`, all public extraction metrics `1.0`, `blocked_external_dependency_count=0`, `source_type=public_dataset`, `is_production_evaluation=false`, and `production_evaluation=false`. The manifest and SROIE files remain under `local_storage` and are not committed. This proves public receipt/invoice field-extraction plumbing only; it cannot replace real or compliant desensitized project-specific extraction labels.
 
+FATURA public invoice layout/extraction manifests are also supported under:
+
+```text
+local_storage/external_acceptance/production_dataset/extraction/fatura/fatura_extraction_external_manifest.json
+```
+
+Each sample may declare `document_type=invoice`, `file_path`, and `fatura_annotation_path`. Paths must stay under `local_storage/external_acceptance` and must not be absolute or use `..` traversal. The loader reads FATURA `Original_Format` annotations, maps `SELLER_NAME`, `SELLER_ADDRESS`, `DATE`, and `TOTAL` to public `company`, `address`, `date`, and `total` fields, normalizes multiline annotation text into source-evidence lines, and supports both `[x1, y1, x2, y2]` and `[[x1, y1], [x2, y2]]` bbox formats. FATURA date checks use original text matching instead of normalized date equality because the public dataset may contain ambiguous day/month strings.
+
+Local FATURA public extraction/layout acceptance has passed with `eval_type=extraction`, dataset path `local_storage/external_acceptance/production_dataset/extraction/fatura/fatura_extraction_external_manifest.json`, and deterministic/local extraction logic. The run covered five public invoice samples with seller/date/address/total labels and produced `sample_count=5`, `failed_cases=[]`, `extraction_public_sample_pass_rate=1.0`, `extraction_public_field_accuracy=1.0`, company/date/address/total/evidence metrics `1.0`, `source_bbox_coverage=1.0`, `source_type=public_dataset`, `is_production_evaluation=false`, and `evaluation_status=non_production_public_acceptance`. The manifest and FATURA files remain under `local_storage` and are not committed. This strengthens public invoice layout/extraction evidence only; it is not a real or desensitized project-specific production extraction dataset.
+
 `rule.json` contains synthetic deterministic rule samples:
 
 ```json

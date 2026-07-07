@@ -83,6 +83,12 @@ EXTRACTION_PUBLIC_FIELD_ALIASES = {
         "book_amount",
     ),
 }
+FATURA_FIELD_MAP = {
+    "SELLER_NAME": ("company", "Seller Name"),
+    "SELLER_ADDRESS": ("address", "Seller Address"),
+    "DATE": ("date", "Invoice Date"),
+    "TOTAL": ("total", "Amount Including Tax"),
+}
 MANUAL_DATASET_EVAL_TYPES = {
     "ocr",
     "classification",
@@ -457,15 +463,18 @@ def _resolve_external_acceptance_file_path(value: str, dataset_dir: Path) -> Pat
 
 def _merge_extraction_external_sample(sample: dict, dataset_dir: Path) -> dict:
     source_files = sample.get("source_files") if isinstance(sample.get("source_files"), dict) else {}
+    fatura_annotation_path = sample.get("fatura_annotation_path") or source_files.get("fatura_annotation")
     entities_path = sample.get("entities_path") or source_files.get("entities")
     ocr_label_path = sample.get("ocr_label_path")
     box_path = sample.get("box_path") or source_files.get("box")
     file_path = sample.get("file_path")
-    if not any((entities_path, ocr_label_path, box_path, file_path)):
+    if not any((fatura_annotation_path, entities_path, ocr_label_path, box_path, file_path)):
         return sample
 
     if file_path:
         _resolve_external_acceptance_data_file(str(file_path), dataset_dir, "Extraction file_path")
+    if fatura_annotation_path:
+        return _merge_fatura_extraction_sample(sample, dataset_dir, str(fatura_annotation_path))
 
     entities = _load_sroie_entities(entities_path, ocr_label_path, dataset_dir, _sample_expected(sample))
     box_text, ocr_blocks = _load_sroie_box(box_path, dataset_dir) if box_path else ("", [])
@@ -492,6 +501,78 @@ def _merge_extraction_external_sample(sample: dict, dataset_dir: Path) -> dict:
     merged["input"] = input_payload
     merged["expected"] = expected
     return merged
+
+
+def _merge_fatura_extraction_sample(sample: dict, dataset_dir: Path, annotation_path: str) -> dict:
+    annotation_file = _resolve_external_acceptance_data_file(
+        annotation_path,
+        dataset_dir,
+        "Extraction fatura_annotation_path",
+    )
+    annotation = _read_json_file(annotation_file, "Extraction fatura_annotation_path")
+    input_payload = dict(_sample_input(sample))
+    input_payload.setdefault("filename", str(sample.get("file_path") or sample.get("sample_id") or annotation_file.name))
+    input_payload.setdefault("doc_type", str(sample.get("doc_type") or sample.get("document_type") or "invoice"))
+    input_payload.setdefault("scenario", str(sample.get("scenario") or "procurement"))
+
+    expected = dict(_sample_expected(sample))
+    expected_fields = dict(expected.get("fields") if isinstance(expected.get("fields"), dict) else {})
+    lines: list[str] = []
+    blocks: list[dict] = []
+    for source_field, (public_field, label) in FATURA_FIELD_MAP.items():
+        item = annotation.get(source_field)
+        if not isinstance(item, dict):
+            continue
+        text_value = " ".join(str(item.get("text") or "").split())
+        if not text_value:
+            continue
+        line = f"{label}: {text_value}"
+        lines.append(line)
+        block = {"text": line}
+        bbox = _fatura_bbox(item.get("bbox"))
+        if bbox is not None:
+            block["bbox"] = bbox
+        blocks.append(block)
+        expected_fields.setdefault(public_field, _fatura_expected_field(public_field, text_value))
+
+    input_payload["text"] = str(input_payload.get("text") or "\n".join(lines)).strip()
+    input_payload.setdefault("ocr_pages", [{"page_number": 1, "raw_text": input_payload["text"], "ocr_blocks": blocks}])
+    expected["fields"] = expected_fields
+    expected.setdefault("require_source_evidence", True)
+    expected.setdefault("require_source_bbox", True)
+
+    merged = dict(sample)
+    merged["doc_type"] = input_payload["doc_type"]
+    merged["input"] = input_payload
+    merged["expected"] = expected
+    return merged
+
+
+def _fatura_expected_field(field_name: str, value: str) -> dict:
+    if field_name == "date":
+        return {"value": value}
+    if field_name == "total":
+        amount = _normalize_public_amount(value)
+        return {"value_normalized": {"amount": amount}} if amount is not None else {"value": value}
+    return {"value": value}
+
+
+def _fatura_bbox(value: object) -> list[float] | None:
+    if not isinstance(value, list):
+        return None
+    if len(value) == 2 and all(isinstance(point, list) and len(point) == 2 for point in value):
+        try:
+            x1, y1 = (float(item) for item in value[0])
+            x2, y2 = (float(item) for item in value[1])
+        except (TypeError, ValueError):
+            return None
+        return [min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)]
+    if len(value) != 4:
+        return None
+    try:
+        return [float(item) for item in value]
+    except (TypeError, ValueError):
+        return None
 
 
 def _resolve_external_acceptance_data_file(value: str, dataset_dir: Path, field_name: str) -> Path:
@@ -1638,7 +1719,8 @@ def _with_public_extraction_alias_fields(
     text = str(input_payload.get("text") or input_payload.get("raw_text") or "")
     for field_name, expected_field in expected_fields.items():
         canonical = _canonical_public_extraction_field(str(field_name))
-        if canonical is None or _extraction_actual_field(augmented, str(field_name)):
+        existing_field = _extraction_actual_field(augmented, str(field_name))
+        if canonical is None or _public_extraction_field_has_value(existing_field):
             continue
         value = _expected_extraction_text(expected_field)
         evidence = _find_extraction_source_evidence(canonical, value, text, input_payload)
@@ -1653,6 +1735,18 @@ def _with_public_extraction_alias_fields(
             "warnings": ["public_dataset_evidence_match"],
         }
     return augmented
+
+
+def _public_extraction_field_has_value(actual: dict) -> bool:
+    value = actual.get("value")
+    if isinstance(value, str):
+        return bool(value.strip())
+    if value is not None:
+        return True
+    normalized = actual.get("value_normalized")
+    if isinstance(normalized, dict):
+        return any(value not in (None, "", []) for value in normalized.values())
+    return normalized not in (None, "", [])
 
 
 def _extraction_actual_field(actual_fields: dict[str, dict], field_name: str) -> dict:

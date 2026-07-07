@@ -32,7 +32,7 @@ into production evidence.
 | --- | --- | --- | --- | --- |
 | OCR | Code, tests, and docs cover OCR processing, synthetic external acceptance, and SROIE public OCR acceptance. | OCR synthetic external acceptance; OCR SROIE public dataset acceptance. | Not production fully_satisfied because evidence is synthetic/public, not project-specific production data. | Yes: real/desensitized OCR documents and labels. |
 | Classification | Code, tests, and docs cover document classification and synthetic external acceptance. | Classification synthetic external acceptance. | Not production fully_satisfied because current evidence is synthetic. | Yes: real/desensitized classification documents and labels. |
-| Extraction | Code, tests, and docs cover extraction evaluation, external extraction manifests, public_dataset guardrails, field matching, address fuzzy matching, missing expected field handling, and path escape protection. | SROIE entities public extraction acceptance. | Not production fully_satisfied because SROIE is public receipt data, not project-specific production labels. | Yes: real/desensitized extraction labels. |
+| Extraction | Code, tests, and docs cover extraction evaluation, external extraction manifests, public_dataset guardrails, field matching, address fuzzy matching, missing expected field handling, and path escape protection. | SROIE entities public extraction acceptance; FATURA public invoice layout/extraction acceptance. | Not production fully_satisfied because SROIE/FATURA are public datasets, not project-specific production labels. | Yes: real/desensitized extraction labels. |
 | Rule engine | Code, tests, and docs cover deterministic rule execution, audit results, and reviewable outcomes. | Internal deterministic/synthetic coverage only; no project-specific rule-labeled public acceptance closes production. | Not production fully_satisfied without real rule pass/fail/warning labels. | Yes: rule pass/fail/warning labels. |
 | RAG | Code, tests, and docs cover external RAG manifest loading, file loading, citation checks, and no-answer behavior. | SEC EDGAR Apple 10-K public RAG acceptance. | Not production fully_satisfied because SEC EDGAR public filings prove plumbing, not customer workpaper performance. | Yes: project-specific workpapers, citation labels, and no-answer labels. |
 | Agent workflow | Code, tests, and docs cover agent workflow records and deterministic/local execution paths. | Internal deterministic/mock/fallback evidence only. | Not production fully_satisfied without labeled project-specific workflow traces and expected outcomes. | Yes: agent workflow labels. |
@@ -57,6 +57,7 @@ artifacts under local storage are local-only and must not be committed.
 | Provider readiness artifact | `local_artifact` | 1 readiness artifact | 0 forbidden safety hits reported in the readiness artifact | Provider configuration/readiness summary generated without publishing credentials. | Not production integration evidence; local-only artifact; local_storage not committed. |
 | SEC EDGAR Apple 10-K public RAG acceptance | `public_dataset` | 4 | 0 | RAG sample, citation, answer, no-answer, and metadata checks passed; external RAG document count 1 and chunk count 7868. | `is_production_evaluation=false`; public SEC filing proves RAG plumbing only; local_storage not committed. |
 | SROIE entities public extraction acceptance | `public_dataset` | 5 | 0 | Extraction sample, field, company, date, address, total, and evidence checks passed; failed case count 0. | `is_production_evaluation=false`; public receipt entity data proves extraction plumbing only; local_storage not committed. |
+| FATURA public invoice layout/extraction acceptance | `public_dataset` | 5 | 0 | Extraction sample, field, company, date, address, total, evidence, and bbox-backed source coverage checks passed; failed case count 0. | `is_production_evaluation=false`; public invoice annotation/layout data proves extraction plumbing only; local_storage not committed. |
 
 ## 4. Remaining blocked_external_dependency
 
@@ -85,16 +86,12 @@ artifacts under local storage are local-only and must not be committed.
 
 ### A. If continuing to strengthen public evidence
 
-1. FATURA public invoice/layout extraction acceptance.
-   - Value: extends extraction/layout evidence beyond receipt-style SROIE data.
-   - Production relationship: improves public plumbing evidence only; it remains
-     non-production.
-2. SRD OCR robustness acceptance.
+1. SRD OCR robustness acceptance.
    - Value: adds OCR robustness coverage over another public receipt/document
      shape.
    - Production relationship: useful stress evidence, not production
      fully_satisfied.
-3. SEC EDGAR RAG query label expansion.
+2. SEC EDGAR RAG query label expansion.
    - Value: broadens public RAG citation and no-answer query coverage.
    - Production relationship: strengthens public RAG evidence only; customer
      workpaper labels are still required.

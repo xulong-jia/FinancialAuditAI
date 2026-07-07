@@ -152,6 +152,8 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 
 The extraction dataset runner uses deterministic text extraction on `input.text` and compares `expected.fields` for field presence, `value`, `value_normalized`, `item_lines`, and field-level source traceability. `source_bbox` can be optional for text-only synthetic samples. This runner does not call a real LLM provider and does not exercise the full uploaded-document DB workflow.
 
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=extraction` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used one synthetic invoice sample, produced zero failed cases, and reported `extraction_sample_pass_rate=1.0`, `extraction_field_accuracy=1.0`, `field_presence_accuracy=1.0`, `normalized_value_accuracy=1.0`, `item_line_accuracy=1.0`, `source_page_coverage=1.0`, `source_text_coverage=1.0`, and `source_bbox_coverage=0.0`. The zero bbox coverage is expected for this text-only sample because `require_source_bbox=false`. It remains a synthetic single-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full uploaded-document DB workflow coverage.
+
 ## Metrics
 
 `evaluation_results.metrics` stores compact metrics such as:

@@ -169,7 +169,7 @@ This classification result is recorded only as a sanitized summary. The `local_s
 
 ## External Acceptance Data Boundary
 
-Current external acceptance evidence is intentionally limited to mechanism validation. OCR external acceptance is `synthetic_external_acceptance` with Azure integration passed locally; classification external acceptance is `synthetic_external_acceptance` with local evaluation passed; the Provider readiness artifact was generated locally and passed the documented safety check. These prove external manifest loading, Provider/evaluation plumbing, sanitized artifact handling, and safety boundaries only.
+Current external acceptance evidence is intentionally limited to mechanism validation. OCR external acceptance is `synthetic_external_acceptance` with Azure integration passed locally; SROIE OCR and SROIE extraction are `public_dataset` non-production acceptance; classification external acceptance is `synthetic_external_acceptance` with local evaluation passed; SEC EDGAR RAG is `public_dataset` non-production acceptance; the Provider readiness artifact was generated locally and passed the documented safety check. These prove external manifest loading, Provider/evaluation plumbing, sanitized artifact handling, and safety boundaries only.
 
 The user has not provided real or desensitized business materials: no procurement documents, sales documents, confirmations, interview records, contracts, human-reviewed labels, RAG citation labels, or Agent workflow labels are available for production evaluation.
 
@@ -210,6 +210,18 @@ Do not mark `synthetic_external_acceptance` as `production_evaluation`, do not t
 The extraction dataset runner uses deterministic extraction on `input.text` and compares `expected.fields` for field presence, `value`, `value_normalized`, `item_lines`, and field-level source traceability. Samples may include `input.ocr_pages` / `input.ocr_blocks`; when `require_source_bbox=true`, field and line-item bbox must resolve from those OCR blocks. Text-only samples may set `require_source_bbox=false`. This runner does not call a real LLM provider.
 
 Local manual validation has run successfully for `manual_acceptance` with `eval_type=extraction` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The committed dataset now includes a text-only sample and an OCR-block fixture sample that requires `source_bbox=true`; it validates field and line-item `source_page`, `source_text`, and `source_bbox` coverage. Phase B pytest includes positive and negative `require_source_bbox=true` coverage: bbox-backed fields pass with full bbox coverage, and missing bbox produces `failed_cases`. It remains synthetic, non-production manual acceptance; do not interpret it as production-scale extraction quality or real Provider evidence.
+
+SROIE entities public extraction manifests are supported under:
+
+```text
+local_storage/external_acceptance/production_dataset/extraction/sroie/sroie_extraction_external_manifest.json
+```
+
+Each sample may declare `document_type=invoice`, `file_path`, `entities_path`, `ocr_label_path`, and `box_path`. Paths must stay under `local_storage/external_acceptance` and must not be absolute or use `..` traversal. The loader reads SROIE `entities` labels for `company`, `date`, `address`, and `total`, parses SROIE `box` files into OCR-block-like source evidence, maps public fields to existing extraction fields (`company -> seller_name/supplier_name/vendor_name`, `date -> invoice_date/receipt_date`, `address -> address/vendor_address/supplier_address/seller_address`, `total -> amount_including_tax/amount/total_amount`), and keeps `source_type=public_dataset` with `is_production_evaluation=false`.
+
+Public extraction checks use normalized matching. Company uses normalized containment, date uses normalized date equality including two-digit SROIE years, address uses token-overlap matching, and total uses numeric amount matching. Metrics include `extraction_public_sample_pass_rate`, `extraction_public_field_accuracy`, `extraction_public_company_accuracy`, `extraction_public_date_accuracy`, `extraction_public_address_accuracy`, `extraction_public_total_accuracy`, `extraction_public_evidence_coverage`, `failed_case_count`, `blocked_external_dependency_count`, `source_type`, `is_production_evaluation`, and `evaluation_status=non_production_public_acceptance`.
+
+Local SROIE entities extraction public acceptance has passed with `eval_type=extraction`, dataset path `local_storage/external_acceptance/production_dataset/extraction/sroie/sroie_extraction_external_manifest.json`, and deterministic/local extraction logic. The run covered five selected public SROIE receipt samples and produced `sample_count=5`, `failed_cases=[]`, all public extraction metrics `1.0`, `blocked_external_dependency_count=0`, `source_type=public_dataset`, `is_production_evaluation=false`, and `production_evaluation=false`. The manifest and SROIE files remain under `local_storage` and are not committed. This proves public receipt/invoice field-extraction plumbing only; it cannot replace real or compliant desensitized project-specific extraction labels.
 
 `rule.json` contains synthetic deterministic rule samples:
 

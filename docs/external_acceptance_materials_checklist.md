@@ -18,7 +18,7 @@ This directory must remain ignored by `.gitignore` and must never be committed. 
 | --- | --- | --- | --- | --- |
 | OCR | `local_storage/external_acceptance/production_dataset/ocr` | Multi-page PDFs, scanned images, complex tables, expected `raw_text`, page, bbox, confidence, table labels, and `ocr_external_manifest.json` with `file_path` / `label_path` entries | synthetic external Azure integration passed locally; production materials still pending | Blocks `fully_satisfied` |
 | Classification | `local_storage/external_acceptance/production_dataset/classification` | Desensitized documents or text samples, expected `doc_type`, confidence, review labels, and optional `classification_external_manifest.json` with external `label_path` | synthetic external acceptance passed locally; production materials still pending | Blocks `fully_satisfied` |
-| Extraction | `local_storage/external_acceptance/production_dataset/extraction` | Desensitized documents, expected fields, `source_page`, `source_text`, `source_bbox`, and `line_items` | pending | Blocks `fully_satisfied` |
+| Extraction | `local_storage/external_acceptance/production_dataset/extraction` | Desensitized documents, expected fields, `source_page`, `source_text`, `source_bbox`, and `line_items` | SROIE entities public extraction acceptance passed locally; project-specific production labels still pending | Blocks `fully_satisfied` |
 | Rule | `local_storage/external_acceptance/production_dataset/rule` | Pass/fail/warning/missing-data cases, `rule_id`, status, severity, evidence, and review routing labels | pending | Blocks `fully_satisfied` |
 | RAG | `local_storage/external_acceptance/production_dataset/rag` | `regulation`, `inquiry_case`, `prospectus`, and `workpaper` samples with expected citation, no-answer, and workpaper scope labels; optional SEC EDGAR public manifest with local `.txt` filings such as Apple 10-K under `knowledge_base=prospectus` | SEC EDGAR Apple 10-K public RAG acceptance passed locally; project-specific production labels still pending | Blocks `fully_satisfied` |
 | Agent | `local_storage/external_acceptance/production_dataset/agent` | Expected `agent_steps`, tool use, retry, review routing, Bad Case, and `evidence_insufficient` labels | pending | Blocks `fully_satisfied` |
@@ -61,6 +61,20 @@ The manifest may use top-level `label_path` to expand label-file `samples`. Each
 Local classification external acceptance has passed with `eval_type=classification`, dataset path `local_storage/external_acceptance/production_dataset/classification/classification_external_manifest.json`, and model `classification-external-acceptance`. The run covered six synthetic procurement document types: `purchase_request`, `purchase_contract`, `warehouse_receipt`, `invoice`, `accounting_voucher`, and `payment_receipt`. Result summary: `sample_count=6`, `failed_cases=[]`, `accuracy=1.0`, `macro_f1=1.0`, `low_confidence_rate=0.0`, `confidence_threshold_accuracy=1.0`, `human_review_flag_accuracy=1.0`, `failed_case_count=0`, `source_type=synthetic_external_acceptance`, `is_production_evaluation=false`, `evaluation_status=synthetic_only`, `dataset_version=0.1.0`, `declared_sample_count=6`, `labels_declared=true`, and `external_acceptance_dataset=true`.
 
 The external classification files stayed under `local_storage` and were not committed. API keys, `.env`, secrets, and original text bodies were not recorded in this checklist. This result does not satisfy the real/desensitized production classification dataset requirement.
+
+### Extraction External Acceptance Runtime
+
+The extraction evaluation runner can read SROIE public entities manifests under:
+
+```text
+local_storage/external_acceptance/production_dataset/extraction/sroie/sroie_extraction_external_manifest.json
+```
+
+Each sample may use `document_type=invoice`, `file_path`, `entities_path`, `ocr_label_path`, and `box_path`. Paths are resolved under `local_storage/external_acceptance` and must not be absolute or use `..` traversal. SROIE public labels map `company`, `date`, `address`, and `total` to existing extraction/evaluation fields: company maps to seller/supplier/vendor/company names, date maps to invoice/receipt/payment dates, address maps to address-style fields, and total maps to amount-including-tax or total/amount fields. Address matching uses token overlap; total and date use normalized matching; source evidence is required through source text, while bbox is not required for this public extraction run.
+
+Local SROIE entities extraction acceptance has passed with `eval_type=extraction`, dataset path `local_storage/external_acceptance/production_dataset/extraction/sroie/sroie_extraction_external_manifest.json`, and deterministic/local extraction logic. Result summary: `sample_count=5`, `failed_cases=[]`, `extraction_public_sample_pass_rate=1.0`, `extraction_public_field_accuracy=1.0`, company/date/address/total/evidence public metrics all `1.0`, `failed_case_count=0`, `blocked_external_dependency_count=0`, `source_type=public_dataset`, `is_production_evaluation=false`, `production_evaluation=false`, and `evaluation_status=non_production_public_acceptance`.
+
+The SROIE extraction manifest and files stayed under `local_storage` and were not committed. This proves public receipt/invoice extraction plumbing only. It does not satisfy the real/desensitized production extraction dataset requirement.
 
 ## 3. Provider Integration Artifacts
 
@@ -130,6 +144,7 @@ Do not commit:
 Phase A/B/C internal code, tests, and documentation fixes are complete. The current external acceptance materials are limited to synthetic or local-only mechanism checks:
 
 - OCR external acceptance is `synthetic_external_acceptance`; Azure integration passed locally and proves external file loading, OCR Provider connectivity, expected-check plumbing, and local safety boundaries.
+- SROIE entities extraction acceptance is `public_dataset`; local evaluation passed and proves public receipt/invoice field-extraction plumbing only.
 - Classification external acceptance is `synthetic_external_acceptance`; evaluation passed locally and proves external manifest/label/text loading plus deterministic classification assertions.
 - SEC EDGAR Apple 10-K RAG external acceptance passed locally from `local_storage/external_acceptance/production_dataset/rag/sec_edgar/sec_edgar_rag_external_manifest.json` with four samples: `apple-geographic-business-basis`, `apple-supply-chain-changes`, `apple-europe-net-sales-2025`, and `apple-no-answer-martian-telemetry`. Result summary: `sample_count=4`, `failed_cases=[]`, RAG external pass/citation/answer/no-answer/metadata metrics all `1.0`, `failed_case_count=0`, `blocked_external_dependency_count=0`, `external_rag_document_count=1`, `external_rag_chunk_count=7868`, `source_type=public_dataset`, `is_production_evaluation=false`, `production_evaluation=false`, and `evaluation_status=non_production_manual_acceptance`. This proves external RAG ingestion, indexing, query, citation, metadata, and no-answer plumbing only; the `local_storage` manifest and `.txt` filing are not committed and do not replace project-specific real/desensitized RAG labels.
 - Provider readiness artifact was generated locally, passed the documented safety summary, and proves sanitized Provider readiness artifact generation and connectivity only.

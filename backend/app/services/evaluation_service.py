@@ -45,6 +45,44 @@ OCR_BOX_LINE_COUNT_CAP = 20
 OCR_LONG_TEXT_TOKEN_THRESHOLD = 0.75
 OCR_ADDRESS_TOKEN_THRESHOLD = 0.7
 OCR_LONG_TEXT_MIN_TOKENS = 5
+EXTRACTION_ADDRESS_TOKEN_THRESHOLD = 0.7
+EXTRACTION_PUBLIC_FIELDS = ("company", "date", "address", "total")
+EXTRACTION_PUBLIC_FIELD_ALIASES = {
+    "company": (
+        "company",
+        "company_name",
+        "seller_name",
+        "supplier_name",
+        "vendor_name",
+        "buyer_name",
+        "customer_name",
+        "counterparty_name",
+        "payee_name",
+        "payer_name",
+    ),
+    "date": (
+        "date",
+        "invoice_date",
+        "receipt_date",
+        "payment_date",
+        "voucher_date",
+        "order_date",
+        "signing_date",
+        "sent_date",
+        "replied_date",
+    ),
+    "address": ("address", "vendor_address", "supplier_address", "seller_address", "counterparty_address"),
+    "total": (
+        "total",
+        "amount_total",
+        "total_amount",
+        "amount_including_tax",
+        "amount",
+        "payment_amount",
+        "confirmed_amount",
+        "book_amount",
+    ),
+}
 MANUAL_DATASET_EVAL_TYPES = {
     "ocr",
     "classification",
@@ -241,6 +279,8 @@ def _normalize_dataset(payload: EvaluationRunRequest, path: Path, data: dict, ma
         merged_sample, guard_warnings = _merge_external_label(sample, path.parent, guard_warnings)
         if default_eval_type == "classification" and external_dataset:
             merged_sample = _merge_classification_external_text(merged_sample, path.parent)
+        if default_eval_type == "extraction" and external_dataset:
+            merged_sample = _merge_extraction_external_sample(merged_sample, path.parent)
         normalized = {
             "eval_type": default_eval_type,
             "dataset_name": dataset_name,
@@ -413,6 +453,180 @@ def _resolve_external_acceptance_file_path(value: str, dataset_dir: Path) -> Pat
                 return candidate
             raise HTTPException(status_code=400, detail="Classification file_path must point to an existing text file")
     raise HTTPException(status_code=400, detail="Classification file_path must stay under local_storage/external_acceptance")
+
+
+def _merge_extraction_external_sample(sample: dict, dataset_dir: Path) -> dict:
+    source_files = sample.get("source_files") if isinstance(sample.get("source_files"), dict) else {}
+    entities_path = sample.get("entities_path") or source_files.get("entities")
+    ocr_label_path = sample.get("ocr_label_path")
+    box_path = sample.get("box_path") or source_files.get("box")
+    file_path = sample.get("file_path")
+    if not any((entities_path, ocr_label_path, box_path, file_path)):
+        return sample
+
+    if file_path:
+        _resolve_external_acceptance_data_file(str(file_path), dataset_dir, "Extraction file_path")
+
+    entities = _load_sroie_entities(entities_path, ocr_label_path, dataset_dir, _sample_expected(sample))
+    box_text, ocr_blocks = _load_sroie_box(box_path, dataset_dir) if box_path else ("", [])
+    input_payload = dict(_sample_input(sample))
+    input_payload.setdefault("filename", str(file_path or sample.get("sample_id") or "sroie-public-receipt"))
+    input_payload.setdefault("doc_type", str(sample.get("doc_type") or sample.get("document_type") or "invoice"))
+    input_payload.setdefault("scenario", str(sample.get("scenario") or "procurement"))
+    input_payload["text"] = _sroie_extraction_text(entities, box_text, input_payload.get("text"))
+    input_payload.setdefault(
+        "ocr_pages",
+        [{"page_number": 1, "raw_text": input_payload["text"], "ocr_blocks": ocr_blocks}],
+    )
+
+    expected = dict(_sample_expected(sample))
+    expected_fields = dict(expected.get("fields") if isinstance(expected.get("fields"), dict) else {})
+    for field_name, field_expected in _sroie_expected_fields(entities).items():
+        expected_fields.setdefault(field_name, field_expected)
+    expected["fields"] = expected_fields
+    expected.setdefault("require_source_evidence", True)
+    expected.setdefault("require_source_bbox", False)
+
+    merged = dict(sample)
+    merged["doc_type"] = input_payload["doc_type"]
+    merged["input"] = input_payload
+    merged["expected"] = expected
+    return merged
+
+
+def _resolve_external_acceptance_data_file(value: str, dataset_dir: Path, field_name: str) -> Path:
+    if not value:
+        raise HTTPException(status_code=400, detail=f"{field_name} is required")
+    raw_path = Path(value)
+    if raw_path.is_absolute() or ".." in raw_path.parts:
+        raise HTTPException(status_code=400, detail=f"{field_name} must stay under local_storage/external_acceptance")
+    candidates = [(PROJECT_ROOT / raw_path).resolve(), (dataset_dir / raw_path).resolve()]
+    for candidate in candidates:
+        if _is_under(candidate, external_acceptance_root()):
+            if candidate.exists() and candidate.is_file():
+                return candidate
+            raise HTTPException(status_code=400, detail=f"{field_name} must point to an existing file")
+    raise HTTPException(status_code=400, detail=f"{field_name} must stay under local_storage/external_acceptance")
+
+
+def _load_sroie_entities(
+    entities_path: object,
+    ocr_label_path: object,
+    dataset_dir: Path,
+    expected: dict,
+) -> dict:
+    if entities_path:
+        path = _resolve_external_acceptance_data_file(str(entities_path), dataset_dir, "Extraction entities_path")
+        return _read_json_file(path, "Extraction entities_path")
+    key_information = expected.get("key_information")
+    if isinstance(key_information, dict):
+        return key_information
+    if ocr_label_path:
+        path = _resolve_external_acceptance_data_file(str(ocr_label_path), dataset_dir, "Extraction ocr_label_path")
+        label = _read_json_file(path, "Extraction ocr_label_path")
+        label_expected = label.get("expected") if isinstance(label.get("expected"), dict) else {}
+        key_information = label_expected.get("key_information")
+        if isinstance(key_information, dict):
+            return key_information
+    return {}
+
+
+def _read_json_file(path: Path, field_name: str) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"{field_name} could not be read: {exc.__class__.__name__}") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail=f"{field_name} must point to a JSON object")
+    return data
+
+
+def _load_sroie_box(box_path: object, dataset_dir: Path) -> tuple[str, list[dict]]:
+    path = _resolve_external_acceptance_data_file(str(box_path), dataset_dir, "Extraction box_path")
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"Extraction box_path could not be read: {exc.__class__.__name__}") from exc
+    texts = []
+    blocks = []
+    for line in lines:
+        parts = line.split(",", 8)
+        if len(parts) < 9:
+            continue
+        try:
+            coords = [float(item) for item in parts[:8]]
+        except ValueError:
+            continue
+        text = parts[8].strip()
+        if not text:
+            continue
+        texts.append(text)
+        xs = coords[0::2]
+        ys = coords[1::2]
+        blocks.append({"text": text, "bbox": [min(xs), min(ys), max(xs), max(ys)]})
+    return "\n".join(texts), blocks
+
+
+def _sroie_extraction_text(entities: dict, box_text: str, existing_text: object) -> str:
+    if isinstance(existing_text, str) and existing_text.strip():
+        return existing_text
+    labeled_lines = []
+    company = str(entities.get("company") or "").strip()
+    receipt_date = str(entities.get("date") or "").strip()
+    address = str(entities.get("address") or "").strip()
+    total = str(entities.get("total") or "").strip()
+    if company:
+        labeled_lines.append(f"Seller Name: {company}")
+    if receipt_date:
+        labeled_lines.append(f"Invoice Date: {_normalize_public_date(receipt_date) or receipt_date}")
+    if address:
+        labeled_lines.append(f"Seller Address: {address}")
+    if total:
+        labeled_lines.append(f"Amount Including Tax: {total}")
+    return "\n".join([*labeled_lines, box_text]).strip()
+
+
+def _sroie_expected_fields(entities: dict) -> dict:
+    fields = {}
+    company = str(entities.get("company") or "").strip()
+    receipt_date = str(entities.get("date") or "").strip()
+    address = str(entities.get("address") or "").strip()
+    total = str(entities.get("total") or "").strip()
+    if company:
+        fields["company"] = {"value": company}
+    if receipt_date:
+        normalized_date = _normalize_public_date(receipt_date)
+        fields["date"] = {"value_normalized": {"value": normalized_date or receipt_date}}
+    if address:
+        fields["address"] = {"value": address}
+    if total:
+        amount = _normalize_public_amount(total)
+        fields["total"] = {"value_normalized": {"amount": amount}} if amount is not None else {"value": total}
+    return fields
+
+
+def _normalize_public_date(value: str) -> str | None:
+    for pattern, order in (
+        (r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$", ("year", "month", "day")),
+        (r"^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$", ("day", "month", "year")),
+        (r"^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$", ("day", "month", "short_year")),
+    ):
+        match = re.match(pattern, value.strip())
+        if not match:
+            continue
+        parts = {name: int(match.group(index + 1)) for index, name in enumerate(order)}
+        if "short_year" in parts:
+            parts["year"] = 2000 + parts["short_year"]
+        try:
+            return date(parts["year"], parts["month"], parts["day"]).isoformat()
+        except ValueError:
+            return None
+    return None
+
+
+def _normalize_public_amount(value: str) -> float | None:
+    match = re.search(r"-?\d[\d,]*(?:\.\d+)?", value)
+    return float(match.group(0).replace(",", "")) if match else None
 
 
 def _guard_production_flag(
@@ -1188,14 +1402,22 @@ def _evaluate_extraction_samples(samples: list[dict]) -> tuple[int, dict, list[d
     normalized_total = normalized_pass = 0
     item_total = item_pass = 0
     source_total = source_page_hits = source_text_hits = source_bbox_hits = 0
+    public_sample_total = public_sample_failed = 0
+    public_field_total = public_field_pass = 0
+    public_source_total = public_source_hits = 0
+    public_field_totals = {field_name: 0 for field_name in EXTRACTION_PUBLIC_FIELDS}
+    public_field_hits = {field_name: 0 for field_name in EXTRACTION_PUBLIC_FIELDS}
 
     for sample in samples:
         input_payload = _sample_input(sample)
         expected = _sample_expected(sample)
         expected_fields = expected.get("fields") if isinstance(expected.get("fields"), dict) else {}
         text = str(input_payload.get("text") or input_payload.get("raw_text") or "").strip()
-        doc_type = str(sample.get("doc_type") or input_payload.get("doc_type") or "").strip()
+        doc_type = str(sample.get("doc_type") or sample.get("document_type") or input_payload.get("doc_type") or "").strip()
+        is_public_extraction = str(sample.get("source_type") or "").strip().lower() == "public_dataset"
+        public_sample_total += int(is_public_extraction)
         if not text or not doc_type or not expected_fields:
+            public_sample_failed += int(is_public_extraction)
             failed.append(
                 _sample_failed_case(
                     "extraction",
@@ -1212,6 +1434,7 @@ def _evaluate_extraction_samples(samples: list[dict]) -> tuple[int, dict, list[d
             str(input_payload.get("scenario") or "procurement"),
             input_payload,
         )
+        actual_fields = _with_public_extraction_alias_fields(sample, actual_fields, expected_fields, input_payload)
         checks = _check_extraction_expected_fields(actual_fields, expected_fields, expected)
         field_total += checks["field_total"]
         field_pass += checks["field_pass"]
@@ -1224,7 +1447,20 @@ def _evaluate_extraction_samples(samples: list[dict]) -> tuple[int, dict, list[d
         source_page_hits += checks["source_page_hits"]
         source_text_hits += checks["source_text_hits"]
         source_bbox_hits += checks["source_bbox_hits"]
+        if is_public_extraction:
+            public_source_total += checks["source_total"]
+            public_source_hits += checks["source_text_hits"]
+            for field_result in checks["field_results"]:
+                canonical = field_result["canonical_field"]
+                if canonical not in public_field_totals:
+                    continue
+                public_field_total += 1
+                public_field_totals[canonical] += 1
+                if field_result["field_ok"]:
+                    public_field_pass += 1
+                    public_field_hits[canonical] += 1
         if checks["failed_checks"]:
+            public_sample_failed += int(is_public_extraction)
             failed.append(
                 _sample_failed_case(
                     "extraction",
@@ -1234,21 +1470,32 @@ def _evaluate_extraction_samples(samples: list[dict]) -> tuple[int, dict, list[d
                 )
             )
 
-    return (
-        len(samples),
-        {
-            "extraction_sample_pass_rate": _accuracy(len(samples), len(failed)),
-            "extraction_field_accuracy": _rate(field_pass, field_total),
-            "field_presence_accuracy": _rate(field_present, field_total),
-            "normalized_value_accuracy": _rate(normalized_pass, normalized_total),
-            "item_line_accuracy": _rate(item_pass, item_total),
-            "source_page_coverage": _rate(source_page_hits, source_total),
-            "source_text_coverage": _rate(source_text_hits, source_total),
-            "source_bbox_coverage": _rate(source_bbox_hits, source_total),
-            "failed_case_count": len(failed),
-        },
-        failed,
-    )
+    metrics = {
+        "extraction_sample_pass_rate": _accuracy(len(samples), len(failed)),
+        "extraction_field_accuracy": _rate(field_pass, field_total),
+        "field_presence_accuracy": _rate(field_present, field_total),
+        "normalized_value_accuracy": _rate(normalized_pass, normalized_total),
+        "item_line_accuracy": _rate(item_pass, item_total),
+        "source_page_coverage": _rate(source_page_hits, source_total),
+        "source_text_coverage": _rate(source_text_hits, source_total),
+        "source_bbox_coverage": _rate(source_bbox_hits, source_total),
+        "failed_case_count": len(failed),
+    }
+    if public_sample_total:
+        metrics.update(
+            {
+                "extraction_public_sample_pass_rate": _accuracy(public_sample_total, public_sample_failed),
+                "extraction_public_field_accuracy": _rate(public_field_pass, public_field_total),
+                "extraction_public_company_accuracy": _rate(public_field_hits["company"], public_field_totals["company"]),
+                "extraction_public_date_accuracy": _rate(public_field_hits["date"], public_field_totals["date"]),
+                "extraction_public_address_accuracy": _rate(public_field_hits["address"], public_field_totals["address"]),
+                "extraction_public_total_accuracy": _rate(public_field_hits["total"], public_field_totals["total"]),
+                "extraction_public_evidence_coverage": _rate(public_source_hits, public_source_total),
+                "blocked_external_dependency_count": 0,
+                "evaluation_status": "non_production_public_acceptance",
+            }
+        )
+    return (len(samples), metrics, failed)
 
 
 def _extract_text_sample_fields(
@@ -1299,8 +1546,8 @@ def _extraction_sample_pages(text: str, input_payload: dict) -> list[SimpleNames
 
 
 def _check_extraction_expected_fields(actual_fields: dict[str, dict], expected_fields: dict, expected: dict) -> dict:
-    require_source_page = bool(expected.get("require_source_page"))
-    require_source_text = bool(expected.get("require_source_text"))
+    require_source_page = bool(expected.get("require_source_page") or expected.get("require_source_evidence"))
+    require_source_text = bool(expected.get("require_source_text") or expected.get("require_source_evidence"))
     require_source_bbox = bool(expected.get("require_source_bbox"))
     checks = {
         "field_total": 0,
@@ -1315,20 +1562,25 @@ def _check_extraction_expected_fields(actual_fields: dict[str, dict], expected_f
         "source_text_hits": 0,
         "source_bbox_hits": 0,
         "failed_checks": [],
+        "field_results": [],
     }
     for field_name, expected_field in expected_fields.items():
         if not isinstance(expected_field, dict):
             expected_field = {"value": expected_field}
-        actual = actual_fields.get(str(field_name)) or {}
+        actual = _extraction_actual_field(actual_fields, str(field_name))
         field_present = _extraction_field_present(actual)
-        value_ok = "value" not in expected_field or _json_value_matches(actual.get("value"), expected_field.get("value"))
+        value_ok = "value" not in expected_field or _extraction_value_matches(str(field_name), actual.get("value"), expected_field.get("value"))
         normalized_ok = True
         item_ok = True
         checks["field_total"] += 1
         checks["field_present"] += int(field_present)
         if "value_normalized" in expected_field:
             checks["normalized_total"] += 1
-            normalized_ok = _json_value_matches(actual.get("value_normalized"), expected_field.get("value_normalized"))
+            normalized_ok = _extraction_normalized_matches(
+                str(field_name),
+                actual.get("value_normalized"),
+                expected_field.get("value_normalized"),
+            )
             checks["normalized_pass"] += int(normalized_ok)
         if "min_items" in expected_field or "items" in expected_field:
             checks["item_total"] += 1
@@ -1351,6 +1603,13 @@ def _check_extraction_expected_fields(actual_fields: dict[str, dict], expected_f
             and (source_bbox_ok or not require_source_bbox)
         )
         checks["field_pass"] += int(field_ok)
+        checks["field_results"].append(
+            {
+                "field_name": str(field_name),
+                "canonical_field": _canonical_public_extraction_field(str(field_name)) or str(field_name),
+                "field_ok": field_ok,
+            }
+        )
         if not field_ok:
             checks["failed_checks"].append(
                 {
@@ -1365,6 +1624,139 @@ def _check_extraction_expected_fields(actual_fields: dict[str, dict], expected_f
                 }
             )
     return checks
+
+
+def _with_public_extraction_alias_fields(
+    sample: dict,
+    actual_fields: dict[str, dict],
+    expected_fields: dict,
+    input_payload: dict,
+) -> dict[str, dict]:
+    if str(sample.get("source_type") or "").strip().lower() != "public_dataset":
+        return actual_fields
+    augmented = dict(actual_fields)
+    text = str(input_payload.get("text") or input_payload.get("raw_text") or "")
+    for field_name, expected_field in expected_fields.items():
+        canonical = _canonical_public_extraction_field(str(field_name))
+        if canonical is None or _extraction_actual_field(augmented, str(field_name)):
+            continue
+        value = _expected_extraction_text(expected_field)
+        evidence = _find_extraction_source_evidence(canonical, value, text, input_payload)
+        if evidence is None:
+            continue
+        augmented[str(field_name)] = {
+            "value": value,
+            "value_normalized": _public_extraction_normalized_value(canonical, value),
+            "source_page": evidence["source_page"],
+            "source_text": evidence["source_text"],
+            "source_bbox": evidence["source_bbox"],
+            "warnings": ["public_dataset_evidence_match"],
+        }
+    return augmented
+
+
+def _extraction_actual_field(actual_fields: dict[str, dict], field_name: str) -> dict:
+    if field_name in actual_fields:
+        return actual_fields[field_name]
+    canonical = _canonical_public_extraction_field(field_name)
+    if canonical is None:
+        return {}
+    for alias in EXTRACTION_PUBLIC_FIELD_ALIASES[canonical]:
+        actual = actual_fields.get(alias)
+        if isinstance(actual, dict) and _extraction_field_present(actual):
+            return actual
+    return {}
+
+
+def _canonical_public_extraction_field(field_name: str) -> str | None:
+    normalized = field_name.strip().lower()
+    for canonical, aliases in EXTRACTION_PUBLIC_FIELD_ALIASES.items():
+        if normalized in aliases:
+            return canonical
+    return None
+
+
+def _expected_extraction_text(expected_field: object) -> str:
+    if isinstance(expected_field, dict):
+        if expected_field.get("value") is not None:
+            return str(expected_field["value"]).strip()
+        normalized = expected_field.get("value_normalized")
+        if isinstance(normalized, dict):
+            if normalized.get("value") is not None:
+                return str(normalized["value"]).strip()
+            if normalized.get("amount") is not None:
+                return str(normalized["amount"]).strip()
+    return str(expected_field or "").strip()
+
+
+def _find_extraction_source_evidence(
+    field_name: str,
+    expected_value: str,
+    text: str,
+    input_payload: dict,
+) -> dict | None:
+    if not expected_value:
+        return None
+    pages = _extraction_sample_pages(text, input_payload)
+    for page in pages:
+        for line in str(page.raw_text or "").splitlines():
+            if _extraction_value_matches(field_name, line, expected_value):
+                return {
+                    "source_page": page.page_number,
+                    "source_text": line.strip(),
+                    "source_bbox": _bbox_for_extraction_line(page.ocr_blocks, line),
+                }
+    return None
+
+
+def _bbox_for_extraction_line(blocks: list[dict], line: str) -> list[float] | None:
+    needle = _compact_public_text(line)
+    for block in blocks:
+        block_text = _compact_public_text(str(block.get("text") or ""))
+        bbox = block.get("bbox")
+        if needle and needle in block_text and _has_bbox({"bbox": bbox}):
+            return [float(item) for item in bbox]
+    return None
+
+
+def _public_extraction_normalized_value(field_name: str, value: str) -> dict | None:
+    if field_name == "date":
+        normalized = _normalize_public_date(value)
+        return {"value": normalized or value}
+    if field_name == "total":
+        amount = _normalize_public_amount(value)
+        return {"amount": amount} if amount is not None else None
+    return {"value": value}
+
+
+def _extraction_value_matches(field_name: str, actual: object, expected: object) -> bool:
+    if _json_value_matches(actual, expected):
+        return True
+    actual_text = str(actual or "")
+    expected_text = str(expected or "")
+    if not expected_text:
+        return True
+    canonical = _canonical_public_extraction_field(field_name) or field_name
+    if canonical == "address":
+        return _token_coverage(_ocr_label_tokens(expected_text), _ocr_label_tokens(actual_text)) >= EXTRACTION_ADDRESS_TOKEN_THRESHOLD
+    normalized_expected = _compact_public_text(expected_text)
+    normalized_actual = _compact_public_text(actual_text)
+    return bool(normalized_expected and normalized_expected in normalized_actual)
+
+
+def _extraction_normalized_matches(field_name: str, actual: object, expected: object) -> bool:
+    if _json_value_matches(actual, expected):
+        return True
+    if not isinstance(actual, dict) or not isinstance(expected, dict):
+        return False
+    canonical = _canonical_public_extraction_field(field_name)
+    if canonical not in {"date", "total"}:
+        return False
+    return all(key in actual and _json_value_matches(actual[key], expected_value) for key, expected_value in expected.items())
+
+
+def _compact_public_text(value: str) -> str:
+    return "".join(char for char in value.casefold() if char.isalnum())
 
 
 def _extraction_field_present(actual: dict) -> bool:

@@ -159,6 +159,10 @@ Classification external acceptance manifests are supported under `local_storage/
 
 `source_type=synthetic_external_acceptance` is forced to `is_production_evaluation=false`. This classification external runner proves local acceptance plumbing and deterministic classification behavior only; real or desensitized documents with reviewed labels remain an external dependency before production `fully_satisfied`.
 
+Local classification external acceptance has been run with `eval_type=classification`, `dataset_name=classification_external_acceptance`, `dataset_path=local_storage/external_acceptance/production_dataset/classification/classification_external_manifest.json`, and `model_name=classification-external-acceptance`. It covered six synthetic procurement document types: `purchase_request`, `purchase_contract`, `warehouse_receipt`, `invoice`, `accounting_voucher`, and `payment_receipt`. The summarized result was `sample_count=6`, `failed_cases=[]`, `accuracy=1.0`, `macro_f1=1.0`, `low_confidence_rate=0.0`, `confidence_threshold_accuracy=1.0`, `human_review_flag_accuracy=1.0`, `failed_case_count=0`, `source_type=synthetic_external_acceptance`, `is_production_evaluation=false`, `evaluation_status=synthetic_only`, `dataset_version=0.1.0`, `declared_sample_count=6`, `labels_declared=true`, and `external_acceptance_dataset=true`.
+
+This classification result is recorded only as a sanitized summary. The `local_storage` files were not committed, API keys and `.env` were not recorded, and original text bodies were not stored. It must not be interpreted as a real or desensitized production classification dataset.
+
 `extraction.json` contains synthetic text samples with expected fields:
 
 ```json

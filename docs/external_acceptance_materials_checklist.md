@@ -17,7 +17,7 @@ This directory must remain ignored by `.gitignore` and must never be committed. 
 | Area | Local Folder | Required Materials | Current Status | Fully Satisfied Blocker |
 | --- | --- | --- | --- | --- |
 | OCR | `local_storage/external_acceptance/production_dataset/ocr` | Multi-page PDFs, scanned images, complex tables, expected `raw_text`, page, bbox, confidence, table labels, and `ocr_external_manifest.json` with `file_path` / `label_path` entries | synthetic external Azure integration passed locally; production materials still pending | Blocks `fully_satisfied` |
-| Classification | `local_storage/external_acceptance/production_dataset/classification` | Desensitized documents or text samples, expected `doc_type`, confidence, review labels, and optional `classification_external_manifest.json` with external `label_path` | synthetic external manifest runtime supported; production materials still pending | Blocks `fully_satisfied` |
+| Classification | `local_storage/external_acceptance/production_dataset/classification` | Desensitized documents or text samples, expected `doc_type`, confidence, review labels, and optional `classification_external_manifest.json` with external `label_path` | synthetic external acceptance passed locally; production materials still pending | Blocks `fully_satisfied` |
 | Extraction | `local_storage/external_acceptance/production_dataset/extraction` | Desensitized documents, expected fields, `source_page`, `source_text`, `source_bbox`, and `line_items` | pending | Blocks `fully_satisfied` |
 | Rule | `local_storage/external_acceptance/production_dataset/rule` | Pass/fail/warning/missing-data cases, `rule_id`, status, severity, evidence, and review routing labels | pending | Blocks `fully_satisfied` |
 | RAG | `local_storage/external_acceptance/production_dataset/rag` | `regulation`, `inquiry_case`, `prospectus`, and `workpaper` samples with expected citation, no-answer, and workpaper scope labels | pending | Blocks `fully_satisfied` |
@@ -53,6 +53,10 @@ local_storage/external_acceptance/production_dataset/classification/classificati
 The manifest may use top-level `label_path` to expand label-file `samples`. Each sample can point to a local text file with `file_path` and `file_type=text/plain`; expected checks include `doc_type`, `minimum_confidence`, and `need_human_review`. `file_path` and `label_path` are resolved under `local_storage/external_acceptance` and must not use absolute paths or `..` traversal.
 
 `source_type=synthetic_external_acceptance` is forced to `is_production_evaluation=false`. This runner uses deterministic/local classification and does not call a real LLM Provider. It is not production `fully_satisfied` evidence; real/desensitized documents and reviewed labels remain required.
+
+Local classification external acceptance has passed with `eval_type=classification`, dataset path `local_storage/external_acceptance/production_dataset/classification/classification_external_manifest.json`, and model `classification-external-acceptance`. The run covered six synthetic procurement document types: `purchase_request`, `purchase_contract`, `warehouse_receipt`, `invoice`, `accounting_voucher`, and `payment_receipt`. Result summary: `sample_count=6`, `failed_cases=[]`, `accuracy=1.0`, `macro_f1=1.0`, `low_confidence_rate=0.0`, `confidence_threshold_accuracy=1.0`, `human_review_flag_accuracy=1.0`, `failed_case_count=0`, `source_type=synthetic_external_acceptance`, `is_production_evaluation=false`, `evaluation_status=synthetic_only`, `dataset_version=0.1.0`, `declared_sample_count=6`, `labels_declared=true`, and `external_acceptance_dataset=true`.
+
+The external classification files stayed under `local_storage` and were not committed. API keys, `.env`, secrets, and original text bodies were not recorded in this checklist. This result does not satisfy the real/desensitized production classification dataset requirement.
 
 ## 3. Provider Integration Artifacts
 

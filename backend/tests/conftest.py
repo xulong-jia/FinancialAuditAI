@@ -56,6 +56,7 @@ TestClient.request = _request_with_auth
 @pytest.fixture(autouse=True)
 def clean_database() -> Generator[None, None, None]:
     global _AUTH_TOKEN
+    _ensure_postgres_extensions_for_tests()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     _align_postgres_schema_for_tests()
@@ -101,3 +102,10 @@ def _align_postgres_schema_for_tests() -> None:
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE rag_documents ALTER COLUMN metadata TYPE jsonb USING metadata::jsonb"))
         connection.execute(text("ALTER TABLE rag_chunks ALTER COLUMN metadata TYPE jsonb USING metadata::jsonb"))
+
+
+def _ensure_postgres_extensions_for_tests() -> None:
+    if engine.dialect.name != "postgresql":
+        return
+    with engine.begin() as connection:
+        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))

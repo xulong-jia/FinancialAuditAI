@@ -36,12 +36,13 @@ def _load_env_file(path: Path) -> None:
 
 
 def _load_env() -> None:
+    if _is_testing():
+        os.environ.update(TEST_PROVIDER_ENV)
+        return
     backend_dir = Path(__file__).resolve().parents[2]
     project_dir = backend_dir.parent
     _load_env_file(project_dir / ".env")
     _load_env_file(backend_dir / ".env")
-    if _is_testing():
-        os.environ.update(TEST_PROVIDER_ENV)
 
 
 def _is_testing() -> bool:

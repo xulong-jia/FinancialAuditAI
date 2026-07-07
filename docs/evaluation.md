@@ -116,6 +116,8 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 
 The classification dataset runner uses the existing text-sample evaluator for `input.text` / `input.filename` and compares the predicted `doc_type` with `expected.doc_type`. It is not the full uploaded-document DB workflow, does not replace the normal document classification API path, and synthetic samples with `is_production_evaluation=false` are recorded as non-production evaluation.
 
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=classification` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used six synthetic samples, produced zero failed cases, and reported `accuracy=1.0`, `macro_f1=1.0`, and `low_confidence_rate=0.0`. It remains a synthetic six-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage.
+
 ## Metrics
 
 `evaluation_results.metrics` stores compact metrics such as:

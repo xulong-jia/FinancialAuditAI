@@ -17,6 +17,7 @@
 | Evaluation manual OCR dataset | 已支持 `evals/datasets/<dataset>/dataset_manifest.json` 加载 OCR dataset；OCR runner 会复用项目 OCR service，并按 expected 断言 raw_text、page_count、ocr_blocks、bbox、confidence、table_blocks；非生产 manifest 会标记 `non_production_manual_acceptance` | `backend/app/services/evaluation_service.py`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/dataset_manifest.json`, `evals/datasets/manual_acceptance/ocr.json` | `backend/tests/test_quality_api.py::test_manual_acceptance_ocr_manifest_runs_expected_assertions`, `backend/tests/test_quality_api.py::test_manual_acceptance_ocr_file_path_is_restricted` |
 | Evaluation manual OCR 真实运行 | 已成功运行 `manual_acceptance` OCR dataset-driven evaluation；`sample_count=1`、`failed_cases=[]`、`ocr_sample_pass_rate=1.0`、text/page/block/bbox/confidence/table requirement accuracy 均为 `1.0`，`blocked_external_dependency_count=0`；结果标记 `dataset_kind=non_production_manual_acceptance`、`source_type=public`、`is_production_evaluation=false` | 本地 `.env` 和 API key 未提交；`local_storage` receipt 图片未提交 | 手工运行：`eval_type=ocr`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`, `model_name=azure-document-intelligence:prebuilt-layout` |
 | Evaluation manual classification dataset | 已支持 `evals/datasets/<dataset>/dataset_manifest.json` 加载 `classification.json`；runner 复用现有 text-sample evaluator，按 `sample.input.text` / `sample.input.filename` 推断 doc_type，并与 `sample.expected.doc_type` 对比；synthetic 非生产 manifest 不会标记为 production evaluation | `backend/app/services/evaluation_service.py`, `docs/evaluation.md`, `evals/datasets/manual_acceptance/classification.json` | `backend/tests/test_quality_api.py::test_manual_acceptance_classification_manifest_runs_text_samples` |
+| Evaluation manual classification 真实运行 | 已成功运行 `manual_acceptance` classification dataset-driven evaluation；`sample_count=6`、`failed_cases=[]`、`accuracy=1.0`、`macro_f1=1.0`、`low_confidence_rate=0.0`；结果标记 `dataset_kind=non_production_manual_acceptance`、`source_type=synthetic`、`dataset_source=evals/datasets/manual_acceptance/classification.json`、`is_dataset_driven=true`、`is_production_evaluation=false` | 无 secret；该 dataset 为 synthetic 六样本，不是生产级完整 Evaluation | 手工运行：`eval_type=classification`, `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json` |
 | OCR Provider 配置展示 | 已补齐 Admin Center 展示 | `backend/app/api/router.py`, `frontend/src/types/api.ts`, `frontend/src/pages/AdminCenterPage.tsx` | `npm run build` |
 | Embedding Provider 独立配置 | 已补齐 endpoint/key/model 配置 | `backend/app/core/config.py`, `backend/app/services/rag_service.py`, `.env.example` | `backend/tests/test_final_gap_closure_api.py::test_real_embedding_provider_requests_configured_vector_dimensions` |
 | Embedding 维度兼容 | 已在真实 provider 请求中显式传入 32 维 | `backend/app/services/rag_service.py` | 同上 |
@@ -89,7 +90,7 @@
 | demo seed samples | 仍保留 | 不可作为完全满足证据 |
 | external real/desensitized Evaluation dataset | 已支持 JSON 读取路径 | 需要用户提供真实/脱敏标注数据才能最终验收 |
 | manual acceptance OCR dataset | 已支持 manifest + `ocr.json`；真实 OCR 结果由 OCR provider 产生，不伪造；当前 manifest `is_production_evaluation=false` | 只覆盖 OCR，不代表 Evaluation Center 完全满足 |
-| manual acceptance classification dataset | 已支持 manifest + `classification.json`；当前样本为 synthetic text sample，使用现有 text-sample evaluator 对比 `expected.doc_type` | 只覆盖分类文本样本，不代表完整 document workflow 或生产级 Evaluation |
+| manual acceptance classification dataset | 已支持 manifest + `classification.json` 并已跑通；当前样本为 synthetic text sample，使用现有 text-sample evaluator 对比 `expected.doc_type` | 只覆盖分类文本样本，不代表完整 document workflow 或生产级 Evaluation |
 
 ## Provider 测试隔离与 readiness
 
@@ -105,6 +106,7 @@
 - Azure 真实图片 E2E 仍未覆盖 PDF 多页、复杂表格、字段抽取 `source_bbox` 传递、报告 evidence index 联动；这些不能由 fallback/synthetic 结果替代。
 - Evaluation Center 已开始支持 manual acceptance OCR dataset 和 classification text-sample dataset，路径为 `evals/datasets/manual_acceptance/dataset_manifest.json`、`ocr.json`、`classification.json`。当前只实现 OCR dataset runner 和 classification text-sample runner；extraction / rule / RAG / Agent / E2E / regression 仍待同等 dataset 化，不能据此声称 Evaluation Center 完全满足执行手册。
 - Manual OCR dataset-driven evaluation 已真实跑通，但它是 public single-sample non-production manual acceptance；limitations 明确记录 `Dataset kind is non_production_manual_acceptance` 和 `Sample count is 1`，不能作为生产级完整 Evaluation 结论。
+- Manual classification dataset-driven evaluation 已跑通，但它是 synthetic six-sample non-production manual acceptance；limitations 明确记录 `Dataset kind is non_production_manual_acceptance` 和 `Sample count is 6`，不能作为生产级完整 Evaluation 结论。
 - Azure Document Intelligence 可使用 F0 免费层进行学习和小规模验证，但免费层页数和速率有限，不能替代最终真实样本验收。
 
 ## 下一轮最高优先级

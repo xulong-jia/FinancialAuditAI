@@ -18,6 +18,8 @@ from app.services import agent_service, audit_log_service, bad_case_service, cla
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+MANUAL_DATASET_EVAL_TYPES = {"ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end", "regression"}
+REGRESSION_CHILD_EVAL_TYPES = ("ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end")
 
 
 def evaluation_datasets_root() -> Path:
@@ -122,10 +124,10 @@ def _load_dataset(payload: EvaluationRunRequest) -> dict | None:
 
 
 def _load_manifest_dataset(payload: EvaluationRunRequest, path: Path, manifest: dict) -> dict:
-    if payload.eval_type not in {"ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end"}:
+    if payload.eval_type not in MANUAL_DATASET_EVAL_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, RAG, Agent, and E2E evaluation only",
+            detail="Manual acceptance dataset manifest currently supports OCR, classification, extraction, rule, RAG, Agent, E2E, and regression evaluation only",
         )
     files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
     eval_file = files.get(payload.eval_type)
@@ -243,7 +245,7 @@ def _evaluate_dataset(db: Session, eval_type: str, dataset: dict) -> tuple[int, 
     elif eval_type == "end_to_end":
         sample_count, metrics, failed = _evaluate_e2e_samples(samples)
     elif eval_type == "regression":
-        sample_count, metrics, failed = _evaluate_json_samples(samples, "regression")
+        sample_count, metrics, failed = _evaluate_regression_samples(db, samples)
     else:  # pragma: no cover - schema guards this.
         raise HTTPException(status_code=400, detail="Unsupported evaluation type")
     metrics.update(
@@ -546,6 +548,141 @@ def _evaluate_json_samples(samples: list[dict], case_type: str) -> tuple[int, di
             "reopened_case_count": sum(1 for sample in samples if _sample_actual(sample).get("status") == "reopened"),
         }
     return len(samples), metrics, failed
+
+
+def _evaluate_regression_samples(db: Session, samples: list[dict]) -> tuple[int, dict, list[dict]]:
+    failed = []
+    actuals = []
+    for sample in samples:
+        actual = _evaluate_regression_dataset_sample(db, sample)
+        expected = _sample_expected(sample)
+        checks = _regression_expected_checks(actual, expected)
+        actuals.append(actual)
+        if not checks["passed"]:
+            failed.append(_sample_failed_case("regression", sample, actual, expected | {"checks": checks}))
+
+    per_eval_type_results = [
+        result
+        for actual in actuals
+        for result in actual.get("per_eval_type_results", [])
+        if isinstance(result, dict)
+    ]
+    return (
+        len(samples),
+        {
+            "regression_sample_pass_rate": _accuracy(len(samples), len(failed)),
+            "required_eval_type_count": sum(int(actual.get("required_eval_type_count") or 0) for actual in actuals),
+            "executed_eval_type_count": sum(int(actual.get("executed_eval_type_count") or 0) for actual in actuals),
+            "total_failed_cases": sum(int(actual.get("total_failed_cases") or 0) for actual in actuals),
+            "all_required_eval_types_pass": all(bool(actual.get("all_required_eval_types_pass")) for actual in actuals),
+            "dataset_driven_coverage": _rate(
+                sum(1 for result in per_eval_type_results if result.get("is_dataset_driven") is True),
+                len(per_eval_type_results),
+            ),
+            "non_production_flag_accuracy": _rate(
+                sum(1 for result in per_eval_type_results if result.get("is_production_evaluation") is False),
+                len(per_eval_type_results),
+            ),
+            "failed_case_count": len(failed),
+            "per_eval_type_results": per_eval_type_results,
+        },
+        failed,
+    )
+
+
+def _evaluate_regression_dataset_sample(db: Session, sample: dict) -> dict:
+    input_payload = _sample_input(sample)
+    required_eval_types = [str(item) for item in input_payload.get("required_eval_types") or []]
+    dataset_path = str(input_payload.get("dataset_path") or "")
+    results = [
+        _evaluate_regression_child(db, eval_type, dataset_path, str(sample.get("dataset_name") or "manual_acceptance"))
+        for eval_type in required_eval_types
+    ]
+    total_failed = sum(int(result.get("failed_cases_count") or 0) for result in results)
+    return {
+        "required_eval_types": required_eval_types,
+        "required_eval_type_count": len(required_eval_types),
+        "executed_eval_type_count": sum(1 for result in results if result.get("executed") is True),
+        "total_failed_cases": total_failed,
+        "all_required_eval_types_pass": bool(required_eval_types) and total_failed == 0 and all(result.get("status") == "pass" for result in results),
+        "dataset_driven_coverage": _rate(sum(1 for result in results if result.get("is_dataset_driven") is True), len(results)),
+        "non_production_flag_accuracy": _rate(sum(1 for result in results if result.get("is_production_evaluation") is False), len(results)),
+        "per_eval_type_results": results,
+    }
+
+
+def _evaluate_regression_child(db: Session, eval_type: str, dataset_path: str, dataset_name: str) -> dict:
+    if eval_type not in REGRESSION_CHILD_EVAL_TYPES:
+        return {
+            "eval_type": eval_type,
+            "status": "blocked",
+            "executed": False,
+            "sample_count": 0,
+            "failed_cases_count": 1,
+            "pass_rate": 0.0,
+            "is_dataset_driven": False,
+            "is_production_evaluation": False,
+            "error": "regression evaluation cannot invoke regression or unsupported eval_type",
+        }
+    try:
+        sample_count, metrics, failed = _run_regression_eval_type(db, eval_type, dataset_path, dataset_name)
+    except HTTPException as exc:
+        return {
+            "eval_type": eval_type,
+            "status": "failed",
+            "executed": True,
+            "sample_count": 0,
+            "failed_cases_count": 1,
+            "pass_rate": 0.0,
+            "is_dataset_driven": False,
+            "is_production_evaluation": False,
+            "error": str(exc.detail),
+        }
+    return {
+        "eval_type": eval_type,
+        "status": "pass" if not failed else "fail",
+        "executed": True,
+        "sample_count": sample_count,
+        "failed_cases_count": len(failed),
+        "pass_rate": _accuracy(sample_count, len(failed)),
+        "is_dataset_driven": bool(metrics.get("is_dataset_driven")),
+        "is_production_evaluation": bool(metrics.get("is_production_evaluation")),
+        "failed_case_titles": [str(case.get("title") or "") for case in failed],
+    }
+
+
+def _run_regression_eval_type(db: Session, eval_type: str, dataset_path: str, dataset_name: str) -> tuple[int, dict, list[dict]]:
+    payload = EvaluationRunRequest(eval_type=eval_type, dataset_name=dataset_name, dataset_path=dataset_path)
+    dataset = _load_dataset(payload)
+    if dataset is None:
+        raise HTTPException(status_code=400, detail=f"Regression dataset has no dataset for {eval_type}")
+    return _evaluate_dataset(db, eval_type, dataset)
+
+
+def _regression_expected_checks(actual: dict, expected: dict) -> dict:
+    max_failed_cases = _optional_int(expected.get("max_failed_cases"))
+    expected_count = _optional_int(expected.get("required_eval_type_count"))
+    required_dataset_driven = bool(expected.get("required_dataset_driven"))
+    required_non_production = bool(expected.get("required_non_production_flag"))
+    all_pass_expected = expected.get("all_required_eval_types_pass")
+    checks = {
+        "all_required_eval_types_pass_ok": all_pass_expected is None or bool(actual.get("all_required_eval_types_pass")) == bool(all_pass_expected),
+        "max_failed_cases_ok": max_failed_cases is None or int(actual.get("total_failed_cases") or 0) <= max_failed_cases,
+        "required_dataset_driven_ok": not required_dataset_driven or float(actual.get("dataset_driven_coverage") or 0.0) == 1.0,
+        "required_non_production_flag_ok": not required_non_production or float(actual.get("non_production_flag_accuracy") or 0.0) == 1.0,
+        "required_eval_type_count_ok": expected_count is None or int(actual.get("required_eval_type_count") or 0) == expected_count,
+    }
+    checks["passed"] = all(bool(value) for value in checks.values())
+    return checks
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _evaluate_extraction_samples(samples: list[dict]) -> tuple[int, dict, list[dict]]:

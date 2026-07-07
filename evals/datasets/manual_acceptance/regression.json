@@ -1,0 +1,37 @@
+{
+  "eval_type": "regression",
+  "dataset_name": "manual_acceptance",
+  "version": "0.1.0",
+  "source_type": "synthetic_and_public",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "regression_manual_acceptance_all_001",
+      "input": {
+        "required_eval_types": [
+          "ocr",
+          "classification",
+          "extraction",
+          "rule",
+          "rag",
+          "agent",
+          "end_to_end"
+        ],
+        "dataset_path": "evals/datasets/manual_acceptance/dataset_manifest.json"
+      },
+      "expected": {
+        "all_required_eval_types_pass": true,
+        "max_failed_cases": 0,
+        "required_dataset_driven": true,
+        "required_non_production_flag": true,
+        "required_eval_type_count": 7
+      }
+    }
+  ],
+  "notes": [
+    "Manual acceptance regression sample aggregates previously defined OCR, classification, extraction, rule, RAG, Agent, and E2E datasets.",
+    "This is not production evaluation.",
+    "This does not add real customer data.",
+    "This should not be interpreted as full production regression coverage."
+  ]
+}

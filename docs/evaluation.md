@@ -34,7 +34,7 @@ Supported eval types:
 
 ## Manual Acceptance Datasets
 
-Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, deterministic rule sample validation, synthetic inline-document RAG validation, synthetic Agent workflow contract validation, and synthetic E2E workflow contract validation:
+Evaluation Center supports a minimal manual acceptance dataset path for OCR smoke validation, classification text-sample validation, extraction text-sample validation, deterministic rule sample validation, synthetic inline-document RAG validation, synthetic Agent workflow contract validation, synthetic E2E workflow contract validation, and regression aggregation:
 
 ```text
 evals/datasets/<dataset_name>/dataset_manifest.json
@@ -45,6 +45,7 @@ evals/datasets/<dataset_name>/rule.json
 evals/datasets/<dataset_name>/rag.json
 evals/datasets/<dataset_name>/agent.json
 evals/datasets/<dataset_name>/e2e.json
+evals/datasets/<dataset_name>/regression.json
 ```
 
 When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, or `evals/datasets`.
@@ -63,7 +64,8 @@ The manifest declares dataset metadata and the per-type files:
     "rule": "rule.json",
     "rag": "rag.json",
     "agent": "agent.json",
-    "end_to_end": "e2e.json"
+    "end_to_end": "e2e.json",
+    "regression": "regression.json"
   }
 }
 ```
@@ -267,7 +269,7 @@ The Agent dataset runner simulates workflow contract decisions from `input.avail
 
 This Agent dataset path is not full agent DB workflow, retry, review-center integration, report generation, or production Agent evaluation coverage. Real AgentService workflow still needs E2E or integration evaluation.
 
-Local manual validation has run successfully for `manual_acceptance` with `eval_type=agent` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic workflow contract samples, produced zero failed cases, and reported `agent_sample_pass_rate=1.0`, `workflow_success_accuracy=1.0`, `required_tool_coverage=1.0`, `forbidden_tool_violation_rate=0.0`, `review_routing_accuracy=1.0`, `conclusion_guardrail_accuracy=1.0`, `final_status_accuracy=1.0`, `workflow_success_rate=1.0`, `step_failure_rate=0.0`, `human_review_routing_accuracy=1.0`, `state_transition_validity=1.0`, `retry_recovery_rate=1.0`, `rule_engine_required=1.0`, and `high_risk_auto_confirm_rate=0.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full `agent_runs` / `agent_steps` DB workflow coverage. OCR, classification, extraction, rule, RAG, and Agent have dataset-driven manual acceptance results; E2E has synthetic contract runner support; regression does not yet have equivalent dataset-driven coverage.
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=agent` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic workflow contract samples, produced zero failed cases, and reported `agent_sample_pass_rate=1.0`, `workflow_success_accuracy=1.0`, `required_tool_coverage=1.0`, `forbidden_tool_violation_rate=0.0`, `review_routing_accuracy=1.0`, `conclusion_guardrail_accuracy=1.0`, `final_status_accuracy=1.0`, `workflow_success_rate=1.0`, `step_failure_rate=0.0`, `human_review_routing_accuracy=1.0`, `state_transition_validity=1.0`, `retry_recovery_rate=1.0`, `rule_engine_required=1.0`, and `high_risk_auto_confirm_rate=0.0`. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full `agent_runs` / `agent_steps` DB workflow coverage.
 
 `e2e.json` contains synthetic workflow contract samples:
 
@@ -304,9 +306,40 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 
 The E2E dataset runner simulates the procurement walkthrough contract from inline `input.documents`: upload, OCR, classification, deterministic text extraction, business linkage, `PROC_AMOUNT_001`, report-generation flag, evidence-index flag, and high-risk auto-confirm guardrail. It does not create tasks, documents, reports, DB IDs, uploaded files, or local report files, and it does not call real OCR, LLM, Azure, or the full DB/API workflow.
 
-This E2E dataset path is not full task/document/OCR/classification/extraction/rule/report DB/API workflow coverage. Full DB/API E2E still needs separate integration tests. Regression does not yet have equivalent dataset-driven coverage.
+This E2E dataset path is not full task/document/OCR/classification/extraction/rule/report DB/API workflow coverage. Full DB/API E2E still needs separate integration tests.
 
-Local manual validation has run successfully for `manual_acceptance` with `eval_type=end_to_end` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used one synthetic procurement walkthrough sample, produced zero failed cases, and reported `e2e_sample_pass_rate=1.0`, `required_step_coverage=1.0`, `document_classification_accuracy=1.0`, `business_key_accuracy=1.0`, `rule_result_accuracy=1.0`, `report_generation_accuracy=1.0`, `evidence_index_accuracy=1.0`, `high_risk_guardrail_accuracy=1.0`, `e2e_success_rate=1.0`, `control_table_accuracy=1.0`, `exception_detection_f1=1.0`, `evidence_completeness=1.0`, and `review_resolution_rate=1.0`. It remains a synthetic single-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full real DB/API workflow coverage. OCR, classification, extraction, rule, RAG, Agent, and E2E have dataset-driven manual acceptance results; regression does not yet have equivalent dataset-driven coverage.
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=end_to_end` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used one synthetic procurement walkthrough sample, produced zero failed cases, and reported `e2e_sample_pass_rate=1.0`, `required_step_coverage=1.0`, `document_classification_accuracy=1.0`, `business_key_accuracy=1.0`, `rule_result_accuracy=1.0`, `report_generation_accuracy=1.0`, `evidence_index_accuracy=1.0`, `high_risk_guardrail_accuracy=1.0`, `e2e_success_rate=1.0`, `control_table_accuracy=1.0`, `exception_detection_f1=1.0`, `evidence_completeness=1.0`, and `review_resolution_rate=1.0`. It remains a synthetic single-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full real DB/API workflow coverage.
+
+`regression.json` contains manual acceptance aggregation samples:
+
+```json
+{
+  "eval_type": "regression",
+  "dataset_name": "manual_acceptance",
+  "source_type": "synthetic_and_public",
+  "is_production_evaluation": false,
+  "samples": [
+    {
+      "sample_id": "regression_manual_acceptance_all_001",
+      "input": {
+        "required_eval_types": ["ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end"],
+        "dataset_path": "evals/datasets/manual_acceptance/dataset_manifest.json"
+      },
+      "expected": {
+        "all_required_eval_types_pass": true,
+        "max_failed_cases": 0,
+        "required_dataset_driven": true,
+        "required_non_production_flag": true,
+        "required_eval_type_count": 7
+      }
+    }
+  ]
+}
+```
+
+The regression dataset runner loads the same manifest and aggregates the seven allowed manual dataset types: `ocr`, `classification`, `extraction`, `rule`, `rag`, `agent`, and `end_to_end`. It does not call `regression` from inside regression, so recursive runs are blocked. It records per-eval sample counts, failed-case counts, pass rates, dataset-driven flags, and production flags, then checks `all_required_eval_types_pass`, `max_failed_cases`, `required_dataset_driven`, `required_non_production_flag`, and `required_eval_type_count`.
+
+This regression dataset path is an aggregation of the manual acceptance runners. It is still non-production manual acceptance, mixes public and synthetic samples, and does not replace production-scale real/desensitized regression datasets or full DB/API workflow evaluation.
 
 ## Metrics
 
@@ -323,7 +356,7 @@ Metrics identify the dataset kind and include limitations when sample size is sm
 
 ## Regression
 
-Regression evaluations select Bad Cases marked for regression and determine pass/fail from validation results or expected-vs-actual output comparison. Failed evaluation samples can become Bad Cases.
+Without `dataset_path`, regression evaluations select Bad Cases marked for regression and determine pass/fail from validation results or expected-vs-actual output comparison. With a manual acceptance manifest, regression loads `regression.json` and aggregates the seven allowed dataset runners. Failed evaluation samples can become Bad Cases.
 
 ## Boundaries
 

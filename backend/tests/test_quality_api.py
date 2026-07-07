@@ -926,6 +926,156 @@ def test_manual_acceptance_e2e_manifest_runs_procurement_contract(monkeypatch) -
         shutil.rmtree(dataset_dir, ignore_errors=True)
 
 
+def test_manual_acceptance_regression_manifest_aggregates_dataset_results(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_regression_unit"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": "manual_acceptance_regression_unit",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "files": {"regression": "regression.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    required_eval_types = ["ocr", "classification", "extraction", "rule", "rag", "agent", "end_to_end"]
+    (dataset_dir / "regression.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "regression",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "regression-all-pass",
+                        "input": {
+                            "required_eval_types": required_eval_types,
+                            "dataset_path": "evals/datasets/manual_acceptance_regression_unit/dataset_manifest.json",
+                        },
+                        "expected": {
+                            "all_required_eval_types_pass": True,
+                            "max_failed_cases": 0,
+                            "required_dataset_driven": True,
+                            "required_non_production_flag": True,
+                            "required_eval_type_count": 7,
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls = []
+
+    def fake_run_regression_eval_type(db, eval_type, dataset_path, dataset_name):
+        calls.append((eval_type, dataset_path, dataset_name))
+        return 1, {"is_dataset_driven": True, "is_production_evaluation": False}, []
+
+    monkeypatch.setattr(evaluation_service, "_run_regression_eval_type", fake_run_regression_eval_type)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "regression",
+                "dataset_name": "manual_acceptance_regression_unit",
+                "dataset_path": "evals/datasets/manual_acceptance_regression_unit/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        metrics = result["metrics"]
+        assert [call[0] for call in calls] == required_eval_types
+        assert result["failed_cases"] == []
+        assert metrics["regression_sample_pass_rate"] == 1.0
+        assert metrics["required_eval_type_count"] == 7
+        assert metrics["executed_eval_type_count"] == 7
+        assert metrics["total_failed_cases"] == 0
+        assert metrics["all_required_eval_types_pass"] is True
+        assert metrics["dataset_driven_coverage"] == 1.0
+        assert metrics["non_production_flag_accuracy"] == 1.0
+        assert len(metrics["per_eval_type_results"]) == 7
+        assert metrics["dataset_kind"] == "non_production_manual_acceptance"
+        assert metrics["is_production_evaluation"] is False
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
+def test_manual_acceptance_regression_manifest_blocks_recursive_eval_type(monkeypatch) -> None:
+    dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_regression_guard_unit"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    (dataset_dir / "dataset_manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset_name": "manual_acceptance_regression_guard_unit",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "files": {"regression": "regression.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (dataset_dir / "regression.json").write_text(
+        json.dumps(
+            {
+                "eval_type": "regression",
+                "source_type": "synthetic",
+                "is_production_evaluation": False,
+                "samples": [
+                    {
+                        "sample_id": "regression-recursive-blocked",
+                        "input": {
+                            "required_eval_types": ["classification", "regression"],
+                            "dataset_path": "evals/datasets/manual_acceptance_regression_guard_unit/dataset_manifest.json",
+                        },
+                        "expected": {
+                            "all_required_eval_types_pass": True,
+                            "max_failed_cases": 0,
+                            "required_dataset_driven": True,
+                            "required_non_production_flag": True,
+                            "required_eval_type_count": 2,
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls = []
+
+    def fake_run_regression_eval_type(db, eval_type, dataset_path, dataset_name):
+        calls.append(eval_type)
+        return 1, {"is_dataset_driven": True, "is_production_evaluation": True}, []
+
+    monkeypatch.setattr(evaluation_service, "_run_regression_eval_type", fake_run_regression_eval_type)
+    try:
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "regression",
+                "dataset_name": "manual_acceptance_regression_guard_unit",
+                "dataset_path": "evals/datasets/manual_acceptance_regression_guard_unit/dataset_manifest.json",
+            },
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        metrics = result["metrics"]
+        assert calls == ["classification"]
+        assert metrics["executed_eval_type_count"] == 1
+        assert metrics["total_failed_cases"] == 1
+        assert metrics["dataset_driven_coverage"] == 0.5
+        assert metrics["non_production_flag_accuracy"] == 0.5
+        assert metrics["per_eval_type_results"][1]["eval_type"] == "regression"
+        assert metrics["per_eval_type_results"][1]["status"] == "blocked"
+        assert result["failed_cases"][0]["expected_output"]["checks"]["all_required_eval_types_pass_ok"] is False
+        assert result["failed_cases"][0]["expected_output"]["checks"]["max_failed_cases_ok"] is False
+        assert result["failed_cases"][0]["expected_output"]["checks"]["required_dataset_driven_ok"] is False
+        assert result["failed_cases"][0]["expected_output"]["checks"]["required_non_production_flag_ok"] is False
+    finally:
+        shutil.rmtree(dataset_dir, ignore_errors=True)
+
+
 def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
     dataset_dir = evaluation_service.evals_datasets_root() / "manual_acceptance_path_guard"
     dataset_dir.mkdir(parents=True, exist_ok=True)

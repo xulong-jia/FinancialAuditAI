@@ -189,6 +189,8 @@ Local manual validation has run successfully for `manual_acceptance` with `eval_
 
 The rule dataset runner currently supports `PROC_AMOUNT_001` as a synthetic deterministic amount consistency check. It compares contract, invoice, and payment amounts from `input.fields`, validates expected `rule_id`, `status`, `severity`, and required evidence presence, and stores evidence summaries without DB evidence IDs. This is not the full Rule Engine DB task workflow; full task/document/field rule execution still needs separate E2E coverage.
 
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=rule` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used two synthetic `PROC_AMOUNT_001` samples, produced zero failed cases, and reported `rule_sample_pass_rate=1.0`, `rule_status_accuracy=1.0`, `rule_severity_accuracy=1.0`, `rule_evidence_coverage=1.0`, `rule_accuracy=1.0`, and false positive / false negative rates of `0.0`. `explainability_rate=0.5` is expected because only the fail sample requires evidence. It remains a synthetic two-sample, non-production manual acceptance result; do not interpret it as production-scale Evaluation Center coverage or full DB task/document/field Rule Engine workflow coverage.
+
 ## Metrics
 
 `evaluation_results.metrics` stores compact metrics such as:

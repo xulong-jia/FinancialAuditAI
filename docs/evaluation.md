@@ -41,6 +41,8 @@ evals/datasets/<dataset_name>/dataset_manifest.json
 evals/datasets/<dataset_name>/ocr.json
 ```
 
+When calling the API, `dataset_path` should be a project-root relative path such as `evals/datasets/manual_acceptance/dataset_manifest.json`. Absolute paths and `..` path traversal are rejected; the resolved path must stay under `samples/evaluation`, `local_storage/evaluation_datasets`, or `evals/datasets`.
+
 The manifest declares dataset metadata and the per-type files:
 
 ```json

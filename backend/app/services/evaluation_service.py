@@ -172,14 +172,18 @@ def _resolve_dataset_path(payload: EvaluationRunRequest) -> Path | None:
     roots = [PROJECT_ROOT / "samples" / "evaluation", evaluation_datasets_root(), evals_datasets_root()]
     if payload.dataset_path:
         path = Path(payload.dataset_path)
-        candidates = [path] if path.is_absolute() else [root / path for root in roots]
+        if path.is_absolute() or ".." in path.parts:
+            raise HTTPException(
+                status_code=400,
+                detail="Evaluation dataset_path must be project-root relative and stay under samples/evaluation, local_storage/evaluation_datasets, or evals/datasets",
+            )
+        candidates = [(PROJECT_ROOT / path).resolve(), *[(root / path).resolve() for root in roots]]
         allowed_path = False
         for candidate in candidates:
-            resolved = candidate.resolve()
-            if any(_is_under(resolved, root) for root in roots):
+            if any(_is_under(candidate, root) for root in roots):
                 allowed_path = True
-                if resolved.exists() and resolved.suffix == ".json":
-                    return resolved
+                if candidate.exists() and candidate.suffix == ".json":
+                    return candidate
         if allowed_path:
             raise HTTPException(status_code=400, detail="Evaluation dataset_path must point to an existing JSON file")
         raise HTTPException(

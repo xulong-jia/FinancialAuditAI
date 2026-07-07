@@ -349,7 +349,7 @@ def test_manual_acceptance_ocr_manifest_runs_expected_assertions(monkeypatch) ->
             json={
                 "eval_type": "ocr",
                 "dataset_name": "manual_acceptance_unit",
-                "dataset_path": "manual_acceptance_unit/dataset_manifest.json",
+                "dataset_path": "evals/datasets/manual_acceptance_unit/dataset_manifest.json",
             },
         )
         assert response.status_code == 200, response.text
@@ -415,17 +415,32 @@ def test_manual_acceptance_ocr_file_path_is_restricted(monkeypatch) -> None:
 
 
 def test_evaluation_dataset_path_is_restricted() -> None:
+    for dataset_path in ("../evals/datasets/manual_acceptance/dataset_manifest.json", "/etc/passwd"):
+        response = client.post(
+            "/api/v1/evaluations/run",
+            json={
+                "eval_type": "classification",
+                "dataset_name": "blocked",
+                "dataset_path": dataset_path,
+            },
+        )
+
+        assert response.status_code == 400
+        assert "dataset_path" in response.json()["detail"]
+
+
+def test_missing_project_root_dataset_path_has_clear_error() -> None:
     response = client.post(
         "/api/v1/evaluations/run",
         json={
             "eval_type": "classification",
-            "dataset_name": "blocked",
-            "dataset_path": "../project_status.json",
+            "dataset_name": "missing",
+            "dataset_path": "evals/datasets/manual_acceptance/missing.json",
         },
     )
 
     assert response.status_code == 400
-    assert "dataset_path" in response.json()["detail"]
+    assert response.json()["detail"] == "Evaluation dataset_path must point to an existing JSON file"
 
 
 def test_evaluation_metrics_cover_required_metric_families() -> None:

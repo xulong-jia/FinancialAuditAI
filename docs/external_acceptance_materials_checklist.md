@@ -16,7 +16,7 @@ This directory must remain ignored by `.gitignore` and must never be committed. 
 
 | Area | Local Folder | Required Materials | Current Status | Fully Satisfied Blocker |
 | --- | --- | --- | --- | --- |
-| OCR | `local_storage/external_acceptance/production_dataset/ocr` | Multi-page PDFs, scanned images, complex tables, expected `raw_text`, page, bbox, confidence, table labels, and `ocr_external_manifest.json` with `file_path` / `label_path` entries | manifest runtime supported; production materials still pending | Blocks `fully_satisfied` |
+| OCR | `local_storage/external_acceptance/production_dataset/ocr` | Multi-page PDFs, scanned images, complex tables, expected `raw_text`, page, bbox, confidence, table labels, and `ocr_external_manifest.json` with `file_path` / `label_path` entries | synthetic external Azure integration passed locally; production materials still pending | Blocks `fully_satisfied` |
 | Classification | `local_storage/external_acceptance/production_dataset/classification` | Desensitized documents or text samples, expected `doc_type`, confidence, and review labels | pending | Blocks `fully_satisfied` |
 | Extraction | `local_storage/external_acceptance/production_dataset/extraction` | Desensitized documents, expected fields, `source_page`, `source_text`, `source_bbox`, and `line_items` | pending | Blocks `fully_satisfied` |
 | Rule | `local_storage/external_acceptance/production_dataset/rule` | Pass/fail/warning/missing-data cases, `rule_id`, status, severity, evidence, and review routing labels | pending | Blocks `fully_satisfied` |
@@ -37,6 +37,10 @@ local_storage/external_acceptance/production_dataset/ocr/ocr_external_manifest.j
 Each sample can point to a local external file and label with `file_path` and `label_path`. The label `expected` block can require `page_count`, `must_contain_text`, `raw_text`, OCR blocks, bbox, page images, confidence, table blocks, table headers, and table values. Paths are resolved against `local_storage/external_acceptance` and must not use absolute paths or `..` traversal.
 
 `source_type=synthetic_external_acceptance` is allowed for local external acceptance only and is forced to `is_production_evaluation=false`. It is not production `fully_satisfied` evidence. Real or desensitized production OCR acceptance still requires approved labels, sanitized Provider artifacts, and explicit Provider integration when Azure Document Intelligence is used.
+
+Local OCR external acceptance Azure integration has passed with `RUN_PROVIDER_INTEGRATION=1`, `eval_type=ocr`, dataset path `local_storage/external_acceptance/production_dataset/ocr/ocr_external_manifest.json`, and model `azure-document-intelligence:prebuilt-layout`. The run covered three synthetic samples: a multi-page PDF, a complex-table PDF, and a scanned-like PNG. Result summary: `sample_count=3`, `failed_cases=[]`, OCR/text/page/block/bbox/confidence/table metrics all `1.0`, `blocked_external_dependency_count=0`, `source_type=synthetic_external_acceptance`, `is_production_evaluation=false`, and `evaluation_status=synthetic_only`.
+
+The external OCR files stayed under `local_storage` and were not committed. API keys, `.env`, Authorization headers, and complete raw OCR responses were not recorded in this checklist. This result does not satisfy the real/desensitized production OCR dataset requirement.
 
 ## 3. Provider Integration Artifacts
 

@@ -124,6 +124,10 @@ If `source_type=synthetic_external_acceptance`, Evaluation Center forces `is_pro
 
 Real Azure OCR evaluation is gated. If `OCR_PROVIDER` is `azure-document-intelligence` or another real provider, ordinary evaluation and pytest do not call the external service unless `RUN_PROVIDER_INTEGRATION=1` or an explicit test-only sample policy allows it. Without integration enablement, Azure-required expectations such as confidence or table structure return `blocked_external_dependency`. This keeps synthetic external acceptance separate from production evaluation and prevents accidental Provider calls.
 
+Local OCR external acceptance Azure integration has been run with `RUN_PROVIDER_INTEGRATION=1`, `eval_type=ocr`, `dataset_name=ocr_external_acceptance`, `dataset_path=local_storage/external_acceptance/production_dataset/ocr/ocr_external_manifest.json`, and `model_name=azure-document-intelligence:prebuilt-layout`. It covered three synthetic external acceptance samples: a multi-page PDF, a complex-table PDF, and a scanned-like PNG. The summarized result was `sample_count=3`, `failed_cases=[]`, `ocr_sample_pass_rate=1.0`, text/page/block/bbox/confidence/table accuracies `1.0`, `blocked_external_dependency_count=0`, `source_type=synthetic_external_acceptance`, `is_production_evaluation=false`, and `evaluation_status=synthetic_only`.
+
+This Azure integration result is recorded only as a sanitized summary. The `local_storage` files were not committed, API keys and `.env` were not recorded, Authorization headers were not recorded, and the full raw OCR response was not stored. It must not be interpreted as a real or desensitized production OCR dataset.
+
 `classification.json` contains text samples with expected document types:
 
 ```json

@@ -341,6 +341,8 @@ The regression dataset runner loads the same manifest and aggregates the seven a
 
 This regression dataset path is an aggregation of the manual acceptance runners. It is still non-production manual acceptance, mixes public and synthetic samples, and does not replace production-scale real/desensitized regression datasets or full DB/API workflow evaluation.
 
+Local manual validation has run successfully for `manual_acceptance` with `eval_type=regression` and `dataset_path=evals/datasets/manual_acceptance/dataset_manifest.json`. The run used one synthetic/public aggregation sample, produced zero failed cases, and reported `regression_sample_pass_rate=1.0`, `required_eval_type_count=7`, `executed_eval_type_count=7`, `total_failed_cases=0`, `all_required_eval_types_pass=true`, `dataset_driven_coverage=1.0`, and `non_production_flag_accuracy=1.0`. The aggregated per-eval results were all pass: OCR `sample_count=1`, classification `sample_count=6`, extraction `sample_count=1`, rule `sample_count=2`, RAG `sample_count=2`, Agent `sample_count=2`, and E2E `sample_count=1`, each with `failed_cases_count=0` and `pass_rate=1.0`. It remains synthetic/public non-production manual acceptance and is not production-scale Evaluation coverage.
+
 ## Metrics
 
 `evaluation_results.metrics` stores compact metrics such as:

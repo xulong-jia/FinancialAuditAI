@@ -30,7 +30,7 @@ into production evidence.
 
 | Capability | Code/test/docs status | Public/synthetic acceptance evidence | Production status | blocked_external_dependency |
 | --- | --- | --- | --- | --- |
-| OCR | Code, tests, and docs cover OCR processing, synthetic external acceptance, and SROIE public OCR acceptance. | OCR synthetic external acceptance; OCR SROIE public dataset acceptance. | Not production fully_satisfied because evidence is synthetic/public, not project-specific production data. | Yes: real/desensitized OCR documents and labels. |
+| OCR | Code, tests, and docs cover OCR processing, synthetic external acceptance, SROIE public OCR acceptance, and SRD/1_Images public image-only robustness checks. | OCR synthetic external acceptance; OCR SROIE public dataset acceptance; SRD and 1_Images public image-only OCR robustness checks. | Not production fully_satisfied because evidence is synthetic/public/images-only, not project-specific production data. | Yes: real/desensitized OCR documents and labels. |
 | Classification | Code, tests, and docs cover document classification and synthetic external acceptance. | Classification synthetic external acceptance. | Not production fully_satisfied because current evidence is synthetic. | Yes: real/desensitized classification documents and labels. |
 | Extraction | Code, tests, and docs cover extraction evaluation, external extraction manifests, public_dataset guardrails, field matching, address fuzzy matching, missing expected field handling, and path escape protection. | SROIE entities public extraction acceptance; FATURA public invoice layout/extraction acceptance. | Not production fully_satisfied because SROIE/FATURA are public datasets, not project-specific production labels. | Yes: real/desensitized extraction labels. |
 | Rule engine | Code, tests, and docs cover deterministic rule execution, audit results, and reviewable outcomes. | Internal deterministic/synthetic coverage only; no project-specific rule-labeled public acceptance closes production. | Not production fully_satisfied without real rule pass/fail/warning labels. | Yes: rule pass/fail/warning labels. |
@@ -53,6 +53,8 @@ artifacts under local storage are local-only and must not be committed.
 | --- | --- | --- | --- | --- | --- |
 | OCR synthetic external acceptance | `synthetic_external_acceptance` | 3 | 0 | OCR text/page/block/bbox/confidence/table checks passed; reported metric family at 1.0. | `is_production_evaluation=false`; synthetic-only evidence; local_storage not committed. |
 | OCR SROIE public dataset acceptance | `public_dataset` | 5 | 0 | OCR text/page/block/bbox/confidence/table/key-information/box-line/normalized-text/fuzzy-address checks passed; reported metric family at 1.0. | `is_production_evaluation=false`; public receipt dataset proves plumbing only; local_storage not committed. |
+| SRD public image-only OCR robustness | `public_dataset` | 5 | 0 | Local image OCR path completed; `ocr_sample_pass_rate=1.0`, `page_count_accuracy=1.0`, `evaluation_status=non_production_manual_acceptance`. | No ground-truth text/bbox/table/confidence/field labels; proves image ingestion/rendering robustness only; local_storage not committed. |
+| 1_Images/Zenodo public image-only OCR robustness | `public_dataset` | 5 | 0 | Local image OCR path completed; `ocr_sample_pass_rate=1.0`, `page_count_accuracy=1.0`, `evaluation_status=non_production_manual_acceptance`. | No ground-truth text/bbox/table/confidence/field labels; proves image ingestion/rendering robustness only; local_storage not committed. |
 | Classification synthetic external acceptance | `synthetic_external_acceptance` | 6 | 0 | Accuracy, macro F1, confidence threshold, and human-review routing checks passed; low-confidence rate 0.0. | `is_production_evaluation=false`; synthetic-only evidence; local_storage not committed. |
 | Provider readiness artifact | `local_artifact` | 1 readiness artifact | 0 forbidden safety hits reported in the readiness artifact | Provider configuration/readiness summary generated without publishing credentials. | Not production integration evidence; local-only artifact; local_storage not committed. |
 | SEC EDGAR Apple 10-K public RAG acceptance | `public_dataset` | 4 | 0 | RAG sample, citation, answer, no-answer, and metadata checks passed; external RAG document count 1 and chunk count 7868. | `is_production_evaluation=false`; public SEC filing proves RAG plumbing only; local_storage not committed. |
@@ -86,12 +88,7 @@ artifacts under local storage are local-only and must not be committed.
 
 ### A. If continuing to strengthen public evidence
 
-1. SRD OCR robustness acceptance.
-   - Value: adds OCR robustness coverage over another public receipt/document
-     shape.
-   - Production relationship: useful stress evidence, not production
-     fully_satisfied.
-2. SEC EDGAR RAG query label expansion.
+1. SEC EDGAR RAG query label expansion.
    - Value: broadens public RAG citation and no-answer query coverage.
    - Production relationship: strengthens public RAG evidence only; customer
      workpaper labels are still required.

@@ -117,6 +117,57 @@ def test_login_me_and_password_hash_is_not_returned() -> None:
     assert "password_hash" not in me.json()
 
 
+def test_register_creates_analyst_user_without_returning_password_hash_and_can_login() -> None:
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": "demo-user@example.com", "password": "demo-password", "full_name": "Demo User"},
+        headers={"Authorization": ""},
+    )
+
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+    assert "password_hash" not in response.json()
+
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {response.json()['access_token']}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == "demo-user@example.com"
+    assert me.json()["role_codes"] == ["analyst"]
+    assert "password_hash" not in me.json()
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "demo-user@example.com", "password": "demo-password"},
+        headers={"Authorization": ""},
+    )
+    assert login_response.status_code == 200
+
+
+def test_register_rejects_duplicate_email() -> None:
+    payload = {"email": "duplicate-demo@example.com", "password": "demo-password", "full_name": "Duplicate Demo"}
+
+    assert client.post("/api/v1/auth/register", json=payload, headers={"Authorization": ""}).status_code == 200
+    duplicate = client.post("/api/v1/auth/register", json=payload, headers={"Authorization": ""})
+
+    assert duplicate.status_code == 400
+    assert duplicate.json()["detail"] == "User already exists"
+
+
+def test_register_rejects_invalid_email_and_weak_password() -> None:
+    invalid_email = client.post(
+        "/api/v1/auth/register",
+        json={"email": "not-an-email", "password": "demo-password", "full_name": "Invalid Email"},
+        headers={"Authorization": ""},
+    )
+    weak_password = client.post(
+        "/api/v1/auth/register",
+        json={"email": "weak-password@example.com", "password": "short", "full_name": "Weak Password"},
+        headers={"Authorization": ""},
+    )
+
+    assert invalid_email.status_code == 422
+    assert weak_password.status_code == 422
+
+
 def test_missing_token_returns_401_for_protected_api() -> None:
     response = client.get("/api/v1/tasks", headers={"Authorization": ""})
 

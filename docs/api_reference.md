@@ -11,6 +11,7 @@ Responses use JSON unless the endpoint is a report download. `/api/v1` JSON resp
 
 ## Auth And RBAC
 
+- `POST /auth/register`
 - `POST /auth/login`
 - `GET /auth/me`
 - `POST /auth/logout`
@@ -22,7 +23,9 @@ Responses use JSON unless the endpoint is a report download. `/api/v1` JSON resp
 - `PATCH /roles/{role_id}`
 - `GET /audit-logs`
 
-Protected endpoints use `Authorization: Bearer <token>`. `GET /health` and `GET /api/v1/config` remain public local health/config endpoints. Password hashes are never returned.
+Protected endpoints use `Authorization: Bearer <token>`. `GET /health`, `GET /api/v1/config`, `POST /auth/register`, and `POST /auth/login` remain public local health/config/auth endpoints. Password hashes are never returned.
+
+`POST /auth/register` creates a local demo account with the `analyst` role and returns a bearer token. It requires `email` and `password`, accepts optional `full_name`, rejects duplicate email addresses, and is intended for local public acceptance demos rather than production open signup.
 
 Default roles:
 
@@ -36,7 +39,7 @@ Permission summary:
 
 | Permission | Typical Endpoints |
 | --- | --- |
-| public | `GET /health`, `GET /api/v1/config`, `POST /auth/login` |
+| public | `GET /health`, `GET /api/v1/config`, `POST /auth/register`, `POST /auth/login` |
 | `read` | list/get tasks, documents, fields, pages, audit results, reports, RAG documents/chunks/query, agent runs |
 | `task:create` | `POST /tasks` |
 | `task:update` | `PATCH /tasks/{task_id}` |

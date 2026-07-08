@@ -37,14 +37,14 @@ type AppRoute = {
 };
 
 export const routes: AppRoute[] = [
-  { key: "dashboard", label: "Dashboard", Component: DashboardPage, permission: "read" },
-  { key: "task-center", label: "Task Center", Component: TaskCenterPage, permission: "read" },
-  { key: "audit-workbench", label: "Audit Workbench", Component: AuditWorkbenchPage, permission: "read" },
-  { key: "review-center", label: "Review Center", Component: ReviewCenterPage, permission: "read" },
-  { key: "report-center", label: "Report Center", Component: ReportCenterPage, permission: "read" },
-  { key: "knowledge-center", label: "Knowledge Center", Component: KnowledgeCenterPage, permission: "read" },
-  { key: "rule-center", label: "Rule Center", Component: RuleCenterPage, permission: "read" },
-  { key: "bad-case-center", label: "Bad Case Center", Component: BadCaseCenterPage, permission: "evaluation:read" },
-  { key: "evaluation-center", label: "Evaluation Center", Component: EvaluationCenterPage, permission: "evaluation:read" },
-  { key: "admin-center", label: "Admin Center", Component: AdminCenterPage, permission: "user:manage" },
+  { key: "dashboard", label: "仪表盘", Component: DashboardPage, permission: "read" },
+  { key: "task-center", label: "任务中心", Component: TaskCenterPage, permission: "read" },
+  { key: "audit-workbench", label: "审核工作台", Component: AuditWorkbenchPage, permission: "read" },
+  { key: "review-center", label: "复核中心", Component: ReviewCenterPage, permission: "read" },
+  { key: "report-center", label: "报告中心", Component: ReportCenterPage, permission: "read" },
+  { key: "knowledge-center", label: "知识库", Component: KnowledgeCenterPage, permission: "read" },
+  { key: "rule-center", label: "规则中心", Component: RuleCenterPage, permission: "read" },
+  { key: "bad-case-center", label: "失败案例中心", Component: BadCaseCenterPage, permission: "evaluation:read" },
+  { key: "evaluation-center", label: "评测中心", Component: EvaluationCenterPage, permission: "evaluation:read" },
+  { key: "admin-center", label: "管理中心", Component: AdminCenterPage, permission: "user:manage" },
 ];

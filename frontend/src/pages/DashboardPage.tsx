@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listAuditResults, listEvaluationResults, listTasks } from "../api/client";
 import type { PageProps } from "../routes";
 import type { AuditResult, AuditTask, EvaluationResult } from "../types/api";
+import { displayEvalType, displayScenario, displayStatus } from "../utils/displayText";
 
 function statusColor(status: string) {
   if (status === "completed") {
@@ -44,7 +45,7 @@ export function DashboardPage({ onNavigate }: PageProps) {
         setAuditResults(nextAuditResults.flat());
         setEvaluationResults(nextEvaluationResults);
       } catch {
-        message.error("Failed to load dashboard");
+        message.error("仪表盘加载失败");
       } finally {
         setLoading(false);
       }
@@ -68,10 +69,10 @@ export function DashboardPage({ onNavigate }: PageProps) {
       <Card>
         <Space align="center" style={{ width: "100%", justifyContent: "space-between" }}>
           <Typography.Title level={3} style={{ margin: 0 }}>
-            Dashboard
+            仪表盘
           </Typography.Title>
           <Button type="primary" onClick={() => onNavigate("task-center")}>
-            Open Task Center
+            打开任务中心
           </Button>
         </Space>
       </Card>
@@ -79,59 +80,59 @@ export function DashboardPage({ onNavigate }: PageProps) {
       <Row gutter={[16, 16]}>
         <Col xs={24} md={6}>
           <Card>
-            <Statistic title="Total Tasks" value={tasks.length} loading={loading} />
+            <Statistic title="总任务数" value={tasks.length} loading={loading} />
           </Card>
         </Col>
         <Col xs={24} md={6}>
           <Card>
-            <Statistic title="Active Tasks" value={activeCount} loading={loading} />
+            <Statistic title="进行中任务" value={activeCount} loading={loading} />
           </Card>
         </Col>
         <Col xs={24} md={6}>
           <Card>
-            <Statistic title="In Review" value={reviewCount} loading={loading} />
+            <Statistic title="复核中" value={reviewCount} loading={loading} />
           </Card>
         </Col>
         <Col xs={24} md={6}>
           <Card>
-            <Statistic title="Failed" value={failedCount} loading={loading} />
+            <Statistic title="失败" value={failedCount} loading={loading} />
           </Card>
         </Col>
         <Col xs={24} md={6}>
           <Card>
-            <Statistic title="Rule Pass Rate" value={passRate} suffix="%" loading={loading} />
+            <Statistic title="规则通过率" value={passRate} suffix="%" loading={loading} />
           </Card>
         </Col>
       </Row>
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <Card title="Tasks by Status">
+          <Card title="按状态统计任务">
             {Object.keys(statusCounts).length ? (
               <Space wrap>
                 {Object.entries(statusCounts).map(([status, count]) => (
                   <Tag key={status} color={statusColor(status)}>
-                    {status}: {count}
+                    {displayStatus(status)}: {count}
                   </Tag>
                 ))}
               </Space>
             ) : (
-              <Empty description="No tasks" />
+              <Empty description="暂无任务" />
             )}
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title="Tasks by Scenario">
+          <Card title="按场景统计任务">
             {Object.keys(scenarioCounts).length ? (
               <Space wrap>
                 {Object.entries(scenarioCounts).map(([scenario, count]) => (
                   <Tag key={scenario}>
-                    {scenario}: {count}
+                    {displayScenario(scenario)}: {count}
                   </Tag>
                 ))}
               </Space>
             ) : (
-              <Empty description="No tasks" />
+              <Empty description="暂无任务" />
             )}
           </Card>
         </Col>
@@ -139,22 +140,22 @@ export function DashboardPage({ onNavigate }: PageProps) {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <Card title="Exception Distribution">
+          <Card title="异常分布">
             {Object.keys(exceptionCounts).length ? (
               <Space wrap>
                 {Object.entries(exceptionCounts).map(([status, count]) => (
                   <Tag key={status} color={statusColor(status)}>
-                    {status}: {count}
+                    {displayStatus(status)}: {count}
                   </Tag>
                 ))}
               </Space>
             ) : (
-              <Empty description="No audit results" />
+              <Empty description="暂无审核结果" />
             )}
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title="Recent Evaluation Summary">
+          <Card title="最近评测摘要">
             {recentEvaluations.length ? (
               <Table<EvaluationResult>
                 rowKey="id"
@@ -162,39 +163,39 @@ export function DashboardPage({ onNavigate }: PageProps) {
                 dataSource={recentEvaluations}
                 pagination={false}
                 columns={[
-                  { title: "Type", dataIndex: "eval_type" },
-                  { title: "Dataset", dataIndex: "dataset_name" },
-                  { title: "Samples", dataIndex: "sample_count" },
+                  { title: "类型", dataIndex: "eval_type", render: (value: string) => displayEvalType(value) },
+                  { title: "数据集", dataIndex: "dataset_name" },
+                  { title: "样本数", dataIndex: "sample_count" },
                   {
-                    title: "Dataset Kind",
+                    title: "数据集类型",
                     render: (_, record) => String(record.metrics.dataset_kind ?? "-"),
                   },
                 ]}
               />
             ) : (
-              <Empty description="No evaluations" />
+              <Empty description="暂无评测" />
             )}
           </Card>
         </Col>
       </Row>
 
-      <Card title="Recent Tasks">
+      <Card title="最近任务">
         <Table<AuditTask>
           rowKey="id"
           loading={loading}
           dataSource={tasks.slice(0, 8)}
           pagination={false}
           columns={[
-            { title: "Task No", dataIndex: "task_no" },
-            { title: "Name", dataIndex: "name" },
-            { title: "Scenario", dataIndex: "scenario" },
+            { title: "任务编号", dataIndex: "task_no" },
+            { title: "名称", dataIndex: "name" },
+            { title: "场景", dataIndex: "scenario", render: (value: string) => displayScenario(value) },
             {
-              title: "Status",
+              title: "状态",
               dataIndex: "status",
-              render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>,
+              render: (value: string) => <Tag color={statusColor(value)}>{displayStatus(value)}</Tag>,
             },
-            { title: "Risk", dataIndex: "risk_level", render: (value: string | null) => value ?? "-" },
-            { title: "Company", dataIndex: "company_name", render: (value: string | null) => value ?? "-" },
+            { title: "风险", dataIndex: "risk_level", render: (value: string | null) => value ?? "-" },
+            { title: "公司", dataIndex: "company_name", render: (value: string | null) => value ?? "-" },
           ]}
         />
       </Card>

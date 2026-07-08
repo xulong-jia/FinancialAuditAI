@@ -41,6 +41,7 @@ import type {
   KnowledgeBase,
   LoginPayload,
   LoginResponse,
+  RegisterPayload,
   RagDocument,
   RagIndexResult,
   RagQueryPayload,
@@ -84,7 +85,7 @@ function unwrapApiEnvelope<T>(body: unknown): T {
 export async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, { headers: authHeaders() });
   if (!response.ok) {
-    throw new Error("Request failed");
+    throw await responseError(response);
   }
   return unwrapApiEnvelope<T>(await response.json());
 }
@@ -96,13 +97,40 @@ async function sendJson<T>(path: string, method: string, body: unknown): Promise
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error("Request failed");
+    throw await responseError(response);
   }
   return unwrapApiEnvelope<T>(await response.json());
 }
 
+async function responseError(response: Response): Promise<Error> {
+  try {
+    const body = await response.json();
+    const message = body?.error?.message ?? body?.detail ?? "Request failed";
+    return new Error(localizeError(typeof message === "string" ? message : "Request failed"));
+  } catch {
+    return new Error("请求失败");
+  }
+}
+
+function localizeError(message: string): string {
+  const mapping: Record<string, string> = {
+    "Invalid credentials": "邮箱或密码错误",
+    "Not Found": "请求接口不存在",
+    "User already exists": "邮箱已存在",
+    "Invalid email": "邮箱格式不正确",
+    "Request failed": "请求失败",
+    "Authentication required": "请先登录",
+    "Permission denied": "没有操作权限",
+  };
+  return mapping[message] ?? message;
+}
+
 export function login(payload: LoginPayload): Promise<LoginResponse> {
   return sendJson<LoginResponse>("/api/v1/auth/login", "POST", payload);
+}
+
+export function register(payload: RegisterPayload): Promise<LoginResponse> {
+  return sendJson<LoginResponse>("/api/v1/auth/register", "POST", payload);
 }
 
 export function getCurrentUser(): Promise<UserRecord> {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { evaluateRule, listRules, listTasks, updateRule } from "../api/client";
 import type { PageProps } from "../routes";
 import type { AuditRule, AuditRuleEvaluateResult, AuditTask } from "../types/api";
+import { displayScenario, displaySeverity, displayStatus } from "../utils/displayText";
 import { hasPermission } from "../utils/permissions";
 
 type RuleFormValues = {
@@ -81,7 +82,7 @@ export function RuleCenterPage({ currentUser }: PageProps) {
   useEffect(() => {
     setLoading(true);
     Promise.all([refreshRules(), listTasks().then(setTasks)])
-      .catch(() => message.error("Failed to load Rule Center data"))
+      .catch(() => message.error("规则中心数据加载失败"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -116,9 +117,9 @@ export function RuleCenterPage({ currentUser }: PageProps) {
         actor_name: values.actor_name,
       });
       await refreshRules();
-      message.success("Rule updated");
+      message.success("规则已更新");
     } catch {
-      message.error("Failed to update rule. Check parameters JSON and allowed keys.");
+      message.error("规则更新失败，请检查参数 JSON 和允许的键。");
     } finally {
       setSaving(false);
     }
@@ -135,9 +136,9 @@ export function RuleCenterPage({ currentUser }: PageProps) {
         parameters: parseJsonObject(values.parameters_json),
       });
       setEvaluationResults(results);
-      message.success("Rule evaluated");
+      message.success("规则试算已完成");
     } catch {
-      message.error("Rule evaluation failed. Select a linked task and check JSON parameters.");
+      message.error("规则试算失败，请选择已归集任务并检查 JSON 参数。");
     } finally {
       setEvaluating(false);
     }
@@ -149,24 +150,24 @@ export function RuleCenterPage({ currentUser }: PageProps) {
         <Space direction="vertical" size="small" style={{ width: "100%" }}>
           <Space align="center" wrap>
             <Typography.Title level={3} style={{ margin: 0 }}>
-              Rule Center
+              规则中心
             </Typography.Title>
-            <Tag color="blue">Expression contract</Tag>
-            <Tag color="default">Registered Python rules</Tag>
+            <Tag color="blue">表达式契约</Tag>
+            <Tag color="default">注册 Python 规则</Tag>
           </Space>
           <Alert
             type="info"
             showIcon
-            message="Rules use stored expression contracts and deterministic registered implementations."
+            message="规则使用已存储的表达式契约和注册实现，便于本地演示复核。"
           />
         </Space>
       </Card>
-      {!canManageRules ? <Alert type="info" showIcon message="Read-only permissions" /> : null}
+      {!canManageRules ? <Alert type="info" showIcon message="只读权限" /> : null}
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(360px, 440px) minmax(520px, 1fr)", gap: 16 }}>
-        <Card title="Rules" loading={loading}>
+      <div className="two-pane-grid">
+        <Card title="规则" loading={loading}>
           {rules.length === 0 ? (
-            <Empty description="No rules" />
+            <Empty description="暂无规则" />
           ) : (
             <Table<AuditRule>
               size="small"
@@ -182,7 +183,7 @@ export function RuleCenterPage({ currentUser }: PageProps) {
               })}
               columns={[
                 {
-                  title: "Rule",
+                  title: "规则",
                   dataIndex: "rule_code",
                   render: (value: string, record) => (
                     <Space direction="vertical" size={2}>
@@ -192,11 +193,11 @@ export function RuleCenterPage({ currentUser }: PageProps) {
                   ),
                 },
                 {
-                  title: "Status",
+                  title: "状态",
                   dataIndex: "enabled",
-                  render: (value: boolean) => <Tag color={value ? "green" : "default"}>{value ? "enabled" : "disabled"}</Tag>,
+                  render: (value: boolean) => <Tag color={value ? "green" : "default"}>{value ? "启用" : "停用"}</Tag>,
                 },
-                { title: "Version", dataIndex: "version" },
+                { title: "版本", dataIndex: "version" },
               ]}
             />
           )}
@@ -204,49 +205,49 @@ export function RuleCenterPage({ currentUser }: PageProps) {
 
         {selectedRule ? (
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
-            <Card title="Rule Detail">
+            <Card title="规则详情">
               <Form<RuleFormValues> form={ruleForm} layout="vertical" onFinish={(values) => void handleSave(values)}>
                 <Space align="start" wrap>
-                  <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+                  <Form.Item name="name" label="名称" rules={[{ required: true }]}>
                     <Input style={{ width: 280 }} />
                   </Form.Item>
-                  <Form.Item name="version" label="Version" rules={[{ required: true }]}>
+                  <Form.Item name="version" label="版本" rules={[{ required: true }]}>
                     <Input style={{ width: 120 }} />
                   </Form.Item>
-                  <Form.Item name="enabled" label="Enabled" valuePropName="checked">
+                  <Form.Item name="enabled" label="启用" valuePropName="checked">
                     <Switch />
                   </Form.Item>
-                  <Form.Item name="actor_name" label="Actor">
+                  <Form.Item name="actor_name" label="操作人">
                     <Input style={{ width: 180 }} />
                   </Form.Item>
                 </Space>
                 <Space wrap style={{ marginBottom: 16 }}>
                   <Tag>{selectedRule.category}</Tag>
-                  <Tag>{selectedRule.scenario}</Tag>
-                  <Tag color={selectedRule.severity === "high" ? "red" : "gold"}>{selectedRule.severity}</Tag>
+                  <Tag>{displayScenario(selectedRule.scenario)}</Tag>
+                  <Tag color={selectedRule.severity === "high" ? "red" : "gold"}>{displaySeverity(selectedRule.severity)}</Tag>
                   <Tag>{selectedRule.rule_code}</Tag>
                   <Tag>{selectedRule.expression}</Tag>
                 </Space>
-                <Form.Item name="description" label="Description">
+                <Form.Item name="description" label="描述">
                   <Input />
                 </Form.Item>
                 <Form.Item
                   name="parameters_json"
-                  label="Parameters JSON"
-                  rules={[{ required: true, message: "Parameters JSON is required" }]}
+                  label="参数 JSON"
+                  rules={[{ required: true, message: "请输入参数 JSON" }]}
                 >
                   <Input.TextArea rows={10} />
                 </Form.Item>
                 <Button type="primary" htmlType="submit" loading={saving} disabled={!canManageRules}>
-                  Save Rule
+                  保存规则
                 </Button>
               </Form>
             </Card>
 
-            <Card title="Rule Evaluate">
+            <Card title="规则试算">
               <Form<EvaluateFormValues> form={evaluateForm} layout="vertical" onFinish={(values) => void handleEvaluate(values)}>
                 <Space align="start" wrap>
-                  <Form.Item name="task_id" label="Task" rules={[{ required: true }]}>
+                  <Form.Item name="task_id" label="任务" rules={[{ required: true }]}>
                     <Select
                       style={{ minWidth: 320 }}
                       options={tasks.map((task) => ({
@@ -256,16 +257,16 @@ export function RuleCenterPage({ currentUser }: PageProps) {
                     />
                   </Form.Item>
                 </Space>
-                <Form.Item name="parameters_json" label="Temporary Parameter Override JSON">
+                <Form.Item name="parameters_json" label="临时参数覆盖 JSON">
                   <Input.TextArea rows={4} placeholder='{"tolerance_amount": 5}' />
                 </Form.Item>
                 <Button htmlType="submit" loading={evaluating} disabled={!canManageRules}>
-                  Evaluate Dry Run
+                  执行试算
                 </Button>
               </Form>
             </Card>
 
-            <Card title="Evaluation Results">
+            <Card title="试算结果">
               <Table<AuditRuleEvaluateResult>
                 size="small"
                 rowKey={(record) => `${record.rule_code}-${record.business_key}`}
@@ -273,17 +274,17 @@ export function RuleCenterPage({ currentUser }: PageProps) {
                 pagination={false}
                 scroll={{ x: 980 }}
                 columns={[
-                  { title: "Business Key", dataIndex: "business_key" },
-                  { title: "Rule", dataIndex: "rule_code" },
-                  { title: "Version", dataIndex: "rule_version" },
+                  { title: "业务键", dataIndex: "business_key" },
+                  { title: "规则", dataIndex: "rule_code" },
+                  { title: "版本", dataIndex: "rule_version" },
                   {
-                    title: "Status",
+                    title: "状态",
                     dataIndex: "status",
-                    render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>,
+                    render: (value: string) => <Tag color={statusColor(value)}>{displayStatus(value)}</Tag>,
                   },
-                  { title: "Severity", dataIndex: "severity" },
+                  { title: "严重程度", dataIndex: "severity", render: (value: string) => displaySeverity(value) },
                   {
-                    title: "Message",
+                    title: "消息",
                     dataIndex: "message",
                     render: (value: string) => (
                       <Typography.Text ellipsis={{ tooltip: value }} style={{ maxWidth: 260 }}>
@@ -292,7 +293,7 @@ export function RuleCenterPage({ currentUser }: PageProps) {
                     ),
                   },
                   {
-                    title: "Expected",
+                    title: "预期值",
                     dataIndex: "expected_value",
                     render: (value: Record<string, unknown> | null) => (
                       <Typography.Text ellipsis={{ tooltip: formatJson(value) }} style={{ maxWidth: 220 }}>
@@ -301,7 +302,7 @@ export function RuleCenterPage({ currentUser }: PageProps) {
                     ),
                   },
                   {
-                    title: "Actual",
+                    title: "实际值",
                     dataIndex: "actual_value",
                     render: (value: Record<string, unknown> | null) => (
                       <Typography.Text ellipsis={{ tooltip: formatJson(value) }} style={{ maxWidth: 220 }}>
@@ -310,9 +311,9 @@ export function RuleCenterPage({ currentUser }: PageProps) {
                     ),
                   },
                   {
-                    title: "Evidence",
+                    title: "证据",
                     dataIndex: "evidence",
-                    render: (value: Record<string, unknown>) => `${evidenceCount(value)} refs`,
+                    render: (value: Record<string, unknown>) => `${evidenceCount(value)} 条证据`,
                   },
                 ]}
               />
@@ -320,7 +321,7 @@ export function RuleCenterPage({ currentUser }: PageProps) {
           </Space>
         ) : (
           <Card>
-            <Empty description="Select a rule" />
+            <Empty description="请选择规则" />
           </Card>
         )}
       </div>

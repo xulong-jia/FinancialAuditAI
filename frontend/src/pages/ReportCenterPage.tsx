@@ -9,6 +9,7 @@ import {
 } from "../api/client";
 import type { PageProps } from "../routes";
 import type { AuditTask, ReportRecord } from "../types/api";
+import { displayReportColumn, displayStatus } from "../utils/displayText";
 import { hasPermission } from "../utils/permissions";
 
 const procurementPreviewColumns = [
@@ -114,7 +115,7 @@ export function ReportCenterPage({ currentUser }: PageProps) {
     try {
       setReports(await listReports(taskId));
     } catch {
-      message.error("Failed to load reports");
+      message.error("报告加载失败");
     } finally {
       setLoading(false);
     }
@@ -131,7 +132,7 @@ export function ReportCenterPage({ currentUser }: PageProps) {
         setSelectedTaskId(taskId);
         setReports(taskId ? await listReports(taskId) : []);
       } catch {
-        message.error("Failed to load report center");
+        message.error("报告中心加载失败");
       } finally {
         setLoading(false);
       }
@@ -142,7 +143,7 @@ export function ReportCenterPage({ currentUser }: PageProps) {
 
   async function handleGenerateReport(fileFormat: "xlsx" | "csv" | "pdf" | "markdown") {
     if (!selectedTaskId) {
-      message.warning("Select a task first");
+      message.warning("请先选择任务");
       return;
     }
     setLoading(true);
@@ -152,9 +153,9 @@ export function ReportCenterPage({ currentUser }: PageProps) {
         file_format: fileFormat,
       });
       await refreshReports(selectedTaskId);
-      message.success(`${fileFormat.toUpperCase()} report generated`);
+      message.success(`${fileFormat.toUpperCase()} 报告已生成`);
     } catch {
-      message.error("Failed to generate report");
+      message.error("报告生成失败");
     } finally {
       setLoading(false);
     }
@@ -179,10 +180,10 @@ export function ReportCenterPage({ currentUser }: PageProps) {
       <Card>
         <Space align="center" wrap>
           <Typography.Title level={3} style={{ margin: 0 }}>
-            Report Center
+            报告中心
           </Typography.Title>
           <Select
-            placeholder="Select task"
+            placeholder="选择任务"
             style={{ minWidth: 320 }}
             value={selectedTaskId}
             options={tasks.map((task) => ({
@@ -201,55 +202,55 @@ export function ReportCenterPage({ currentUser }: PageProps) {
             disabled={!selectedTaskId || !canGenerateReport}
             onClick={() => void handleGenerateReport("xlsx")}
           >
-            Generate XLSX
+            生成 XLSX
           </Button>
           <Button
             loading={loading}
             disabled={!selectedTaskId || !canGenerateReport}
             onClick={() => void handleGenerateReport("csv")}
           >
-            Generate CSV
+            生成 CSV
           </Button>
           <Button
             loading={loading}
             disabled={!selectedTaskId || !canGenerateReport}
             onClick={() => void handleGenerateReport("pdf")}
           >
-            Generate PDF
+            生成 PDF
           </Button>
           <Button
             loading={loading}
             disabled={!selectedTaskId || !canGenerateReport}
             onClick={() => void handleGenerateReport("markdown")}
           >
-            Generate Markdown
+            生成 Markdown
           </Button>
         </Space>
       </Card>
-      {!canGenerateReport ? <Alert type="info" showIcon message="Read-only permissions" /> : null}
+      {!canGenerateReport ? <Alert type="info" showIcon message="只读权限" /> : null}
 
-      <Card title="Report Status">
+      <Card title="报告状态">
         {latestReport ? (
           <Space direction="vertical" style={{ width: "100%" }}>
             <Space wrap>
               <Typography.Text strong>{latestReport.title}</Typography.Text>
-              <Tag color={statusColor(latestReport.status)}>{latestReport.status}</Tag>
+              <Tag color={statusColor(latestReport.status)}>{displayStatus(latestReport.status)}</Tag>
               <Tag>{latestReport.file_format}</Tag>
-              <Typography.Text type="secondary">Generated at {latestReport.generated_at}</Typography.Text>
+              <Typography.Text type="secondary">生成时间 {latestReport.generated_at}</Typography.Text>
             </Space>
             <Alert
               type="info"
               showIcon
-              message="Usage boundary"
+              message="使用边界"
               description={String(latestReport.summary.usage_boundary ?? "")}
             />
           </Space>
         ) : (
-          <Empty description="No reports yet" />
+          <Empty description="暂无报告" />
         )}
       </Card>
 
-      <Card title="Control Table Preview">
+      <Card title="控制表预览">
         <Table<Record<string, unknown>>
           rowKey={(record, index) => String(record.business_key ?? index)}
           loading={loading}
@@ -257,11 +258,11 @@ export function ReportCenterPage({ currentUser }: PageProps) {
           pagination={false}
           scroll={{ x: 1100 }}
           columns={previewColumns.map((column) => ({
-            title: column,
+            title: displayReportColumn(column),
             dataIndex: column,
             render: (value: unknown) =>
               column === "overall_status" ? (
-                <Tag color={statusColor(String(value ?? ""))}>{String(value ?? "-")}</Tag>
+                <Tag color={statusColor(String(value ?? ""))}>{displayStatus(String(value ?? ""))}</Tag>
               ) : (
                 <Typography.Text ellipsis={{ tooltip: String(value ?? "-") }} style={{ maxWidth: 220 }}>
                   {String(value ?? "-")}
@@ -271,30 +272,30 @@ export function ReportCenterPage({ currentUser }: PageProps) {
         />
       </Card>
 
-      <Card title="Report History">
+      <Card title="报告历史">
         <Table<ReportRecord>
           rowKey="id"
           loading={loading}
           dataSource={reports}
           pagination={false}
           columns={[
-            { title: "Title", dataIndex: "title" },
+            { title: "标题", dataIndex: "title" },
             {
-              title: "Status",
+              title: "状态",
               dataIndex: "status",
-              render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>,
+              render: (value: string) => <Tag color={statusColor(value)}>{displayStatus(value)}</Tag>,
             },
-            { title: "Format", dataIndex: "file_format" },
-            { title: "Generated By", dataIndex: "generated_by", render: (value: string | null) => value ?? "-" },
-            { title: "Generated At", dataIndex: "generated_at" },
+            { title: "格式", dataIndex: "file_format" },
+            { title: "生成人", dataIndex: "generated_by", render: (value: string | null) => value ?? "-" },
+            { title: "生成时间", dataIndex: "generated_at" },
             {
-              title: "Download",
+              title: "下载",
               render: (_, record) => (
                 <Button
                   size="small"
                   onClick={() => void downloadReport(record.id, `${record.title}.${record.file_format}`)}
                 >
-                  Download {record.file_format.toUpperCase()}
+                  下载 {record.file_format.toUpperCase()}
                 </Button>
               ),
             },

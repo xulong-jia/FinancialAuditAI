@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { createAgentRun, getAgentRun, listAgentSteps, resumeAgentRun, retryAgentRun } from "../api/client";
 import type { AgentRun, AgentStep } from "../types/api";
+import { displayStatus } from "../utils/displayText";
 
 type AgentStateTimelineProps = {
   taskId: string | null;
@@ -47,7 +48,7 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
 
   async function handleStart() {
     if (!taskId) {
-      message.warning("Select a task first");
+      message.warning("请先选择任务");
       return;
     }
     setLoading(true);
@@ -55,9 +56,9 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
       const nextRun = await createAgentRun({ task_id: taskId });
       setRun(nextRun);
       setSteps(await listAgentSteps(nextRun.id));
-      message.success("Agent workflow finished");
+      message.success("Agent 工作流已完成");
     } catch {
-      message.error("Agent workflow failed to start");
+      message.error("Agent 工作流启动失败");
     } finally {
       setLoading(false);
     }
@@ -72,9 +73,9 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
       const nextRun = await retryAgentRun(run.id);
       setRun(nextRun);
       await refreshSteps(nextRun.id);
-      message.success("Retry finished");
+      message.success("重试已完成");
     } catch {
-      message.error("Retry failed");
+      message.error("重试失败");
     } finally {
       setLoading(false);
     }
@@ -89,9 +90,9 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
       const nextRun = await resumeAgentRun(run.id);
       setRun(nextRun);
       await refreshSteps(nextRun.id);
-      message.success("Agent workflow resumed");
+      message.success("Agent 工作流已继续");
     } catch {
-      message.error("Human review queue is not cleared");
+      message.error("人工复核队列尚未清理");
     } finally {
       setLoading(false);
     }
@@ -99,22 +100,22 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
 
   return (
     <Card
-      title="Agent State Timeline"
+      title="Agent 状态时间线"
       extra={
         <Space>
-          {run ? <Tag color={statusColor(run.current_state)}>{run.current_state}</Tag> : null}
+          {run ? <Tag color={statusColor(run.current_state)}>{displayStatus(run.current_state)}</Tag> : null}
           {run?.status === "failed" ? (
             <Button onClick={() => void handleRetry()} loading={loading} disabled={!canRunAgent}>
-              Retry Failed Step
+              重试失败步骤
             </Button>
           ) : null}
           {run?.status === "waiting_review" ? (
             <Button onClick={() => void handleResume()} loading={loading} disabled={!canRunAgent}>
-              Resume After Review
+              复核后继续
             </Button>
           ) : null}
           <Button type="primary" onClick={() => void handleStart()} loading={loading} disabled={!taskId || !canRunAgent}>
-            Start Agent Run
+            启动 Agent
           </Button>
         </Space>
       }
@@ -122,14 +123,14 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
       <Space direction="vertical" style={{ width: "100%" }}>
         {run ? (
           <Space wrap>
-            <Tag color={statusColor(run.status)}>{run.status}</Tag>
-            <Typography.Text>workflow: {run.workflow_name}</Typography.Text>
-            <Typography.Text type="secondary">run: {run.id}</Typography.Text>
+            <Tag color={statusColor(run.status)}>{displayStatus(run.status)}</Tag>
+            <Typography.Text>工作流: {run.workflow_name}</Typography.Text>
+            <Typography.Text type="secondary">运行 ID: {run.id}</Typography.Text>
           </Space>
         ) : (
-          <Empty description="No agent run for the selected task in this view" />
+          <Empty description="当前视图暂无所选任务的 Agent 运行记录" />
         )}
-        {run?.error ? <Alert type="error" showIcon message="Agent error" description={formatPayload(run.error)} /> : null}
+        {run?.error ? <Alert type="error" showIcon message="Agent 错误" description={formatPayload(run.error)} /> : null}
         <Table<AgentStep>
           size="small"
           rowKey="id"
@@ -138,20 +139,20 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
           scroll={{ x: 980 }}
           columns={[
             { title: "#", dataIndex: "step_order", width: 56 },
-            { title: "Step", dataIndex: "step_name" },
-            { title: "Tool", dataIndex: "tool_name" },
+            { title: "步骤", dataIndex: "step_name" },
+            { title: "工具", dataIndex: "tool_name" },
             {
-              title: "Status",
+              title: "状态",
               dataIndex: "status",
-              render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>,
+              render: (value: string) => <Tag color={statusColor(value)}>{displayStatus(value)}</Tag>,
             },
             {
-              title: "Duration",
+              title: "耗时",
               dataIndex: "duration_ms",
               render: (value: number | null) => (value == null ? "-" : `${value} ms`),
             },
             {
-              title: "Input Refs",
+              title: "输入引用",
               dataIndex: "input_payload",
               render: (value: Record<string, unknown>) => (
                 <Typography.Text ellipsis={{ tooltip: formatPayload(value) }} style={{ maxWidth: 220 }}>
@@ -160,7 +161,7 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
               ),
             },
             {
-              title: "Output Refs",
+              title: "输出引用",
               dataIndex: "output_payload",
               render: (value: Record<string, unknown>) => (
                 <Typography.Text ellipsis={{ tooltip: formatPayload(value) }} style={{ maxWidth: 240 }}>
@@ -169,7 +170,7 @@ export function AgentStateTimeline({ taskId, canRunAgent }: AgentStateTimelinePr
               ),
             },
             {
-              title: "Error",
+              title: "错误",
               dataIndex: "error",
               render: (value: Record<string, unknown> | null) =>
                 value ? (

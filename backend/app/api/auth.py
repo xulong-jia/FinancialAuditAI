@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import current_user, require_permission
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RoleCreate, RoleRead, RoleUpdate, TokenRead, UserCreate, UserRead, UserUpdate
+from app.schemas.auth import LoginRequest, RegisterRequest, RoleCreate, RoleRead, RoleUpdate, TokenRead, UserCreate, UserRead, UserUpdate
 from app.schemas.review import AuditLogRead
 from app.services import auth_service
 
@@ -31,6 +31,16 @@ def _first_user_or_admin(authorization: str | None = Header(default=None), db: S
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     _, token = auth_service.authenticate(db, payload.email, payload.password)
     return TokenRead(access_token=token)
+
+
+@router.post("/auth/register", response_model=TokenRead)
+def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+    full_name = payload.full_name.strip() if payload.full_name and payload.full_name.strip() else payload.email.split("@", 1)[0]
+    user = auth_service.create_user(
+        db,
+        UserCreate(email=payload.email, password=payload.password, full_name=full_name, role_codes=["analyst"]),
+    )
+    return TokenRead(access_token=auth_service.create_access_token(user))
 
 
 @router.get("/auth/me", response_model=UserRead)

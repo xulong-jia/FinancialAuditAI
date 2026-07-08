@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createBadCase, listBadCases, updateBadCase } from "../api/client";
 import type { PageProps } from "../routes";
 import type { BadCase, BadCaseType } from "../types/api";
+import { displayBadCaseType, displayBoolean, displaySeverity, displayStatus } from "../utils/displayText";
 import { hasPermission } from "../utils/permissions";
 
 type BadCaseFormValues = {
@@ -19,15 +20,15 @@ type BadCaseFormValues = {
 };
 
 const badCaseTypeOptions: { label: string; value: BadCaseType }[] = [
-  { label: "classification", value: "classification" },
-  { label: "ocr", value: "ocr" },
-  { label: "extraction", value: "extraction" },
-  { label: "rule", value: "rule" },
-  { label: "rag", value: "rag" },
-  { label: "agent", value: "agent" },
-  { label: "review_dispute", value: "review_dispute" },
-  { label: "end_to_end", value: "end_to_end" },
-  { label: "regression", value: "regression" },
+  { label: "分类", value: "classification" },
+  { label: "OCR", value: "ocr" },
+  { label: "字段抽取", value: "extraction" },
+  { label: "规则审核", value: "rule" },
+  { label: "RAG", value: "rag" },
+  { label: "Agent", value: "agent" },
+  { label: "复核争议", value: "review_dispute" },
+  { label: "端到端", value: "end_to_end" },
+  { label: "回归", value: "regression" },
 ];
 
 function parseJson(raw: string | undefined) {
@@ -64,7 +65,7 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
   }
 
   useEffect(() => {
-    void refreshCases().catch(() => message.error("Failed to load bad cases"));
+    void refreshCases().catch(() => message.error("Bad Case 加载失败"));
   }, []);
 
   async function handleCreate(values: BadCaseFormValues) {
@@ -83,9 +84,9 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
       });
       form.resetFields();
       await refreshCases();
-      message.success("Bad case created");
+      message.success("Bad Case 已创建");
     } catch {
-      message.error("Failed to create bad case. Check JSON fields.");
+      message.error("Bad Case 创建失败，请检查 JSON 字段。");
     } finally {
       setLoading(false);
     }
@@ -96,9 +97,9 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
     try {
       await updateBadCase(caseId, { status: nextStatus });
       await refreshCases();
-      message.success("Bad case updated");
+      message.success("Bad Case 已更新");
     } catch {
-      message.error("Failed to update bad case");
+      message.error("Bad Case 更新失败");
     } finally {
       setLoading(false);
     }
@@ -108,12 +109,12 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <Card>
         <Typography.Title level={3} style={{ margin: 0 }}>
-          Bad Case Center
+          Bad Case 中心
         </Typography.Title>
       </Card>
-      {!canManageQuality ? <Alert type="info" showIcon message="Read-only permissions" /> : null}
+      {!canManageQuality ? <Alert type="info" showIcon message="只读权限" /> : null}
 
-      <Card title="Create Bad Case">
+      <Card title="创建 Bad Case">
         <Form<BadCaseFormValues>
           form={form}
           layout="vertical"
@@ -121,62 +122,62 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
           onFinish={(values) => void handleCreate(values)}
         >
           <Space align="start" wrap>
-            <Form.Item name="case_type" label="Type" rules={[{ required: true }]}>
+            <Form.Item name="case_type" label="类型" rules={[{ required: true }]}>
               <Select options={badCaseTypeOptions} style={{ width: 180 }} />
             </Form.Item>
-            <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+            <Form.Item name="title" label="标题" rules={[{ required: true }]}>
               <Input style={{ width: 320 }} />
             </Form.Item>
-            <Form.Item name="severity" label="Severity" rules={[{ required: true }]}>
+            <Form.Item name="severity" label="严重程度" rules={[{ required: true }]}>
               <Select
                 style={{ width: 140 }}
                 options={[
-                  { label: "low", value: "low" },
-                  { label: "medium", value: "medium" },
-                  { label: "high", value: "high" },
+                  { label: "低", value: "low" },
+                  { label: "中", value: "medium" },
+                  { label: "高", value: "high" },
                 ]}
               />
             </Form.Item>
-            <Form.Item name="owner_name" label="Owner">
+            <Form.Item name="owner_name" label="负责人">
               <Input style={{ width: 180 }} />
             </Form.Item>
           </Space>
-          <Form.Item name="in_regression" label="Regression Set">
+          <Form.Item name="in_regression" label="回归集">
             <Select
               style={{ width: 160 }}
               options={[
-                { label: "no", value: false },
-                { label: "yes", value: true },
+                { label: "否", value: false },
+                { label: "是", value: true },
               ]}
             />
           </Form.Item>
           <Space align="start" wrap>
-            <Form.Item name="input_json" label="Input JSON">
+            <Form.Item name="input_json" label="输入 JSON">
               <Input.TextArea rows={3} style={{ width: 300 }} />
             </Form.Item>
-            <Form.Item name="model_output_json" label="Model Output JSON">
+            <Form.Item name="model_output_json" label="模型输出 JSON">
               <Input.TextArea rows={3} style={{ width: 300 }} />
             </Form.Item>
-            <Form.Item name="expected_output_json" label="Expected Output JSON">
+            <Form.Item name="expected_output_json" label="预期输出 JSON">
               <Input.TextArea rows={3} style={{ width: 300 }} />
             </Form.Item>
-            <Form.Item name="validation_result_json" label="Validation Result JSON">
+            <Form.Item name="validation_result_json" label="验证结果 JSON">
               <Input.TextArea rows={3} style={{ width: 300 }} />
             </Form.Item>
           </Space>
           <Button type="primary" htmlType="submit" loading={loading} disabled={!canManageQuality}>
-            Create
+            创建
           </Button>
         </Form>
       </Card>
 
       <Card
-        title="Bad Cases"
+        title="Bad Case 列表"
         extra={
           <Space>
             <Select
               allowClear
-              placeholder="Type"
+              placeholder="类型"
               options={badCaseTypeOptions}
               style={{ width: 180 }}
               value={caseType}
@@ -187,13 +188,13 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
             />
             <Select
               allowClear
-              placeholder="Status"
+              placeholder="状态"
               style={{ width: 140 }}
               value={status}
               options={[
-                { label: "open", value: "open" },
-                { label: "fixed", value: "fixed" },
-                { label: "ignored", value: "ignored" },
+                { label: "未关闭", value: "open" },
+                { label: "已修复", value: "fixed" },
+                { label: "已忽略", value: "ignored" },
               ]}
               onChange={(value) => {
                 setStatus(value);
@@ -209,18 +210,18 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
           dataSource={cases}
           scroll={{ x: 1100 }}
           columns={[
-            { title: "Title", dataIndex: "title" },
-            { title: "Type", dataIndex: "case_type", render: (value: string) => <Tag>{value}</Tag> },
+            { title: "标题", dataIndex: "title" },
+            { title: "类型", dataIndex: "case_type", render: (value: string) => <Tag>{displayBadCaseType(value)}</Tag> },
             {
-              title: "Status",
+              title: "状态",
               dataIndex: "status",
-              render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>,
+              render: (value: string) => <Tag color={statusColor(value)}>{displayStatus(value)}</Tag>,
             },
-            { title: "Severity", dataIndex: "severity" },
-            { title: "Regression", dataIndex: "in_regression", render: (value: boolean) => (value ? "yes" : "no") },
-            { title: "Owner", dataIndex: "owner_name", render: (value: string | null) => value ?? "-" },
+            { title: "严重程度", dataIndex: "severity", render: (value: string) => displaySeverity(value) },
+            { title: "回归集", dataIndex: "in_regression", render: (value: boolean) => displayBoolean(value) },
+            { title: "负责人", dataIndex: "owner_name", render: (value: string | null) => value ?? "-" },
             {
-              title: "Expected",
+              title: "预期输出",
               dataIndex: "expected_output",
               render: (value: Record<string, unknown>) => (
                 <Typography.Text ellipsis={{ tooltip: JSON.stringify(value) }} style={{ maxWidth: 220 }}>
@@ -229,14 +230,14 @@ export function BadCaseCenterPage({ currentUser }: PageProps) {
               ),
             },
             {
-              title: "Action",
+              title: "操作",
               render: (_, record) => (
                 <Space>
                   <Button size="small" disabled={!canManageQuality} onClick={() => void handleStatus(record.id, "fixed")}>
-                    Mark Fixed
+                    标记已修复
                   </Button>
                   <Button size="small" disabled={!canManageQuality} onClick={() => void handleStatus(record.id, "open")}>
-                    Reopen
+                    重新打开
                   </Button>
                 </Space>
               ),

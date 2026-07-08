@@ -291,8 +291,8 @@ Full endpoint details are documented in
 `http://localhost:8000/api/v1`.
 
 - System: `GET /health`, `GET /api/v1/config`
-- Auth / users / roles: `/auth/login`, `/auth/me`, `/auth/logout`, `/users`,
-  `/roles`, `/audit-logs`
+- Auth / users / roles: `/auth/register`, `/auth/login`, `/auth/me`,
+  `/auth/logout`, `/users`, `/roles`, `/audit-logs`
 - Task Center: `/tasks`, `/tasks/{task_id}`, `/tasks/{task_id}/run`
 - Document upload and processing: `/tasks/{task_id}/documents`,
   `/documents/{document_id}`, `/tasks/{task_id}/link-documents`
@@ -373,6 +373,29 @@ The backend service installs dependencies, runs `alembic upgrade head`, and
 starts `uvicorn`. The frontend service installs dependencies and starts Vite.
 Docker Compose is for local reproduction/config validation, not hosted
 production deployment evidence.
+
+### One-click Start
+
+Docker Desktop must be open before using the one-click scripts.
+
+On macOS:
+
+1. Double-click `start_financialauditai.command`.
+2. Wait for Docker Compose to build and start the local stack.
+3. Open `http://localhost:5173`.
+4. Click `注册账号` to create a local demo account, then enter the app.
+5. Double-click `stop_financialauditai.command` to stop the local stack.
+
+The start script checks Docker, Docker Compose, Python 3, Node.js, npm, and
+common local ports (`5432`, `8000`, `5173`). If `.env` is missing, it copies
+`.env.example` to `.env` for local demo use and reminds you not to put real
+secrets in committed files.
+
+This is a one-click local demo / public acceptance startup path, not a
+production deployment.
+
+The `注册账号` flow is for local public acceptance demos only. It creates
+a local `analyst` account and is not a production open-signup system.
 
 ### Optional synthetic demo seed
 

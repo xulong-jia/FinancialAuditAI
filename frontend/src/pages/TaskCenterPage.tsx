@@ -31,6 +31,7 @@ import type {
   ExtractedField,
 } from "../types/api";
 import type { PageProps } from "../routes";
+import { displayDocType, displayFieldType, displayScenario, displaySeverity, displayStatus } from "../utils/displayText";
 import { hasPermission } from "../utils/permissions";
 
 const procurementDocTypes: { label: string; value: DocumentDocType }[] = [
@@ -140,14 +141,14 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
   }
 
   useEffect(() => {
-    void refreshTasks().catch(() => message.error("Failed to load tasks"));
+    void refreshTasks().catch(() => message.error("任务加载失败"));
   }, []);
 
   useEffect(() => {
     if (selectedTaskId) {
-      void refreshDocuments(selectedTaskId).catch(() => message.error("Failed to load documents"));
-      void refreshRelations(selectedTaskId).catch(() => message.error("Failed to load document relations"));
-      void refreshAuditResults(selectedTaskId).catch(() => message.error("Failed to load audit results"));
+      void refreshDocuments(selectedTaskId).catch(() => message.error("文档加载失败"));
+      void refreshRelations(selectedTaskId).catch(() => message.error("文档关联加载失败"));
+      void refreshAuditResults(selectedTaskId).catch(() => message.error("审核结果加载失败"));
     } else {
       setDocuments([]);
       setRelations([]);
@@ -158,8 +159,8 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
 
   useEffect(() => {
     if (selectedDocumentId) {
-      void refreshPages(selectedDocumentId).catch(() => message.error("Failed to load pages"));
-      void refreshFields(selectedDocumentId).catch(() => message.error("Failed to load fields"));
+      void refreshPages(selectedDocumentId).catch(() => message.error("页面加载失败"));
+      void refreshFields(selectedDocumentId).catch(() => message.error("字段加载失败"));
     } else {
       setPages([]);
       setFields([]);
@@ -190,9 +191,9 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
       form.resetFields();
       await refreshTasks();
       setSelectedTaskId(task.id);
-      message.success("Task created");
+      message.success("任务已创建");
     } catch {
-      message.error("Failed to create task");
+      message.error("任务创建失败");
     } finally {
       setLoading(false);
     }
@@ -201,7 +202,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
   async function handleUpload(values: { doc_type_hint: DocumentDocType }) {
     const originFile = fileList[0]?.originFileObj;
     if (!selectedTaskId || !originFile) {
-      message.warning("Select a task and file first");
+      message.warning("请先选择任务和文件");
       return;
     }
 
@@ -212,9 +213,9 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
       uploadForm.resetFields();
       await refreshTasks();
       await refreshDocuments(selectedTaskId);
-      message.success("Document uploaded");
+      message.success("文档已上传");
     } catch {
-      message.error("Failed to upload document");
+      message.error("文档上传失败");
     } finally {
       setLoading(false);
     }
@@ -230,12 +231,12 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
       await refreshPages(document.id);
       setSelectedDocumentId(document.id);
       if (document.ocr_status === "failed") {
-        message.error("OCR failed");
+        message.error("OCR 失败");
       } else {
-        message.success("OCR completed");
+        message.success("OCR 已完成");
       }
     } catch {
-      message.error("Failed to run OCR");
+      message.error("OCR 执行失败");
     } finally {
       setLoading(false);
     }
@@ -250,12 +251,12 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
       }
       setSelectedDocumentId(documentId);
       if (result.need_human_review) {
-        message.warning("Classification needs human review");
+        message.warning("文档分类需要人工复核");
       } else {
-        message.success("Document classified");
+        message.success("文档已分类");
       }
     } catch {
-      message.error("Failed to classify document");
+      message.error("文档分类失败");
     } finally {
       setLoading(false);
     }
@@ -270,9 +271,9 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
         await refreshDocuments(selectedTaskId);
       }
       setSelectedDocumentId(documentId);
-      message.success("Fields extracted");
+      message.success("字段已抽取");
     } catch {
-      message.error("Failed to extract fields");
+      message.error("字段抽取失败");
     } finally {
       setLoading(false);
     }
@@ -280,7 +281,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
 
   async function handleLinkDocuments() {
     if (!selectedTaskId) {
-      message.warning("Select a task first");
+      message.warning("请先选择任务");
       return;
     }
 
@@ -292,10 +293,10 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
       if (result.warnings.length > 0) {
         message.warning(result.warnings.join(", "));
       } else {
-        message.success("Documents linked");
+        message.success("文档已归集");
       }
     } catch {
-      message.error("Failed to link documents");
+      message.error("文档归集失败");
     } finally {
       setLoading(false);
     }
@@ -303,7 +304,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
 
   async function handleRunAudit() {
     if (!selectedTaskId) {
-      message.warning("Select a task first");
+      message.warning("请先选择任务");
       return;
     }
 
@@ -311,9 +312,9 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
     try {
       const results = await runAudit(selectedTaskId);
       setAuditResults(results);
-      message.success("Audit rules completed");
+      message.success("审核规则已完成");
     } catch {
-      message.error("Failed to run audit rules");
+      message.error("审核规则执行失败");
     } finally {
       setLoading(false);
     }
@@ -321,7 +322,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
 
   async function handleRunTaskContract() {
     if (!selectedTaskId) {
-      message.warning("Select a task first");
+      message.warning("请先选择任务");
       return;
     }
 
@@ -329,9 +330,9 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
     try {
       const result = await runTask(selectedTaskId);
       await refreshTasks();
-      message.info(result.message);
+      message.info(`任务状态: ${displayStatus(result.status)}`);
     } catch {
-      message.error("Failed to run task contract");
+      message.error("任务合约执行失败");
     } finally {
       setLoading(false);
     }
@@ -339,7 +340,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
 
   async function handleManualCorrection(values: { doc_type: ClassificationDocType }) {
     if (!selectedDocumentId || !selectedTaskId) {
-      message.warning("Select a document first");
+      message.warning("请先选择文档");
       return;
     }
 
@@ -350,9 +351,9 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
         actor_name: currentUser.full_name,
       });
       await refreshDocuments(selectedTaskId);
-      message.success("Document type updated");
+      message.success("文档类型已更新");
     } catch {
-      message.error("Failed to update document type");
+      message.error("文档类型更新失败");
     } finally {
       setLoading(false);
     }
@@ -397,42 +398,42 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <Card>
-        <Typography.Title level={3}>Task Center</Typography.Title>
+        <Typography.Title level={3}>任务中心</Typography.Title>
         <Form layout="inline" form={form} onFinish={handleCreateTask} initialValues={{ scenario: "procurement" }}>
-          <Form.Item name="name" rules={[{ required: true, message: "Task name is required" }]}>
-            <Input placeholder="Task name" />
+          <Form.Item name="name" rules={[{ required: true, message: "请输入任务名称" }]}>
+            <Input placeholder="任务名称" />
           </Form.Item>
           <Form.Item name="project_name">
-            <Input placeholder="Project" />
+            <Input placeholder="项目" />
           </Form.Item>
           <Form.Item name="company_name">
-            <Input placeholder="Company" />
+            <Input placeholder="公司" />
           </Form.Item>
           <Form.Item name="fiscal_year">
-            <InputNumber placeholder="Fiscal year" min={1900} max={2100} />
+            <InputNumber placeholder="会计年度" min={1900} max={2100} />
           </Form.Item>
           <Form.Item name="scenario">
             <Select
               style={{ width: 150 }}
               options={[
-                { label: "Procurement", value: "procurement" },
-                { label: "Sales", value: "sales" },
-                { label: "Confirmation", value: "confirmation" },
-                { label: "Interview", value: "interview" },
-                { label: "Contract Review", value: "contract_review" },
+                { label: "采购穿行", value: "procurement" },
+                { label: "销售穿行", value: "sales" },
+                { label: "函证", value: "confirmation" },
+                { label: "访谈", value: "interview" },
+                { label: "合同审核", value: "contract_review" },
               ]}
             />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading} disabled={!canCreateTask}>
-              Create
+              创建任务
             </Button>
           </Form.Item>
           <Form.Item>
-            <Button onClick={openAuditWorkbench}>Open Audit Workbench</Button>
+            <Button onClick={openAuditWorkbench}>打开审核工作台</Button>
           </Form.Item>
           <Form.Item>
-            <Button onClick={openReportCenter}>Open Report Center</Button>
+            <Button onClick={openReportCenter}>打开报告中心</Button>
           </Form.Item>
           <Form.Item>
             <Button
@@ -440,13 +441,13 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
               disabled={!selectedTaskId || !canUpdateTask}
               onClick={() => void handleRunTaskContract()}
             >
-              Run Task
+              执行任务
             </Button>
           </Form.Item>
         </Form>
       </Card>
 
-      <Card title="Tasks">
+      <Card title="任务列表">
         <Table<AuditTask>
           rowKey="id"
           dataSource={tasks}
@@ -457,22 +458,22 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
             onChange: (keys) => setSelectedTaskId(String(keys[0])),
           }}
           columns={[
-            { title: "Task No", dataIndex: "task_no" },
-            { title: "Name", dataIndex: "name" },
-            { title: "Scenario", dataIndex: "scenario" },
-            { title: "Status", dataIndex: "status" },
-            { title: "Company", dataIndex: "company_name" },
+            { title: "任务编号", dataIndex: "task_no" },
+            { title: "名称", dataIndex: "name" },
+            { title: "场景", dataIndex: "scenario", render: (value: string) => displayScenario(value) },
+            { title: "状态", dataIndex: "status", render: (value: string) => displayStatus(value) },
+            { title: "公司", dataIndex: "company_name" },
           ]}
         />
       </Card>
 
-      <Card title="Document Upload">
+      <Card title="文档上传">
         <Form layout="inline" form={uploadForm} onFinish={handleUpload}>
           <Form.Item
             name="doc_type_hint"
-            rules={[{ required: true, message: "Document type is required" }]}
+            rules={[{ required: true, message: "请选择文档类型" }]}
           >
-            <Select style={{ width: 220 }} placeholder="Document type" options={uploadDocTypes} />
+            <Select style={{ width: 220 }} placeholder="文档类型" options={uploadDocTypes} />
           </Form.Item>
           <Form.Item>
             <Upload
@@ -483,7 +484,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
               onChange={({ fileList: nextFileList }) => setFileList(nextFileList)}
               disabled={!canUploadDocument}
             >
-              <Button disabled={!canUploadDocument}>Select Document</Button>
+              <Button disabled={!canUploadDocument}>选择文档</Button>
             </Upload>
           </Form.Item>
           <Form.Item>
@@ -493,13 +494,13 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
               loading={loading}
               disabled={!selectedTaskId || !canUploadDocument}
             >
-              Upload
+              上传
             </Button>
           </Form.Item>
         </Form>
       </Card>
 
-      <Card title="Documents">
+      <Card title="文档">
         <Space style={{ marginBottom: 16 }}>
           <Button
             type="primary"
@@ -507,7 +508,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
             disabled={!selectedTaskId || !canProcessDocument}
             onClick={() => void handleLinkDocuments()}
           >
-            Link Documents
+            归集文档
           </Button>
         </Space>
         <Table<DocumentRecord>
@@ -520,36 +521,36 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
             onChange: (keys) => setSelectedDocumentId(String(keys[0])),
           }}
           columns={[
-            { title: "Filename", dataIndex: "original_filename" },
+            { title: "文件名", dataIndex: "original_filename" },
             {
-              title: "Business Key",
+              title: "业务键",
               dataIndex: "business_key",
               render: (value: string | null) => value ?? "-",
             },
             {
-              title: "Doc Type",
+              title: "文档类型",
               dataIndex: "doc_type",
               render: (value: DocumentRecord["doc_type"], record) => (
                 <Space>
                   <Tag color={value === "unknown" ? "orange" : value ? "blue" : "default"}>
-                    {value ?? "-"}
+                    {displayDocType(value)}
                   </Tag>
-                  {record.review_status === "need_review" ? <Tag color="gold">Needs Review</Tag> : null}
+                  {record.review_status === "need_review" ? <Tag color="gold">待复核</Tag> : null}
                 </Space>
               ),
             },
             {
-              title: "Confidence",
+              title: "置信度",
               dataIndex: "doc_type_confidence",
               render: (value: number | null) => formatConfidence(value),
             },
-            { title: "Extension", dataIndex: "file_ext" },
-            { title: "Size", dataIndex: "file_size" },
-            { title: "Upload Status", dataIndex: "upload_status" },
-            { title: "OCR Status", dataIndex: "ocr_status" },
-            { title: "Review Status", dataIndex: "review_status" },
+            { title: "扩展名", dataIndex: "file_ext" },
+            { title: "大小", dataIndex: "file_size" },
+            { title: "上传状态", dataIndex: "upload_status", render: (value: string) => displayStatus(value) },
+            { title: "OCR 状态", dataIndex: "ocr_status", render: (value: string) => displayStatus(value) },
+            { title: "复核状态", dataIndex: "review_status", render: (value: string) => displayStatus(value) },
             {
-              title: "Classification Reason",
+              title: "分类原因",
               dataIndex: "classification_reason",
               render: (value: string | null) =>
                 value ? (
@@ -560,9 +561,9 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
                   "-"
                 ),
             },
-            { title: "Pages", dataIndex: "page_count" },
+            { title: "页数", dataIndex: "page_count" },
             {
-              title: "Action",
+              title: "操作",
               render: (_, record) => (
                 <Space>
                   <Button
@@ -571,7 +572,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
                     disabled={!canProcessDocument}
                     onClick={() => void handleRunOcr(record.id)}
                   >
-                    Run OCR
+                    执行 OCR
                   </Button>
                   <Button
                     size="small"
@@ -579,7 +580,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
                     disabled={!canProcessDocument || record.ocr_status !== "completed"}
                     onClick={() => void handleClassify(record.id)}
                   >
-                    Classify
+                    文档分类
                   </Button>
                   <Button
                     size="small"
@@ -592,7 +593,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
                     }
                     onClick={() => void handleExtract(record.id)}
                   >
-                    Extract
+                    字段抽取
                   </Button>
                 </Space>
               ),
@@ -601,36 +602,36 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
         />
       </Card>
 
-      <Card title="Document Relations">
+      <Card title="文档关联">
         <Table<DocumentRelation>
           rowKey="id"
           dataSource={relations}
           pagination={false}
           columns={[
-            { title: "Business Key", dataIndex: "business_key" },
-            { title: "Relation", dataIndex: "relation_type" },
+            { title: "业务键", dataIndex: "business_key" },
+            { title: "关联关系", dataIndex: "relation_type" },
             {
-              title: "Confidence",
+              title: "置信度",
               dataIndex: "confidence",
               render: (value: number) => (
                 <Space>
                   <Typography.Text>{formatConfidence(value)}</Typography.Text>
-                  {value < 0.6 ? <Tag color="gold">Needs Review</Tag> : null}
+                  {value < 0.6 ? <Tag color="gold">待复核</Tag> : null}
                 </Space>
               ),
             },
             {
-              title: "Source",
+              title: "来源",
               dataIndex: "source_document_id",
               render: (value: string) => documentNameById[value] ?? value,
             },
             {
-              title: "Target",
+              title: "目标",
               dataIndex: "target_document_id",
               render: (value: string) => documentNameById[value] ?? value,
             },
             {
-              title: "Evidence",
+              title: "证据",
               dataIndex: "evidence",
               render: (value: Record<string, unknown>) => (
                 <Typography.Text ellipsis={{ tooltip: formatEvidence(value) }} style={{ maxWidth: 320 }}>
@@ -642,7 +643,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
         />
       </Card>
 
-      <Card title="Audit Results">
+      <Card title="审核结果">
         <Space style={{ marginBottom: 16 }}>
           <Button
             type="primary"
@@ -650,7 +651,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
             disabled={!selectedTaskId || !canRunAudit}
             onClick={() => void handleRunAudit()}
           >
-            Run Audit
+            执行审核
           </Button>
         </Space>
         <Table<AuditResult>
@@ -658,23 +659,23 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
           dataSource={auditResults}
           pagination={false}
           columns={[
-            { title: "Business Key", dataIndex: "business_key" },
-            { title: "Rule", dataIndex: "rule_code" },
+            { title: "业务键", dataIndex: "business_key" },
+            { title: "规则", dataIndex: "rule_code" },
             {
-              title: "Status",
+              title: "状态",
               dataIndex: "status",
               render: (value: string, record) => (
                 <Space>
                   <Tag color={value === "pass" ? "green" : value === "fail" ? "red" : "gold"}>
-                    {value}
+                    {displayStatus(value)}
                   </Tag>
-                  {record.review_status === "pending" ? <Tag color="orange">Needs Review</Tag> : null}
+                  {record.review_status === "pending" ? <Tag color="orange">待复核</Tag> : null}
                 </Space>
               ),
             },
-            { title: "Severity", dataIndex: "severity" },
+            { title: "严重程度", dataIndex: "severity", render: (value: string) => displaySeverity(value) },
             {
-              title: "Message",
+              title: "消息",
               dataIndex: "message",
               render: (value: string) => (
                 <Typography.Text ellipsis={{ tooltip: value }} style={{ maxWidth: 280 }}>
@@ -683,7 +684,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
               ),
             },
             {
-              title: "Expected",
+              title: "预期值",
               dataIndex: "expected_value",
               render: (value: Record<string, unknown> | null) => (
                 <Typography.Text ellipsis={{ tooltip: formatNormalized(value) }} style={{ maxWidth: 220 }}>
@@ -692,7 +693,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
               ),
             },
             {
-              title: "Actual",
+              title: "实际值",
               dataIndex: "actual_value",
               render: (value: Record<string, unknown> | null) => (
                 <Typography.Text ellipsis={{ tooltip: formatNormalized(value) }} style={{ maxWidth: 220 }}>
@@ -701,7 +702,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
               ),
             },
             {
-              title: "Evidence",
+              title: "证据",
               dataIndex: "evidence",
               render: (value: Record<string, unknown>) => (
                 <Typography.Text ellipsis={{ tooltip: formatEvidence(value) }} style={{ maxWidth: 320 }}>
@@ -713,33 +714,33 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
         />
       </Card>
 
-      <Card title="Classification">
+      <Card title="文档分类">
         {selectedDocument ? (
           <Space direction="vertical" style={{ width: "100%" }}>
             {selectedDocument.review_status === "need_review" ? (
               <Alert
                 type="warning"
                 showIcon
-                message="Human review required"
-                description="The document type is unknown or classification confidence is below the MVP threshold."
+                message="需要人工复核"
+                description="文档类型未知，或分类置信度低于本地演示阈值。"
               />
             ) : null}
             <Space wrap>
               <Typography.Text>
-                Current type: <strong>{selectedDocument.doc_type ?? "-"}</strong>
+                当前类型: <strong>{displayDocType(selectedDocument.doc_type)}</strong>
               </Typography.Text>
               <Typography.Text>
-                Confidence: <strong>{formatConfidence(selectedDocument.doc_type_confidence)}</strong>
+                置信度: <strong>{formatConfidence(selectedDocument.doc_type_confidence)}</strong>
               </Typography.Text>
             </Space>
             <Typography.Paragraph>
-              {selectedDocument.classification_reason ?? "Run classification after OCR to view the reason."}
+              {selectedDocument.classification_reason ?? "OCR 后执行文档分类即可查看分类原因。"}
             </Typography.Paragraph>
             {selectedDocument.alternative_types?.length ? (
               <Space wrap>
                 {selectedDocument.alternative_types.map((alternative) => (
                   <Tag key={alternative.doc_type}>
-                    {alternative.doc_type}: {formatConfidence(alternative.confidence)}
+                    {displayDocType(alternative.doc_type)}: {formatConfidence(alternative.confidence)}
                   </Tag>
                 ))}
               </Space>
@@ -747,50 +748,50 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
             <Form layout="inline" form={manualForm} onFinish={handleManualCorrection}>
               <Form.Item
                 name="doc_type"
-                rules={[{ required: true, message: "Document type is required" }]}
+                rules={[{ required: true, message: "请选择文档类型" }]}
               >
                 <Select style={{ width: 240 }} options={classificationDocTypes} />
               </Form.Item>
               <Form.Item>
                 <Button htmlType="submit" loading={loading} disabled={!canProcessDocument}>
-                  Save Manual Type
+                  保存人工类型
                 </Button>
               </Form.Item>
             </Form>
           </Space>
         ) : (
-          <Typography.Text type="secondary">Select a document to view classification.</Typography.Text>
+          <Typography.Text type="secondary">请选择文档查看分类结果。</Typography.Text>
         )}
       </Card>
 
-      <Card title="Extracted Fields">
+      <Card title="抽取字段">
         {selectedDocument ? (
           <Space direction="vertical" style={{ width: "100%" }}>
             {selectedDocument.extraction_status === "failed" ? (
-              <Alert type="error" showIcon message="Field extraction failed" />
+              <Alert type="error" showIcon message="字段抽取失败" />
             ) : null}
             <Table<ExtractedField>
               rowKey="id"
               dataSource={fields}
               pagination={false}
               columns={[
-                { title: "Field", dataIndex: "field_label" },
-                { title: "Type", dataIndex: "field_type" },
+                { title: "字段", dataIndex: "field_label" },
+                { title: "类型", dataIndex: "field_type", render: (value: string) => displayFieldType(value) },
                 {
-                  title: "Value",
+                  title: "值",
                   dataIndex: "value_text",
                   render: (value: string | null, record) => (
                     <Space>
                       <Typography.Text>{value ?? "null"}</Typography.Text>
-                      {!value && record.is_required ? <Tag color="red">Missing</Tag> : null}
+                      {!value && record.is_required ? <Tag color="red">缺失</Tag> : null}
                       {record.confidence != null && record.confidence < 0.6 ? (
-                        <Tag color="gold">Low Confidence</Tag>
+                        <Tag color="gold">低置信度</Tag>
                       ) : null}
                     </Space>
                   ),
                 },
                 {
-                  title: "Normalized",
+                  title: "标准化值",
                   dataIndex: "value_normalized",
                   render: (value: Record<string, unknown> | null) => (
                     <Typography.Text ellipsis={{ tooltip: formatNormalized(value) }} style={{ maxWidth: 260 }}>
@@ -799,13 +800,13 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
                   ),
                 },
                 {
-                  title: "Confidence",
+                  title: "置信度",
                   dataIndex: "confidence",
                   render: (value: number | null) => formatConfidence(value),
                 },
-                { title: "Page", dataIndex: "source_page" },
+                { title: "页码", dataIndex: "source_page" },
                 {
-                  title: "Source Text",
+                  title: "来源文本",
                   dataIndex: "source_text",
                   render: (value: string | null) =>
                     value ? (
@@ -817,7 +818,7 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
                     ),
                 },
                 {
-                  title: "Warnings",
+                  title: "警告",
                   dataIndex: "warnings",
                   render: (warnings: string[]) =>
                     warnings.length ? (
@@ -836,27 +837,27 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
             />
           </Space>
         ) : (
-          <Typography.Text type="secondary">Select a document to view extracted fields.</Typography.Text>
+          <Typography.Text type="secondary">请选择文档查看抽取字段。</Typography.Text>
         )}
       </Card>
 
-      <Card title="OCR Pages">
+      <Card title="OCR 页面">
         {selectedDocument?.ocr_status === "failed" ? (
           <Alert
             type="error"
             showIcon
-            message="OCR failed"
-            description={selectedDocument.ocr_error ?? "Unknown OCR error"}
+            message="OCR 失败"
+            description={selectedDocument.ocr_error ?? "未知 OCR 错误"}
             style={{ marginBottom: 16 }}
           />
         ) : null}
         <Space direction="vertical" style={{ width: "100%" }}>
           <Select
-            placeholder="Select page"
+            placeholder="选择页码"
             style={{ width: 180 }}
             value={selectedPageNumber ?? undefined}
             options={pages.map((page) => ({
-              label: `Page ${page.page_number}`,
+              label: `第 ${page.page_number} 页`,
               value: page.page_number,
             }))}
             onChange={setSelectedPageNumber}
@@ -880,11 +881,11 @@ export function TaskCenterPage({ onNavigate, currentUser }: PageProps) {
                   margin: 0,
                 }}
               >
-                {selectedPage.raw_text || "(empty page text)"}
+                {selectedPage.raw_text || "(空页面文本)"}
               </pre>
             </>
           ) : (
-            <Typography.Text type="secondary">Run OCR to view page text.</Typography.Text>
+            <Typography.Text type="secondary">执行 OCR 后查看页面文本。</Typography.Text>
           )}
         </Space>
       </Card>

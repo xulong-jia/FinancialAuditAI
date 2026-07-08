@@ -648,6 +648,12 @@ export type LoginResponse = {
   token_type: string;
 };
 
+export type RegisterPayload = {
+  email: string;
+  password: string;
+  full_name?: string | null;
+};
+
 export type UserCreatePayload = {
   email: string;
   password: string;

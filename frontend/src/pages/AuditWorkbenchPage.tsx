@@ -17,6 +17,7 @@ import {
 import { AgentStateTimeline } from "../components/AgentStateTimeline";
 import type { PageProps } from "../routes";
 import type { AuditResult, AuditTask, DocumentPage, DocumentRecord, ExtractedField } from "../types/api";
+import { displayDocType, displaySeverity, displayStatus } from "../utils/displayText";
 import { hasPermission } from "../utils/permissions";
 
 type EvidenceRef = {
@@ -69,12 +70,12 @@ function statusColor(status: string | null | undefined) {
 
 function renderHighlightedText(rawText: string, evidenceText: string | null) {
   if (!evidenceText) {
-    return rawText || "(empty page text)";
+    return rawText || "(空页面文本)";
   }
 
   const index = rawText.indexOf(evidenceText);
   if (index < 0) {
-    return rawText || "(empty page text)";
+    return rawText || "(空页面文本)";
   }
 
   return (
@@ -146,8 +147,8 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
         );
       } catch {
         if (active) {
-          setError("Failed to load tasks");
-          message.error("Failed to load tasks");
+          setError("任务加载失败");
+          message.error("任务加载失败");
         }
       } finally {
         if (active) {
@@ -196,8 +197,8 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
         );
       } catch {
         if (active) {
-          setError("Failed to load workbench data");
-          message.error("Failed to load workbench data");
+          setError("审核工作台数据加载失败");
+          message.error("审核工作台数据加载失败");
         }
       } finally {
         if (active) {
@@ -244,7 +245,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
         if (active) {
           setPages([]);
           setSelectedPageNumber(null);
-          message.error("Failed to load OCR pages");
+          message.error("OCR 页面加载失败");
         }
       } finally {
         if (active) {
@@ -289,7 +290,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
       } catch {
         if (active) {
           setPageImageUrl(null);
-          message.error("Failed to load page image");
+          message.error("页面图片加载失败");
         }
       } finally {
         if (active) {
@@ -322,7 +323,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
     sourceBBox?: number[] | null,
   ) {
     if (!documentId) {
-      message.warning("Evidence does not include a document reference");
+      message.warning("证据未包含文档引用");
       return;
     }
 
@@ -374,7 +375,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
   }
 
   async function handleCorrectField(field: ExtractedField) {
-    const nextValue = window.prompt("Corrected value", field.value_text ?? "");
+    const nextValue = window.prompt("修正后的值", field.value_text ?? "");
     if (nextValue === null) {
       return;
     }
@@ -382,12 +383,12 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
       await updateField(field.id, {
         value_text: nextValue,
         actor_name: currentUser.full_name,
-        comment: "Corrected in Audit Workbench.",
+        comment: "在审核工作台修正。",
       });
       await refreshReviewData();
-      message.success("Field corrected");
+      message.success("字段已修正");
     } catch {
-      message.error("Failed to correct field");
+      message.error("字段修正失败");
     }
   }
 
@@ -395,19 +396,19 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
     try {
       await confirmAuditResult(result.id, {
         actor_name: currentUser.full_name,
-        reason: "Confirmed in Audit Workbench.",
+        reason: "在审核工作台确认。",
       });
       await refreshReviewData();
-      message.success("Audit result confirmed");
+      message.success("审核结果已确认");
     } catch {
-      message.error("Failed to confirm audit result");
+      message.error("审核结果确认失败");
     }
   }
 
   async function handleDismissResult(result: AuditResult) {
-    const reason = window.prompt("Dismiss reason");
+    const reason = window.prompt("驳回原因");
     if (!reason?.trim()) {
-      message.warning("Dismiss reason is required");
+      message.warning("请输入驳回原因");
       return;
     }
     try {
@@ -416,9 +417,9 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
         reason,
       });
       await refreshReviewData();
-      message.success("Audit result dismissed");
+      message.success("审核结果已驳回");
     } catch {
-      message.error("Failed to dismiss audit result");
+      message.error("审核结果驳回失败");
     }
   }
 
@@ -427,9 +428,9 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
       const nextResults = await rerunAuditResult(result.id, { actor_name: currentUser.full_name });
       setAuditResults(nextResults);
       await refreshReviewData();
-      message.success("Rules rerun");
+      message.success("规则已重跑");
     } catch {
-      message.error("Failed to rerun rules");
+      message.error("规则重跑失败");
     }
   }
 
@@ -439,13 +440,13 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
         <Space direction="vertical" size="middle" style={{ width: "100%" }}>
           <Space align="center" wrap>
             <Typography.Title level={3} style={{ margin: 0 }}>
-              Audit Workbench
+              审核工作台
             </Typography.Title>
             <Button disabled={!canViewEvaluation} onClick={() => onNavigate("bad-case-center")}>
-              Bad Case Center
+              失败案例中心
             </Button>
             <Select
-              placeholder="Select task"
+              placeholder="选择任务"
               style={{ minWidth: 320 }}
               loading={loadingTasks}
               value={selectedTaskId ?? undefined}
@@ -458,7 +459,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                 window.sessionStorage.setItem("audit_workbench_task_id", taskId);
               }}
             />
-            {selectedTask ? <Tag color="blue">{selectedTask.status}</Tag> : null}
+            {selectedTask ? <Tag color="blue">{displayStatus(selectedTask.status)}</Tag> : null}
           </Space>
           {error ? <Alert type="error" showIcon message={error} /> : null}
         </Space>
@@ -470,22 +471,15 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
         </Card>
       ) : tasks.length === 0 ? (
         <Card>
-          <Empty description="No tasks" />
+          <Empty description="暂无任务" />
         </Card>
       ) : (
         <>
           <AgentStateTimeline taskId={selectedTaskId} canRunAgent={canRunAgent} />
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "300px minmax(360px, 1fr) minmax(420px, 520px)",
-              gap: 16,
-              alignItems: "start",
-            }}
-          >
-          <Card title="Documents" loading={loadingTaskData}>
+          <div className="workbench-grid">
+          <Card title="文档" loading={loadingTaskData}>
             {documents.length === 0 ? (
-              <Empty description="No documents" />
+              <Empty description="暂无文档" />
             ) : (
               <List
                 dataSource={documents}
@@ -512,17 +506,17 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                         </Typography.Text>
                         <Space wrap size={4}>
                           <Tag color={document.doc_type === "unknown" ? "gold" : document.doc_type ? "blue" : "default"}>
-                            {document.doc_type ?? "unclassified"}
+                            {document.doc_type ? displayDocType(document.doc_type) : "未分类"}
                           </Tag>
-                          <Tag color={statusColor(document.ocr_status)}>OCR {document.ocr_status}</Tag>
+                          <Tag color={statusColor(document.ocr_status)}>OCR {displayStatus(document.ocr_status)}</Tag>
                           <Tag color={statusColor(document.extraction_status)}>
-                            Extract {document.extraction_status}
+                            抽取 {displayStatus(document.extraction_status)}
                           </Tag>
                         </Space>
                         <Typography.Text type="secondary">
-                          business_key: {document.business_key ?? "-"}
+                          业务键: {document.business_key ?? "-"}
                         </Typography.Text>
-                        {selected ? <Tag color="processing">Selected</Tag> : null}
+                        {selected ? <Tag color="processing">已选中</Tag> : null}
                       </Space>
                     </List.Item>
                   );
@@ -532,15 +526,15 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
           </Card>
 
           <Card
-            title={selectedDocument ? selectedDocument.original_filename : "OCR Text"}
+            title={selectedDocument ? selectedDocument.original_filename : "OCR 文本"}
             extra={
               <Select
-                placeholder="Page"
+                placeholder="页码"
                 style={{ width: 140 }}
                 disabled={pages.length === 0}
                 value={selectedPageNumber ?? undefined}
                 options={pages.map((page) => ({
-                  label: `Page ${page.page_number}`,
+                  label: `第 ${page.page_number} 页`,
                   value: page.page_number,
                 }))}
                 onChange={setSelectedPageNumber}
@@ -551,8 +545,8 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
               <Alert
                 type="error"
                 showIcon
-                message="OCR failed"
-                description={selectedDocument.ocr_error ?? "Unknown OCR error"}
+                message="OCR 失败"
+                description={selectedDocument.ocr_error ?? "未知 OCR 错误"}
                 style={{ marginBottom: 16 }}
               />
             ) : null}
@@ -567,11 +561,11 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                   <Alert
                     type="info"
                     showIcon
-                    message="Active evidence"
+                    message="当前证据"
                     description={
                       selectedPage.raw_text.includes(activeEvidenceText)
                         ? activeEvidenceText
-                        : "Evidence source text was not found on this page."
+                        : "当前页面未找到该证据原文。"
                     }
                   />
                 ) : null}
@@ -588,7 +582,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                   >
                     <img
                       src={pageImageUrl}
-                      alt={`Page ${selectedPage.page_number}`}
+                      alt={`第 ${selectedPage.page_number} 页`}
                       style={{ display: "block", width: "100%", height: "auto" }}
                     />
                     {(() => {
@@ -597,7 +591,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                     })()}
                   </div>
                 ) : selectedPage.image_path ? null : (
-                  <Alert type="info" showIcon message="Page image is unavailable for this OCR result" />
+                  <Alert type="info" showIcon message="当前 OCR 结果没有可用页面图片" />
                 )}
                 <pre
                   style={{
@@ -614,14 +608,14 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                 </pre>
               </Space>
             ) : selectedDocument ? (
-              <Empty description="No OCR pages" />
+              <Empty description="暂无 OCR 页面" />
             ) : (
-              <Empty description="Select a document" />
+              <Empty description="请选择文档" />
             )}
           </Card>
 
           <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-            <Card title="Fields">
+            <Card title="字段">
               {selectedDocument ? (
                 <Table<ExtractedField>
                   size="small"
@@ -631,40 +625,40 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                   scroll={{ x: 760 }}
                   columns={[
                     {
-                      title: "Field",
+                      title: "字段",
                       dataIndex: "field_label",
                       render: (value: string, record) => (
                         <Space direction="vertical" size={2}>
                           <Typography.Text>{value}</Typography.Text>
                           <Space wrap size={4}>
-                            {!record.value_text && record.is_required ? <Tag color="red">Missing</Tag> : null}
+                            {!record.value_text && record.is_required ? <Tag color="red">缺失</Tag> : null}
                             {record.confidence != null && record.confidence < 0.6 ? (
-                              <Tag color="gold">Low Confidence</Tag>
+                              <Tag color="gold">低置信度</Tag>
                             ) : null}
                           </Space>
                         </Space>
                       ),
                     },
                     {
-                      title: "Value",
+                      title: "值",
                       dataIndex: "value_text",
                       render: (value: string | null) => value ?? "null",
                     },
                     {
-                      title: "Confidence",
+                      title: "置信度",
                       dataIndex: "confidence",
                       render: (value: number | null) => formatConfidence(value),
                     },
                     {
-                      title: "Source",
+                      title: "来源",
                       render: (_, record) => (
                         <Button size="small" disabled={!record.source_page} onClick={() => jumpToField(record)}>
-                          Page {record.source_page ?? "-"}
+                          第 {record.source_page ?? "-"} 页
                         </Button>
                       ),
                     },
                     {
-                      title: "Source Text",
+                      title: "来源文本",
                       dataIndex: "source_text",
                       render: (value: string | null) =>
                         value ? (
@@ -676,23 +670,23 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                         ),
                     },
                     {
-                      title: "Review",
+                      title: "复核",
                       render: (_, record) => (
                         <Button size="small" disabled={!canReview} onClick={() => void handleCorrectField(record)}>
-                          Correct
+                          修正
                         </Button>
                       ),
                     },
                   ]}
                 />
               ) : (
-                <Empty description="Select a document" />
+                <Empty description="请选择文档" />
               )}
             </Card>
 
             <Card
-              title="Rule Results"
-              extra={<Button onClick={() => setReviewDrawerOpen(true)}>Review Drawer</Button>}
+              title="规则结果"
+              extra={<Button onClick={() => setReviewDrawerOpen(true)}>复核抽屉</Button>}
             >
               <Table<AuditResult>
                 size="small"
@@ -701,20 +695,20 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                 pagination={false}
                 scroll={{ x: 980 }}
                 columns={[
-                  { title: "Rule", dataIndex: "rule_code" },
+                  { title: "规则", dataIndex: "rule_code" },
                   {
-                    title: "Status",
+                    title: "状态",
                     dataIndex: "status",
                     render: (value: string, record) => (
                       <Space>
-                        <Tag color={statusColor(value)}>{value}</Tag>
-                        {record.review_status === "pending" ? <Tag color="orange">Needs Review</Tag> : null}
+                        <Tag color={statusColor(value)}>{displayStatus(value)}</Tag>
+                        {record.review_status === "pending" ? <Tag color="orange">待复核</Tag> : null}
                       </Space>
                     ),
                   },
-                  { title: "Severity", dataIndex: "severity" },
+                  { title: "严重程度", dataIndex: "severity", render: (value: string) => displaySeverity(value) },
                   {
-                    title: "Message",
+                    title: "消息",
                     dataIndex: "message",
                     render: (value: string) => (
                       <Typography.Text ellipsis={{ tooltip: value }} style={{ maxWidth: 260 }}>
@@ -723,7 +717,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                     ),
                   },
                   {
-                    title: "Expected",
+                    title: "预期值",
                     dataIndex: "expected_value",
                     render: (value: Record<string, unknown> | null) => (
                       <Typography.Text ellipsis={{ tooltip: formatJson(value) }} style={{ maxWidth: 180 }}>
@@ -732,7 +726,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                     ),
                   },
                   {
-                    title: "Actual",
+                    title: "实际值",
                     dataIndex: "actual_value",
                     render: (value: Record<string, unknown> | null) => (
                       <Typography.Text ellipsis={{ tooltip: formatJson(value) }} style={{ maxWidth: 180 }}>
@@ -741,7 +735,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                     ),
                   },
                   {
-                    title: "Evidence",
+                    title: "证据",
                     dataIndex: "evidence",
                     render: (value: Record<string, unknown>) => {
                       const refs = getEvidenceRefs(value);
@@ -756,7 +750,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                               size="small"
                               onClick={() => jumpToRuleEvidence(ref)}
                             >
-                              {ref.field_name ?? ref.doc_type ?? `Evidence ${index + 1}`}
+                              {ref.field_name ?? displayDocType(ref.doc_type) ?? `证据 ${index + 1}`}
                             </Button>
                           ))}
                         </Space>
@@ -764,7 +758,7 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
                     },
                   },
                   {
-                    title: "RAG Citations",
+                    title: "RAG 引用",
                     dataIndex: "rag_citations",
                     render: (value: Record<string, unknown>[] | null) => (
                       <Typography.Text ellipsis={{ tooltip: formatRagCitations(value) }} style={{ maxWidth: 220 }}>
@@ -781,54 +775,54 @@ export function AuditWorkbenchPage({ onNavigate, currentUser }: PageProps) {
       )}
 
       <Drawer
-        title="Review Drawer"
+        title="复核抽屉"
         open={reviewDrawerOpen}
         onClose={() => setReviewDrawerOpen(false)}
         width={620}
       >
         <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-          <Button onClick={() => onNavigate("review-center")}>Open Review Center</Button>
-          <Card size="small" title="Field Review">
+          <Button onClick={() => onNavigate("review-center")}>打开复核中心</Button>
+          <Card size="small" title="字段复核">
             <Space direction="vertical" style={{ width: "100%" }}>
               {selectedDocumentFields.length === 0 ? (
-                <Empty description="No fields" />
+                <Empty description="暂无字段" />
               ) : (
                 selectedDocumentFields.map((field) => (
                   <Space key={field.id} wrap>
                     <Typography.Text>{field.field_label}</Typography.Text>
-                    {!field.value_text && field.is_required ? <Tag color="red">Missing</Tag> : null}
-                    {field.confidence != null && field.confidence < 0.6 ? <Tag color="gold">Low Confidence</Tag> : null}
-                    {field.is_verified ? <Tag color="green">Verified</Tag> : null}
+                    {!field.value_text && field.is_required ? <Tag color="red">缺失</Tag> : null}
+                    {field.confidence != null && field.confidence < 0.6 ? <Tag color="gold">低置信度</Tag> : null}
+                    {field.is_verified ? <Tag color="green">已验证</Tag> : null}
                     <Button size="small" disabled={!canReview} onClick={() => void handleCorrectField(field)}>
-                      Correct
+                      修正
                     </Button>
                   </Space>
                 ))
               )}
             </Space>
           </Card>
-          <Card size="small" title="Audit Result Review">
+          <Card size="small" title="审核结果复核">
             <Space direction="vertical" style={{ width: "100%" }}>
               {visibleAuditResults.length === 0 ? (
-                <Empty description="No audit results" />
+                <Empty description="暂无审核结果" />
               ) : (
                 visibleAuditResults.map((result) => (
                   <Space key={result.id} direction="vertical" style={{ width: "100%" }}>
                     <Space wrap>
                       <Typography.Text strong>{result.rule_code}</Typography.Text>
-                      <Tag color={statusColor(result.status)}>{result.status}</Tag>
-                      <Tag color={statusColor(result.review_status)}>{result.review_status}</Tag>
+                      <Tag color={statusColor(result.status)}>{displayStatus(result.status)}</Tag>
+                      <Tag color={statusColor(result.review_status)}>{displayStatus(result.review_status)}</Tag>
                     </Space>
                     <Typography.Text>{result.message}</Typography.Text>
                     <Space wrap>
                       <Button size="small" disabled={!canReview} onClick={() => void handleConfirmResult(result)}>
-                        Confirm
+                        确认
                       </Button>
                       <Button size="small" danger disabled={!canReview} onClick={() => void handleDismissResult(result)}>
-                        Dismiss
+                        驳回
                       </Button>
                       <Button size="small" disabled={!canReview} onClick={() => void handleRerunResult(result)}>
-                        Rerun
+                        重跑
                       </Button>
                     </Space>
                   </Space>

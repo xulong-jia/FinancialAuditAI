@@ -1,0 +1,261 @@
+:root {
+  color: #17202a;
+  background: #f5f7f8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    linear-gradient(180deg, rgba(31, 111, 100, 0.08), rgba(245, 247, 248, 0) 300px),
+    #f5f7f8;
+}
+
+.loading-shell {
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7f8;
+}
+
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #17202a;
+  font-weight: 700;
+}
+
+.brand-mark {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: #1f6f64;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.auth-shell {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(320px, 560px) minmax(320px, 440px);
+  justify-content: center;
+  align-items: center;
+  gap: 40px;
+  padding: 48px 24px;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(31, 111, 100, 0.18), transparent 34%),
+    linear-gradient(135deg, #eef5f3 0%, #f7f8f5 56%, #eef1f4 100%);
+}
+
+.auth-hero {
+  max-width: 560px;
+}
+
+.auth-hero h1.ant-typography {
+  margin: 28px 0 16px;
+  color: #16211f;
+  font-size: clamp(32px, 5vw, 52px);
+  line-height: 1.08;
+}
+
+.auth-hero .ant-typography {
+  max-width: 520px;
+  color: #4b5d59;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.auth-card {
+  width: min(100%, 440px);
+  border: 1px solid rgba(31, 111, 100, 0.12);
+}
+
+.app-shell {
+  min-height: 100dvh;
+  background: #f5f7f8;
+}
+
+.app-header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e4e9e7;
+  box-shadow: 0 8px 24px rgba(23, 32, 42, 0.04);
+}
+
+.app-brand {
+  min-width: 240px;
+}
+
+.boundary-tag {
+  color: #6b4b14;
+  background: #fff7e6;
+  border-color: #f3d19e;
+}
+
+.user-actions {
+  margin-left: auto;
+}
+
+.app-sider {
+  min-height: calc(100dvh - 64px);
+  padding: 18px 12px;
+  border-right: 1px solid #e4e9e7;
+  background: #ffffff !important;
+}
+
+.sider-note {
+  display: grid;
+  gap: 4px;
+  margin: 0 4px 16px;
+  padding: 12px;
+  border: 1px solid #dce7e3;
+  border-radius: 8px;
+  background: #f6fbf9;
+  color: #31433f;
+  font-size: 13px;
+}
+
+.sider-note span {
+  color: #667572;
+}
+
+.app-content {
+  min-width: 0;
+  padding: 24px;
+}
+
+.mobile-nav {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  overflow-x: auto;
+  border-bottom: 1px solid #e4e9e7;
+}
+
+.app-shell .ant-card {
+  border-color: #e1e8e5;
+  box-shadow: 0 10px 26px rgba(23, 32, 42, 0.05);
+}
+
+.app-shell .ant-card-head {
+  min-height: 48px;
+  border-bottom-color: #edf1ef;
+}
+
+.app-shell .ant-card-head-title {
+  color: #22312e;
+  font-weight: 700;
+}
+
+.app-shell .ant-table-wrapper {
+  overflow-x: auto;
+}
+
+.app-shell .ant-table {
+  color: #253633;
+}
+
+.app-shell .ant-empty {
+  padding: 24px 8px;
+}
+
+.app-shell .ant-btn,
+.auth-shell .ant-btn {
+  min-height: 40px;
+}
+
+.app-shell .ant-form-inline {
+  gap: 8px 0;
+}
+
+.app-shell .ant-tag {
+  border-radius: 999px;
+  line-height: 22px;
+}
+
+.workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 320px) minmax(360px, 1fr) minmax(400px, 520px);
+  gap: 16px;
+  align-items: start;
+}
+
+.two-pane-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 440px) minmax(520px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1180px) {
+  .app-content {
+    padding: 18px;
+  }
+
+  .workbench-grid,
+  .two-pane-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .auth-shell {
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 24px;
+  }
+
+  .auth-hero {
+    max-width: 680px;
+  }
+
+  .app-header {
+    height: auto;
+    min-height: 64px;
+    flex-wrap: wrap;
+    padding: 14px 16px;
+  }
+
+  .app-brand {
+    min-width: auto;
+  }
+
+  .boundary-tag {
+    order: 3;
+  }
+
+  .user-actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-shell {
+    padding: 28px 16px;
+  }
+
+  .auth-hero h1.ant-typography {
+    margin-top: 20px;
+  }
+
+  .app-content {
+    padding: 14px;
+  }
+
+  .user-actions .ant-typography {
+    display: none;
+  }
+
+  .app-shell .ant-card-body {
+    padding: 16px;
+  }
+}

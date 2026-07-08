@@ -1,20 +1,55 @@
-import { Button, Card, Form, Input, Layout, Menu, Space, Spin, Typography, message } from "antd";
+import { Button, Card, ConfigProvider, Form, Grid, Input, Layout, Menu, Space, Spin, Tag, Typography, message } from "antd";
+import zhCN from "antd/locale/zh_CN";
 import { useEffect, useMemo, useState } from "react";
 
-import { clearAccessToken, getAccessToken, getCurrentUser, login, logout, setAccessToken } from "./api/client";
+import { clearAccessToken, getAccessToken, getCurrentUser, login, logout, register, setAccessToken } from "./api/client";
 import { routes } from "./routes";
 import type { PageKey } from "./routes";
-import type { LoginPayload, UserRecord } from "./types/api";
+import type { LoginPayload, RegisterPayload, UserRecord } from "./types/api";
 import { hasPermission } from "./utils/permissions";
 
 const { Header, Content, Sider } = Layout;
 
+const theme = {
+  token: {
+    colorPrimary: "#1f6f64",
+    colorInfo: "#1f6f64",
+    colorSuccess: "#237a57",
+    colorWarning: "#b7791f",
+    colorError: "#b42318",
+    colorTextBase: "#17202a",
+    colorBgLayout: "#f5f7f8",
+    borderRadius: 8,
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
+  },
+  components: {
+    Button: {
+      controlHeight: 40,
+      borderRadius: 6,
+    },
+    Card: {
+      borderRadiusLG: 8,
+      boxShadowTertiary: "0 10px 30px rgba(23, 32, 42, 0.06)",
+    },
+    Table: {
+      headerBg: "#f4f7f6",
+      headerColor: "#31433f",
+      rowHoverBg: "#f7fbfa",
+    },
+  },
+};
+
 export default function App() {
   const [loginForm] = Form.useForm<LoginPayload>();
+  const [registerForm] = Form.useForm<RegisterPayload & { confirm_password: string }>();
   const [activeKey, setActiveKey] = useState<PageKey>(routes[0].key);
   const [currentUser, setCurrentUser] = useState<UserRecord | null>(null);
   const [initializing, setInitializing] = useState(Boolean(getAccessToken()));
   const [authLoading, setAuthLoading] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const screens = Grid.useBreakpoint();
+  const compactNav = !screens.lg;
 
   useEffect(() => {
     if (!getAccessToken()) {
@@ -59,9 +94,28 @@ export default function App() {
       setAccessToken(token.access_token);
       const user = await getCurrentUser();
       setCurrentUser(user);
-      message.success("Signed in");
-    } catch {
-      message.error("Sign in failed");
+      message.success("登录成功");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "登录失败");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleRegister(values: RegisterPayload & { confirm_password: string }) {
+    setAuthLoading(true);
+    try {
+      const token = await register({
+        email: values.email,
+        password: values.password,
+        full_name: values.full_name?.trim() || null,
+      });
+      setAccessToken(token.access_token);
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+      message.success("注册成功");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "注册失败");
     } finally {
       setAuthLoading(false);
     }
@@ -80,65 +134,168 @@ export default function App() {
 
   if (initializing) {
     return (
-      <Layout style={{ minHeight: "100vh", alignItems: "center", justifyContent: "center" }}>
-        <Spin />
-      </Layout>
+      <ConfigProvider theme={theme} locale={zhCN}>
+        <Layout className="loading-shell">
+          <Spin size="large" />
+        </Layout>
+      </ConfigProvider>
     );
   }
 
   if (!currentUser) {
     return (
-      <Layout style={{ minHeight: "100vh", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <Card style={{ width: 420 }}>
-          <Space direction="vertical" size="large" style={{ width: "100%" }}>
-            <Typography.Title level={3} style={{ margin: 0 }}>
-              FinancialAuditAI
-            </Typography.Title>
-            <Form layout="vertical" form={loginForm} onFinish={handleLogin}>
-              <Form.Item name="email" label="Email" rules={[{ required: true, message: "Email is required" }]}>
-                <Input autoComplete="email" />
-              </Form.Item>
-              <Form.Item name="password" label="Password" rules={[{ required: true, message: "Password is required" }]}>
-                <Input.Password autoComplete="current-password" />
-              </Form.Item>
-              <Button type="primary" htmlType="submit" loading={authLoading} block>
-                Sign in
-              </Button>
-            </Form>
-          </Space>
-        </Card>
-      </Layout>
+      <ConfigProvider theme={theme} locale={zhCN}>
+        <Layout className="auth-shell">
+          <section className="auth-hero" aria-label="FinancialAuditAI 本地演示说明">
+            <div className="brand-lockup">
+              <span className="brand-mark">F</span>
+              <span>FinancialAuditAI</span>
+            </div>
+            <Typography.Title level={1}>证据优先的金融文档智能审核平台</Typography.Title>
+            <Typography.Paragraph>
+              本地 public acceptance demo，聚焦文档归集、OCR、字段抽取、规则审核、人工复核和报告导出。
+            </Typography.Paragraph>
+            <Space wrap>
+              <Tag color="processing">非生产演示</Tag>
+              <Tag color="success">可复核</Tag>
+              <Tag color="default">可回归</Tag>
+            </Space>
+          </section>
+          <Card className="auth-card">
+            <Space direction="vertical" size="large" style={{ width: "100%" }}>
+              <div>
+                <Typography.Title level={3} style={{ margin: 0 }}>
+                  {authMode === "login" ? "登录本地演示" : "创建本地账号"}
+                </Typography.Title>
+                <Typography.Text type="secondary">仅用于本地公开验收演示，不是生产开放注册。</Typography.Text>
+              </div>
+              {authMode === "login" ? (
+                <Form layout="vertical" form={loginForm} onFinish={handleLogin} requiredMark={false}>
+                  <Form.Item
+                    name="email"
+                    label="邮箱"
+                    rules={[
+                      { required: true, message: "请输入邮箱" },
+                      { type: "email", message: "请输入有效邮箱" },
+                    ]}
+                  >
+                    <Input autoComplete="email" inputMode="email" />
+                  </Form.Item>
+                  <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
+                    <Input.Password autoComplete="current-password" />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" loading={authLoading} block>
+                    登录
+                  </Button>
+                  <Button type="link" block onClick={() => setAuthMode("register")}>
+                    注册账号
+                  </Button>
+                </Form>
+              ) : (
+                <Form layout="vertical" form={registerForm} onFinish={handleRegister} requiredMark={false}>
+                  <Form.Item
+                    name="email"
+                    label="邮箱"
+                    rules={[
+                      { required: true, message: "请输入邮箱" },
+                      { type: "email", message: "请输入有效邮箱" },
+                    ]}
+                  >
+                    <Input autoComplete="email" inputMode="email" />
+                  </Form.Item>
+                  <Form.Item name="full_name" label="姓名">
+                    <Input autoComplete="name" />
+                  </Form.Item>
+                  <Form.Item
+                    name="password"
+                    label="密码"
+                    rules={[
+                      { required: true, message: "请输入密码" },
+                      { min: 8, message: "密码至少 8 位" },
+                    ]}
+                  >
+                    <Input.Password autoComplete="new-password" />
+                  </Form.Item>
+                  <Form.Item
+                    name="confirm_password"
+                    label="确认密码"
+                    dependencies={["password"]}
+                    rules={[
+                      { required: true, message: "请确认密码" },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          if (!value || getFieldValue("password") === value) {
+                            return Promise.resolve();
+                          }
+                          return Promise.reject(new Error("两次输入的密码不一致"));
+                        },
+                      }),
+                    ]}
+                  >
+                    <Input.Password autoComplete="new-password" />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" loading={authLoading} block>
+                    注册账号
+                  </Button>
+                  <Button type="link" block onClick={() => setAuthMode("login")}>
+                    返回登录
+                  </Button>
+                </Form>
+              )}
+            </Space>
+          </Card>
+        </Layout>
+      </ConfigProvider>
     );
   }
 
   const activeRoute = visibleRoutes.find((route) => route.key === activeKey) ?? visibleRoutes[0];
   const ActiveComponent = activeRoute.Component;
+  const menuItems = visibleRoutes.map((route) => ({ key: route.key, label: route.label }));
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <Header style={{ display: "flex", alignItems: "center" }}>
-        <Typography.Title level={4} style={{ color: "white", margin: 0 }}>
-          FinancialAuditAI
-        </Typography.Title>
-        <Space style={{ marginLeft: "auto" }}>
-          <Typography.Text style={{ color: "white" }}>{currentUser.full_name}</Typography.Text>
-          <Button onClick={() => void handleLogout()}>Logout</Button>
-        </Space>
-      </Header>
-      <Layout>
-        <Sider width={248} theme="light">
+    <ConfigProvider theme={theme} locale={zhCN}>
+      <Layout className="app-shell">
+        <Header className="app-header">
+          <div className="brand-lockup app-brand">
+            <span className="brand-mark">F</span>
+            <span>FinancialAuditAI</span>
+          </div>
+          <Tag className="boundary-tag">非生产公开验收演示</Tag>
+          <Space className="user-actions">
+            <Typography.Text>{currentUser.full_name || currentUser.email}</Typography.Text>
+            <Button onClick={() => void handleLogout()}>退出登录</Button>
+          </Space>
+        </Header>
+        {compactNav ? (
           <Menu
-            mode="inline"
+            className="mobile-nav"
+            mode="horizontal"
             selectedKeys={[activeKey]}
-            items={visibleRoutes.map((route) => ({ key: route.key, label: route.label }))}
+            items={menuItems}
             onClick={({ key }) => setActiveKey(key as PageKey)}
-            style={{ height: "100%", borderRight: 0 }}
           />
-        </Sider>
-        <Content style={{ padding: 24 }}>
-          <ActiveComponent onNavigate={setActiveKey} currentUser={currentUser} />
-        </Content>
+        ) : null}
+        <Layout>
+          {!compactNav ? (
+            <Sider width={252} theme="light" className="app-sider">
+              <div className="sider-note">
+                <strong>本地演示边界</strong>
+                <span>证据优先 · 人工复核 · 回归验证</span>
+              </div>
+              <Menu
+                mode="inline"
+                selectedKeys={[activeKey]}
+                items={menuItems}
+                onClick={({ key }) => setActiveKey(key as PageKey)}
+              />
+            </Sider>
+          ) : null}
+          <Content className="app-content">
+            <ActiveComponent onNavigate={setActiveKey} currentUser={currentUser} />
+          </Content>
+        </Layout>
       </Layout>
-    </Layout>
+    </ConfigProvider>
   );
 }

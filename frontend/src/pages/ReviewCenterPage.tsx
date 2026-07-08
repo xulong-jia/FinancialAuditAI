@@ -30,6 +30,7 @@ import {
 } from "../api/client";
 import type { PageProps } from "../routes";
 import type { AuditResult, AuditTask, BadCaseType, ExtractedField, ReviewComment, ReviewQueueItem } from "../types/api";
+import { displayDocType, displayReviewItemType, displayStatus } from "../utils/displayText";
 import { hasPermission } from "../utils/permissions";
 
 type CorrectionFormValues = {
@@ -94,7 +95,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
       setQueue(nextQueue);
       setComments(nextComments);
     } catch {
-      message.error("Failed to load review data");
+      message.error("复核数据加载失败");
     } finally {
       setLoading(false);
     }
@@ -116,7 +117,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
         setQueue(nextQueue);
         setComments(nextComments);
       } catch {
-        message.error("Failed to load review center");
+        message.error("复核中心加载失败");
       } finally {
         setLoading(false);
       }
@@ -152,9 +153,9 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
       setEditingField(null);
       correctionForm.resetFields();
       await refresh();
-      message.success("Field corrected");
+      message.success("字段已修正");
     } catch {
-      message.error("Failed to correct field. Check normalized JSON if provided.");
+      message.error("字段修正失败，请检查标准化 JSON。");
     } finally {
       setLoading(false);
     }
@@ -165,12 +166,12 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
     try {
       await confirmAuditResult(result.id, {
         actor_name: reviewerName,
-        reason: "Confirmed in Review Center.",
+        reason: "在复核中心确认。",
       });
       await refresh();
-      message.success("Audit result confirmed");
+      message.success("审核结果已确认");
     } catch {
-      message.error("Failed to confirm audit result");
+      message.error("审核结果确认失败");
     } finally {
       setLoading(false);
     }
@@ -190,9 +191,9 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
       setDismissingResult(null);
       dismissForm.resetFields();
       await refresh();
-      message.success("Audit result dismissed");
+      message.success("审核结果已驳回");
     } catch {
-      message.error("Failed to dismiss audit result");
+      message.error("审核结果驳回失败");
     } finally {
       setLoading(false);
     }
@@ -203,9 +204,9 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
     try {
       await rerunAuditResult(result.id, { actor_name: reviewerName });
       await refresh();
-      message.success("Rules rerun");
+      message.success("规则已重跑");
     } catch {
-      message.error("Failed to rerun rules");
+      message.error("规则重跑失败");
     } finally {
       setLoading(false);
     }
@@ -216,12 +217,12 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
     try {
       await rerunRulesForField(field.id, {
         actor_name: reviewerName,
-        reason: "Rules rerun after field review.",
+        reason: "字段复核后重跑规则。",
       });
       await refresh();
-      message.success("Rules rerun");
+      message.success("规则已重跑");
     } catch {
-      message.error("Failed to rerun rules");
+      message.error("规则重跑失败");
     } finally {
       setLoading(false);
     }
@@ -232,12 +233,12 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
     try {
       await reextractDocument(documentId, {
         actor_name: reviewerName,
-        reason: "Re-extraction requested in Review Center.",
+        reason: "复核中心请求重新抽取。",
       });
       await refresh();
-      message.success("Document re-extracted");
+      message.success("文档已重新抽取");
     } catch {
-      message.error("Failed to re-extract document");
+      message.error("文档重新抽取失败");
     } finally {
       setLoading(false);
     }
@@ -253,7 +254,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
         field_id: record.field_id,
         author_name: reviewerName,
         comment_type: record.item_type === "agent_step" ? "agent_step_reviewed" : "manual_review_resolved",
-        content: `Reviewed ${record.item_type}: ${record.reason}.`,
+        content: `已复核 ${displayReviewItemType(record.item_type)}: ${record.reason}.`,
         after_value: {
           agent_step_id: record.agent_step_id,
           comment_id: record.comment_id,
@@ -262,9 +263,9 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
         },
       });
       await refresh();
-      message.success("Review item marked reviewed");
+      message.success("复核项已标记为已复核");
     } catch {
-      message.error("Failed to mark review item");
+      message.error("标记复核项失败");
     } finally {
       setLoading(false);
     }
@@ -305,9 +306,9 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
         owner_name: reviewerName,
       });
       await refresh();
-      message.success("Bad case created");
+      message.success("Bad Case 已创建");
     } catch {
-      message.error("Failed to create bad case");
+      message.error("Bad Case 创建失败");
     } finally {
       setLoading(false);
     }
@@ -318,11 +319,11 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
       <Card>
         <Space align="center" wrap>
           <Typography.Title level={3} style={{ margin: 0 }}>
-            Review Center
+            复核中心
           </Typography.Title>
           <Select
             allowClear
-            placeholder="All tasks"
+            placeholder="全部任务"
             style={{ minWidth: 320 }}
             value={selectedTaskId}
             options={tasks.map((task) => ({
@@ -335,12 +336,12 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
             }}
           />
           <Button loading={loading} onClick={() => void refresh()}>
-            Refresh
+            刷新
           </Button>
         </Space>
       </Card>
 
-      <Card title="Review Queue">
+      <Card title="复核队列">
         <Table<ReviewQueueItem>
           rowKey={(record) =>
             record.field_id ??
@@ -356,17 +357,17 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
           scroll={{ x: 980 }}
           columns={[
             {
-              title: "Type",
+              title: "类型",
               dataIndex: "item_type",
               render: (value: ReviewQueueItem["item_type"]) => (
                 <Tag color={value === "field" ? "blue" : value === "audit_result" ? "purple" : "gold"}>
-                  {value}
+                  {displayReviewItemType(value)}
                 </Tag>
               ),
             },
-            { title: "Reason", dataIndex: "reason" },
+            { title: "原因", dataIndex: "reason" },
             {
-              title: "Target",
+              title: "对象",
               render: (_, record) =>
                 record.field ? (
                   <Space direction="vertical" size={2}>
@@ -381,7 +382,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                 ) : record.document ? (
                   <Space direction="vertical" size={2}>
                     <Typography.Text>{record.document.original_filename}</Typography.Text>
-                    <Typography.Text type="secondary">{record.document.doc_type ?? "unknown"}</Typography.Text>
+                    <Typography.Text type="secondary">{displayDocType(record.document.doc_type)}</Typography.Text>
                   </Space>
                 ) : record.agent_step ? (
                   <Space direction="vertical" size={2}>
@@ -398,36 +399,36 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                 ),
             },
             {
-              title: "Status",
+              title: "状态",
               render: (_, record) =>
                 record.audit_result ? (
                   <Space>
-                    <Tag color={statusColor(record.audit_result.status)}>{record.audit_result.status}</Tag>
+                    <Tag color={statusColor(record.audit_result.status)}>{displayStatus(record.audit_result.status)}</Tag>
                     <Tag color={statusColor(record.audit_result.review_status)}>
-                      {record.audit_result.review_status}
+                      {displayStatus(record.audit_result.review_status)}
                     </Tag>
                   </Space>
                 ) : record.field ? (
                   <Space>
-                    {!record.field.value_text ? <Tag color="red">Missing</Tag> : null}
+                    {!record.field.value_text ? <Tag color="red">缺失</Tag> : null}
                     {record.field.confidence != null && record.field.confidence < 0.6 ? (
-                      <Tag color="gold">Low Confidence</Tag>
+                      <Tag color="gold">低置信度</Tag>
                     ) : null}
-                    {record.field.is_verified ? <Tag color="green">Verified</Tag> : null}
+                    {record.field.is_verified ? <Tag color="green">已验证</Tag> : null}
                   </Space>
                 ) : record.document ? (
                   <Space>
-                    <Tag color={statusColor(record.document.review_status)}>{record.document.review_status}</Tag>
-                    <Tag color={statusColor(record.document.ocr_status)}>{record.document.ocr_status}</Tag>
+                    <Tag color={statusColor(record.document.review_status)}>{displayStatus(record.document.review_status)}</Tag>
+                    <Tag color={statusColor(record.document.ocr_status)}>{displayStatus(record.document.ocr_status)}</Tag>
                   </Space>
                 ) : record.agent_step ? (
-                  <Tag color={statusColor(record.agent_step.status)}>{record.agent_step.status}</Tag>
+                  <Tag color={statusColor(record.agent_step.status)}>{displayStatus(record.agent_step.status)}</Tag>
                 ) : (
                   "-"
                 ),
             },
             {
-              title: "Value",
+              title: "值",
               render: (_, record) =>
                 record.field ? (
                   <Typography.Text>{record.field.value_text ?? "null"}</Typography.Text>
@@ -450,23 +451,23 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                 ),
             },
             {
-              title: "Action",
+              title: "操作",
               render: (_, record) => {
                 const field = record.field;
                 if (field) {
                   return (
                     <Space>
                       <Button size="small" disabled={!canReview} onClick={() => openCorrection(field)}>
-                        Correct
+                        修正
                       </Button>
                       <Button size="small" disabled={!canReview} onClick={() => void handleRerunField(field)}>
-                        Rerun Rules
+                        重跑规则
                       </Button>
                       <Button size="small" disabled={!canReview} onClick={() => void handleReextract(field.document_id)}>
-                        Re-extract
+                        重新抽取
                       </Button>
                       <Button size="small" disabled={!canReview} onClick={() => void handleCreateBadCase(record)}>
-                        To Bad Case
+                        转为 Bad Case
                       </Button>
                     </Space>
                   );
@@ -476,7 +477,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                   return (
                     <Space>
                       <Button size="small" disabled={!canReview} onClick={() => void handleConfirm(result)}>
-                        Confirm
+                        确认
                       </Button>
                       <Button
                         size="small"
@@ -487,13 +488,13 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                           dismissForm.setFieldsValue({ actor_name: reviewerName });
                         }}
                       >
-                        Dismiss
+                        驳回
                       </Button>
                       <Button size="small" disabled={!canReview} onClick={() => void handleRerun(result)}>
-                        Rerun
+                        重跑
                       </Button>
                       <Button size="small" disabled={!canReview} onClick={() => void handleCreateBadCase(record)}>
-                        To Bad Case
+                        转为 Bad Case
                       </Button>
                     </Space>
                   );
@@ -503,10 +504,10 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                   return (
                     <Space>
                       <Button size="small" disabled={!canReview} onClick={() => void handleReextract(document.id)}>
-                        Re-extract
+                        重新抽取
                       </Button>
                       <Button size="small" disabled={!canReview} onClick={() => void handleCreateBadCase(record)}>
-                        To Bad Case
+                        转为 Bad Case
                       </Button>
                     </Space>
                   );
@@ -515,10 +516,10 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                   return (
                     <Space>
                       <Button size="small" disabled={!canReview} onClick={() => void handleMarkReviewed(record)}>
-                        Mark Reviewed
+                        标记已复核
                       </Button>
                       <Button size="small" disabled={!canReview} onClick={() => void handleCreateBadCase(record)}>
-                        To Bad Case
+                        转为 Bad Case
                       </Button>
                     </Space>
                   );
@@ -530,18 +531,18 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
         />
       </Card>
 
-      <Card title="Review Comment History">
+      <Card title="复核意见历史">
         <Table<ReviewComment>
           rowKey="id"
           dataSource={comments}
           pagination={false}
           scroll={{ x: 860 }}
           columns={[
-            { title: "Type", dataIndex: "comment_type" },
-            { title: "Author", dataIndex: "author_name", render: (value: string | null) => value ?? "-" },
-            { title: "Content", dataIndex: "content" },
+            { title: "类型", dataIndex: "comment_type" },
+            { title: "作者", dataIndex: "author_name", render: (value: string | null) => value ?? "-" },
+            { title: "内容", dataIndex: "content" },
             {
-              title: "Before",
+              title: "变更前",
               dataIndex: "before_value",
               render: (value: Record<string, unknown> | null) => (
                 <Typography.Text ellipsis={{ tooltip: formatJson(value) }} style={{ maxWidth: 260 }}>
@@ -550,7 +551,7 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
               ),
             },
             {
-              title: "After",
+              title: "变更后",
               dataIndex: "after_value",
               render: (value: Record<string, unknown> | null) => (
                 <Typography.Text ellipsis={{ tooltip: formatJson(value) }} style={{ maxWidth: 260 }}>
@@ -558,13 +559,13 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
                 </Typography.Text>
               ),
             },
-            { title: "Created", dataIndex: "created_at" },
+            { title: "创建时间", dataIndex: "created_at" },
           ]}
         />
       </Card>
 
       <Drawer
-        title="Correct Field"
+        title="修正字段"
         open={Boolean(editingField)}
         onClose={() => setEditingField(null)}
         width={520}
@@ -574,27 +575,27 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
             <Alert
               type="info"
               showIcon
-              message="Original evidence is retained"
-              description={`Source page: ${editingField.source_page ?? "-"}; source text: ${editingField.source_text ?? "-"}`}
+              message="原始证据会保留"
+              description={`来源页码: ${editingField.source_page ?? "-"}; 来源文本: ${editingField.source_text ?? "-"}`}
             />
             <Form layout="vertical" form={correctionForm} onFinish={handleCorrection}>
-              <Form.Item name="value_text" label="Corrected Value">
+              <Form.Item name="value_text" label="修正值">
                 <Input />
               </Form.Item>
-              <Form.Item name="value_normalized_json" label="Normalized JSON">
+              <Form.Item name="value_normalized_json" label="标准化 JSON">
                 <TextArea rows={4} />
               </Form.Item>
-              <Form.Item name="confidence" label="Confidence">
+              <Form.Item name="confidence" label="置信度">
                 <InputNumber min={0} max={1} step={0.01} style={{ width: "100%" }} />
               </Form.Item>
-              <Form.Item name="actor_name" label="Reviewer">
+              <Form.Item name="actor_name" label="复核人">
                 <Input />
               </Form.Item>
-              <Form.Item name="comment" label="Comment">
+              <Form.Item name="comment" label="备注">
                 <TextArea rows={3} />
               </Form.Item>
               <Button type="primary" htmlType="submit" loading={loading} disabled={!canReview}>
-                Save Correction
+                保存修正
               </Button>
             </Form>
           </Space>
@@ -602,20 +603,20 @@ export function ReviewCenterPage({ currentUser }: PageProps) {
       </Drawer>
 
       <Drawer
-        title="Dismiss Audit Result"
+        title="驳回审核结果"
         open={Boolean(dismissingResult)}
         onClose={() => setDismissingResult(null)}
         width={460}
       >
         <Form layout="vertical" form={dismissForm} onFinish={handleDismiss}>
-          <Form.Item name="actor_name" label="Reviewer">
+          <Form.Item name="actor_name" label="复核人">
             <Input />
           </Form.Item>
-          <Form.Item name="reason" label="Dismiss Reason" rules={[{ required: true, message: "Reason is required" }]}>
+          <Form.Item name="reason" label="驳回原因" rules={[{ required: true, message: "请输入原因" }]}>
             <TextArea rows={4} />
           </Form.Item>
           <Button type="primary" danger htmlType="submit" loading={loading} disabled={!canReview}>
-            Dismiss
+            驳回
           </Button>
         </Form>
       </Drawer>

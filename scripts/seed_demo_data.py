@@ -4,33 +4,43 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
-import os
 from pathlib import Path
-from secrets import token_urlsafe
 import sys
 from uuid import uuid4
+
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.engine.url import make_url  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_ROOT = PROJECT_ROOT / "backend"
 sys.path.insert(0, str(BACKEND_ROOT))
 
+from app.core.config import settings  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 from app.models.document import Document  # noqa: E402
 from app.models.document_page import DocumentPage  # noqa: E402
 from app.models.document_relation import DocumentRelation  # noqa: E402
 from app.models.extracted_field import ExtractedField  # noqa: E402
+from app.models.role import Role  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.models.user_role import UserRole  # noqa: E402
 from app.schemas.auth import UserCreate  # noqa: E402
 from app.schemas.task import TaskCreate  # noqa: E402
 from app.services import auth_service, report_service, rule_engine_service, task_service  # noqa: E402
 
 SEED_PATH = PROJECT_ROOT / "samples" / "procurement" / "demo_seed.json"
+DEMO_PASSWORD = "Test123456"
+DEMO_USERS = (
+    ("analyst.demo@example.com", "Demo Analyst", "Analyst", "analyst"),
+    ("reviewer.demo@example.com", "Demo Reviewer", "Reviewer", "reviewer"),
+    ("admin.demo@example.com", "Demo Admin", "Administrator", "admin"),
+)
 
 
 def main() -> None:
     seed = json.loads(SEED_PATH.read_text())
     with SessionLocal() as db:
-        demo_credentials = _ensure_demo_admin(db)
+        demo_credentials = _ensure_demo_users(db)
         task = task_service.create_task(
             db,
             TaskCreate(
@@ -56,28 +66,51 @@ def main() -> None:
         print(f"Created demo task: {task.task_no} ({task.id})")
         print(f"Audit results: {len(results)}")
         print(f"Report: {report.storage_path}")
-        if demo_credentials:
-            print(f"Demo admin email: {demo_credentials[0]}")
-            print(f"Demo admin password: {demo_credentials[1]}")
+        print(f"Database: {_masked_database_url()}")
+        print("Demo accounts ready")
+        for email, _role_code in demo_credentials:
+            print(f"- {email} / {DEMO_PASSWORD}")
 
 
-def _ensure_demo_admin(db) -> tuple[str, str] | None:
-    if db.query(User.id).first() is not None:
-        return None
-    email = os.environ.get("DEMO_ADMIN_EMAIL", "demo-admin@example.com")
-    demo_password = os.environ.get("DEMO_ADMIN_PASSWORD") or token_urlsafe(12)
-    auth_service.create_user(
-        db,
-        UserCreate(
-            email=email,
-            password=demo_password,
-            full_name="Demo Admin",
-            organization="Synthetic Demo",
-            title="Administrator",
-            role_codes=["admin"],
-        ),
-    )
-    return email, demo_password
+def _ensure_demo_users(db) -> list[tuple[str, str]]:
+    auth_service.ensure_default_roles(db)
+    created: list[tuple[str, str]] = []
+    for email, full_name, title, role_code in DEMO_USERS:
+        user = db.scalar(select(User).where(User.email == email))
+        if user is None:
+            auth_service.create_user(
+                db,
+                UserCreate(
+                    email=email,
+                    password=DEMO_PASSWORD,
+                    full_name=full_name,
+                    organization="Synthetic Demo",
+                    title=title,
+                    role_codes=[role_code],
+                ),
+            )
+        else:
+            user.password_hash = auth_service.hash_password(DEMO_PASSWORD)
+            user.full_name = full_name
+            user.organization = "Synthetic Demo"
+            user.title = title
+            user.status = "active"
+            _replace_user_role(db, user, role_code)
+            db.commit()
+        created.append((email, role_code))
+    return created
+
+
+def _replace_user_role(db, user: User, role_code: str) -> None:
+    role = db.scalar(select(Role).where(Role.code == role_code))
+    if role is None:
+        raise RuntimeError(f"Missing demo role: {role_code}")
+    db.query(UserRole).filter(UserRole.user_id == user.id).delete()
+    db.add(UserRole(user_id=user.id, role_id=role.id))
+
+
+def _masked_database_url() -> str:
+    return make_url(settings.database_url).render_as_string(hide_password=True)
 
 
 def _create_document(db, task_id, business_key: str, document_seed: dict) -> Document:

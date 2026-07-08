@@ -30,3 +30,6 @@ __pycache__/
 dist/
 frontend/dist/
 .vite/
+
+# Internal execution/audit notes
+/docs/execution_manual_strict_gap_report.md

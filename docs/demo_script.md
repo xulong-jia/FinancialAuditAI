@@ -18,12 +18,28 @@ python ../scripts/seed_demo_data.py
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+If the full stack is running with Docker Compose, run the seed inside the
+`backend` container so it writes to the same database as the app:
+
+```bash
+docker compose exec backend python ../scripts/seed_demo_data.py
+```
+
 ```bash
 cd frontend
 npm run dev
 ```
 
-If no user exists, the seed script prints a local demo admin email and generated password.
+The seed script creates local demo-only accounts:
+
+| Role | Email | Password |
+| --- | --- | --- |
+| analyst | `analyst.demo@example.com` | `Test123456` |
+| reviewer | `reviewer.demo@example.com` | `Test123456` |
+| admin | `admin.demo@example.com` | `Test123456` |
+
+Normal self-registration still creates an `analyst` account. These fixed
+accounts are only for local public acceptance demos, not production access.
 
 ## Main Walkthrough
 

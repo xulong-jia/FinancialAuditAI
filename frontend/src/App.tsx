@@ -276,7 +276,7 @@ export default function App() {
             onClick={({ key }) => setActiveKey(key as PageKey)}
           />
         ) : null}
-        <Layout>
+        <Layout className="app-main">
           {!compactNav ? (
             <Sider width={252} theme="light" className="app-sider">
               <div className="sider-note">

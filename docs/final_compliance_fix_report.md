@@ -2,7 +2,7 @@
 
 ## Current Round
 
-Round date: 2026-07-07
+Round date: 2026-07-08
 
 Scope: Phase C strict closure for browser-level E2E, production safety guardrails, enhanced repository secret scanning, frontend build chunk handling, documentation boundary correction, and final external-dependency checklist.
 
@@ -85,13 +85,14 @@ These Phase B additions are synthetic/manual acceptance or deterministic/local-p
 | `python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.json` | PASS |
 | `python3 scripts/danger_check.py` | PASS |
 | `python3 scripts/production_safety_check.py` | PASS |
+| GitHub Actions `CI / validate` on `ae848d8` | PASS |
 | `docker compose config` | PASS |
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 197 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 230 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `cd frontend && npm test` | PASS, 4 node:test checks |
-| `cd frontend && npm run build` | PASS, no Vite chunk-size warning |
+| `cd frontend && npm run build` | PASS |
 | `cd frontend && npm run test:e2e` | PASS, 3 Playwright Chromium tests |
 | `git diff --check` | PASS |
 
@@ -103,7 +104,7 @@ These Phase B additions are synthetic/manual acceptance or deterministic/local-p
 | Critical | Real OCR/LLM/RAG API keys and endpoints must remain local-only and must not be committed; external Provider verification remains `blocked_external_dependency` unless configured safely in local `.env` or deployment secrets. |
 | Medium | Report evidence quality still depends on upstream evidence/bbox/confidence completeness. Phase B now verifies report Evidence Index deep-link round-trip, but real complex-document bbox coverage still requires real/desensitized samples and Provider output. |
 | Medium | Manual acceptance dataset support now covers OCR, classification, extraction, rule, RAG, Agent, persistent RAG workflow, Agent DB workflow, E2E, full DB workflow, and regression aggregation. These are still synthetic/public non-production runners; real/desensitized scale regression and real Provider quality evidence remain external dependencies before Evaluation Center can be considered production fully satisfied. |
-| Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and current full backend verification passes with 197 tests / 5 warnings. |
+| Medium | Real Provider readiness passed locally for LLM / embedding / RAG answer / RAG rerank, but API keys and `.env` remain local-only and are not committed. Ordinary pytest remains isolated from real providers and current full backend verification passes with 230 tests / 5 warnings. |
 | Medium | Production SSO/KMS/DLP/monitoring/incident response remain optional production hardening, not implemented enterprise controls. |
 
 ## Compliance Boundary

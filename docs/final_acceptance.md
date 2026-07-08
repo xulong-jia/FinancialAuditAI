@@ -1,6 +1,6 @@
 # Final Acceptance
 
-Review date: 2026-07-07
+Review date: 2026-07-08
 
 ## Scope
 
@@ -120,9 +120,10 @@ FinancialAuditAI has completed Phase 0 through Phase 20 plus strict Phase A/B/C 
 
 | Check | Result |
 | --- | --- |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 197 passed, 5 PyMuPDF/SWIG deprecation warnings |
+| GitHub Actions `CI / validate` on `ae848d8` | PASS |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 230 passed, 5 PyMuPDF/SWIG deprecation warnings |
 | `cd frontend && npm test` | PASS, 4 node:test checks |
-| `cd frontend && npm run build` | PASS, no Vite chunk-size warning |
+| `cd frontend && npm run build` | PASS |
 | `cd frontend && npm run test:e2e` | PASS, 3 Playwright Chromium tests |
 | `python3 scripts/danger_check.py` | PASS |
 | `python3 scripts/production_safety_check.py` | PASS |

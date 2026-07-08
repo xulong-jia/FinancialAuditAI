@@ -75,13 +75,14 @@
 | `python3 -m json.tool docs/project_status.json > /tmp/project_status_validated.json` | PASS |
 | `python3 scripts/danger_check.py` | PASS |
 | `python3 scripts/production_safety_check.py` | PASS |
+| GitHub Actions `CI / validate` on `ae848d8` | PASS |
 | `docker compose config` | PASS |
 | `docker compose up -d postgres` | PASS |
 | `docker compose ps` | PASS, PostgreSQL healthy |
 | `cd backend && ./.venv/bin/alembic upgrade head` | PASS |
-| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 197 passed, 5 warnings |
+| `cd backend && ./.venv/bin/python -m pytest -q` | PASS, 230 passed, 5 warnings |
 | `cd frontend && npm test` | PASS, 4 tests |
-| `cd frontend && npm run build` | PASS, no Vite chunk-size warning |
+| `cd frontend && npm run build` | PASS |
 | `cd frontend && npm run test:e2e` | PASS, 3 tests |
 | `git diff --check` | PASS |
 
@@ -148,7 +149,7 @@
 - 真实网络 integration 只能显式设置 `RUN_PROVIDER_INTEGRATION=1` 后触发；无 key 或 endpoint 时状态为 `blocked_external_dependency`，不能声明 fully satisfied。
 - readiness 输出只包含 provider/model、path purpose、`api_url_status` / `api_key_status`、status、latency 和脱敏错误，不得输出 API key、Authorization header 或完整 secret。
 - Provider readiness integration artifact 已本地生成于 `local_storage/external_acceptance/provider_artifacts/provider_readiness_20260707_185807.json`，并通过安全摘要检查：JSON valid、`forbidden_hits=[]`、top-level keys 为 `artifact_schema_version`、`paths`、`providers`、`run_integration`、`run_timestamp`；`git check-ignore` 确认该 artifact 被忽略。文档不记录 artifact 全文、secret、`.env`、Authorization header 或 API key；它只能作为本地外部验收资料，不能替代真实/脱敏 production dataset。
-- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider；Phase C 后当前全量 pytest 结果为 197 passed / 5 warnings。
+- 2026-07-06 本地 OpenAI-compatible readiness 已通过真实验证：普通 readiness 显示 LLM / embedding / RAG answer / RAG rerank 为 configured；`RUN_PROVIDER_INTEGRATION=1` 显示 LLM / embedding / RAG answer / RAG rerank 为 ready。`.env` 未提交，API key 未记录。普通 pytest 仍隔离真实 Provider；当前全量 pytest 结果为 230 passed / 5 warnings，最新 GitHub Actions `CI / validate` on `ae848d8` passed。
 - Azure Document Intelligence OCR adapter 已实现；真实 readiness 依赖本地 `.env` 中 `OCR_PROVIDER=azure-document-intelligence`、`OCR_API_URL`、`OCR_API_KEY`、`OCR_MODEL=prebuilt-layout`，并通过显式 `RUN_PROVIDER_INTEGRATION=1` 触发轻量 model probe。OCR confidence、bbox、table_blocks 必须来自 Azure 原始响应，不得伪造；无 Azure key/endpoint 时仍属于 `blocked_external_dependency`。
 - Azure OCR readiness 已通过；Azure OCR 真实图片 E2E 已通过：Provider 为 `azure-document-intelligence`，model 为 `prebuilt-layout`，API version 为 `2024-11-30`。公开 receipt 样本位于 `local_storage/manual_acceptance_files/ocr/azure_ocr_smoke_receipt.jpg`，未提交 Git；raw_text 前 300 字符确认包含商户名、地址、电话、订单号、明细、subtotal、tax、total、日期时间。`.env` 未提交，API key 未记录，未记录完整 Azure 原始响应。
 - Azure 真实 receipt 图片 E2E 仍只是单页公开样本；Phase B 已用 Azure response fixture 覆盖 PDF 多页/复杂表格 normalization，并用 synthetic OCR-block/evidence tests 覆盖字段 `source_bbox` 传递和报告 Evidence Index 回查。最终生产 fully satisfied 仍需要真实/脱敏复杂文档和真实 Provider 证据，不能由 fixture 替代。

@@ -1,8 +1,8 @@
 # Final Execution Manual Status Audit
 
-Audit date: 2026-07-07
+Audit date: 2026-07-08
 
-Reviewed HEAD: `93dd0eb`
+Reviewed HEAD: `ae848d8`
 
 This report records the current FinancialAuditAI status against the final
 execution manual. It is a status and evidence summary only. It does not turn any
@@ -17,7 +17,8 @@ into production evidence.
   migrations `0001` through `0025`.
 - CI status: `.github/workflows/ci.yml` exists and covers the minimal internal
   validation path: backend pytest, frontend test/build, safety scripts, and
-  Docker Compose config validation.
+  Docker Compose config validation. Latest GitHub Actions `CI / validate`
+  passed on `ae848d8`.
 - Public/synthetic acceptance status: the main plumbing paths have executable
   evidence through OCR, classification, extraction, RAG, and provider readiness
   artifacts.
@@ -111,5 +112,8 @@ artifacts under local storage are local-only and must not be committed.
 - `.github/workflows/ci.yml` has been added for minimal CI validation.
 - `scripts/danger_check.py` and `scripts/production_safety_check.py` exist and
   are part of the validation path.
+- Latest recorded verification at `ae848d8`: backend pytest `230 passed, 5
+  warnings`; frontend `npm test` passed with 4 tests; frontend build passed;
+  GitHub Actions `CI / validate` passed.
 - The latest operational status should be determined from verification command
   output, not from this static report alone.

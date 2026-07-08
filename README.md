@@ -41,10 +41,8 @@ bankers, auditors, compliance officers, or other professional reviewers. It
 does not provide audit, legal, investment, regulatory, or compliance opinions.
 Public samples, synthetic data, deterministic providers, fallback paths,
 fixtures, mock data, and images-only robustness checks must not be described as
-production validation.
-
-The latest development specification and acceptance boundary are defined in
-[`FinancialAuditAI_最终版项目开发执行手册.md`](FinancialAuditAI_最终版项目开发执行手册.md).
+production validation. Public readers should evaluate this repository by the
+local demo scope, linked project docs, and limitations stated here.
 
 ## ✨ Highlights
 
@@ -406,13 +404,29 @@ alembic upgrade head
 python ../scripts/seed_demo_data.py
 ```
 
-The seed script uses synthetic sample metadata under `samples/` and prints a
-local demo admin password when it creates a user.
+The seed script uses synthetic sample metadata under `samples/` and creates
+local public acceptance demo users only:
+
+If you start the full stack with Docker Compose, run the seed inside the
+`backend` container so it writes to the same database that the backend reads:
+
+```bash
+docker compose exec backend python ../scripts/seed_demo_data.py
+```
+
+| Role | Email | Password |
+| --- | --- | --- |
+| analyst | `analyst.demo@example.com` | `Test123456` |
+| reviewer | `reviewer.demo@example.com` | `Test123456` |
+| admin | `admin.demo@example.com` | `Test123456` |
+
+These accounts are for local demo testing only. Normal self-registration still
+creates an `analyst` account and is not a production open-signup system.
 
 ## 🧪 Verification / Validation Gates
 
-These are documented target gates and local commands from the execution manual
-and repository docs. This README edit does not claim that the full suite was
+These are documented target gates and local commands from the repository docs.
+This README edit does not claim that the full suite was
 rerun during this documentation change.
 
 ### Documented target gates
@@ -507,8 +521,6 @@ ignored local artifacts and must not be committed.
 
 ## 📚 Docs Index
 
-- [`FinancialAuditAI_最终版项目开发执行手册.md`](FinancialAuditAI_最终版项目开发执行手册.md):
-  latest development specification and acceptance boundary.
 - [`docs/api_reference.md`](docs/api_reference.md): API groups, permissions,
   endpoints, and security notes.
 - [`docs/architecture.md`](docs/architecture.md): system layers and module
@@ -535,10 +547,6 @@ ignored local artifacts and must not be committed.
   OWASP ASVS public reference mapping boundary.
 - [`docs/external_acceptance_materials_checklist.md`](docs/external_acceptance_materials_checklist.md):
   external acceptance materials checklist and forbidden artifact rules.
-- [`docs/final_execution_manual_status_audit.md`](docs/final_execution_manual_status_audit.md):
-  status audit against the execution manual.
-- [`docs/execution_manual_strict_gap_report.md`](docs/execution_manual_strict_gap_report.md):
-  strict gap report for public/synthetic acceptance and external dependencies.
 - [`docs/final_acceptance.md`](docs/final_acceptance.md): final acceptance
   checklist and documented verification evidence.
 - [`docs/external_dependencies.md`](docs/external_dependencies.md): items
